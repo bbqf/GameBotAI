@@ -9,6 +9,7 @@ import {
   getQueue,
   getQueueMonitor,
   listQueues,
+  runNextEntry,
   startQueue,
   stopQueue,
   QueueDetailDto,
@@ -17,6 +18,7 @@ import {
 } from '../../services/queues';
 import { getQueueTemplate, saveQueueTemplate, QueueTemplateDetail } from '../../services/queueTemplates';
 import { buildQueueActivity, buildScheduleRows, describeNow } from './queueActivity';
+import { IconButton } from './IconButton';
 import { QueuePauseControls } from './QueuePauseControls';
 import { TemplateChangesNotice } from './TemplateChangesNotice';
 import '../../features/execution/StatusChip.css';
@@ -232,6 +234,26 @@ export const PhoneQueuesView: React.FC<PhoneQueuesViewProps> = ({
     }
   };
 
+  /**
+   * Run next (feature 184): one call, no retry (mobile principle 10). The detail is read again after the call, so the row
+   * shows the new state. A refused call shows its text in the message area.
+   */
+  const runNext = async (queueIdToRun: string, entryId: string) => {
+    if (busy || lost) return;
+    setBusy(true);
+    setMessage(null);
+    let refused: string | null = null;
+    try {
+      await runNextEntry(queueIdToRun, entryId);
+    } catch (err) {
+      refused = errorText(err);
+    }
+    setBusy(false);
+    // The read clears the message on success, so the text of a refused call is set after it.
+    await loadDetail();
+    if (refused) setMessage(refused);
+  };
+
   const runLabel = (status: string) => (status === 'Running' ? 'Stop' : 'Start');
 
   if (queueId) {
@@ -305,6 +327,16 @@ export const PhoneQueuesView: React.FC<PhoneQueuesViewProps> = ({
                           {row.enabled ? row.timingText : 'disabled'}
                         </span>
                       </div>
+                      {detail.status === 'Running' && row.enabled && row.entryId && (
+                        <IconButton
+                          icon="runNext"
+                          label={`Run next ${row.name}`}
+                          title={row.entryState === 'idle' ? 'Run next' : row.timingText}
+                          size="touch"
+                          disabled={busy || lost || row.entryState !== 'idle'}
+                          onClick={() => void runNext(detail.id, row.entryId as string)}
+                        />
+                      )}
                       <input
                         type="checkbox"
                         role="switch"

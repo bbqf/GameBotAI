@@ -158,3 +158,53 @@ describe('buildQueueActivity (feature 173)', () => {
     expect(buildQueueActivity({ ...running, operatorPause: 'paused' }, null)).toBe('Paused');
   });
 });
+
+describe('buildScheduleRows entry states (feature 184)', () => {
+  const tpl = template([
+    entry('s1', 'Alpha', { entryId: 'e1' }),
+    entry('s2', 'Beta', { entryId: 'e2' }),
+    entry('s3', 'Gamma', { entryId: 'e3' }),
+    entry('s4', 'Delta', { entryId: 'e4', enabled: false }),
+    entry('s5', 'Old')
+  ]);
+  const states = { e1: 'idle', e2: 'queued', e3: 'running', e4: 'idle' } as const;
+
+  it('gives each row the entry ID and the entry state from the monitor', () => {
+    const rows = buildScheduleRows(monitor({ entryStates: { ...states } }), tpl, null, NOW);
+    const byName = Object.fromEntries(rows.map((r) => [r.name, r]));
+
+    expect(byName.Alpha).toMatchObject({ entryId: 'e1', entryState: 'idle' });
+    expect(byName.Beta).toMatchObject({ entryId: 'e2', entryState: 'queued' });
+    expect(byName.Gamma).toMatchObject({ entryId: 'e3', entryState: 'running' });
+  });
+
+  it('gives the summary text "Queued to run next" for queued and "Running" for running', () => {
+    const rows = buildScheduleRows(monitor({ entryStates: { ...states } }), tpl, null, NOW);
+    const byName = Object.fromEntries(rows.map((r) => [r.name, r]));
+
+    expect(byName.Beta.timingText).toBe('Queued to run next');
+    expect(byName.Gamma.timingText).toBe('Running');
+    expect(byName.Alpha.timingText).toBe('Once each run');
+  });
+
+  it('starts the summary of a scheduled entry with "Scheduled"', () => {
+    const rows = buildScheduleRows(monitor({ entryStates: { e1: 'scheduled' } }), tpl, null, NOW);
+
+    expect(rows.find((r) => r.name === 'Alpha')?.timingText).toBe('Scheduled · Once each run');
+  });
+
+  it('gives no state to a disabled row, to a row of an old template with no entry ID, and when the queue does not run', () => {
+    const running = buildScheduleRows(monitor({ entryStates: { ...states } }), tpl, null, NOW);
+    expect(running.find((r) => r.name === 'Delta')).toMatchObject({ entryId: 'e4', entryState: null });
+    expect(running.find((r) => r.name === 'Old')).toMatchObject({ entryId: null, entryState: null });
+
+    const stopped = buildScheduleRows(monitor({ running: false, entryStates: { ...states } }), tpl, null, NOW);
+    expect(stopped.every((r) => r.entryState === null)).toBe(true);
+  });
+
+  it('gives no state when the service sends no entryStates', () => {
+    const rows = buildScheduleRows(monitor(), tpl, null, NOW);
+
+    expect(rows.every((r) => r.entryState === null)).toBe(true);
+  });
+});

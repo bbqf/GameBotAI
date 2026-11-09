@@ -66,7 +66,7 @@ describe('QueuesPage reload template', () => {
     await screen.findByText('Daily');
     fireEvent.click(screen.getByText('Daily'));
     await screen.findByText('Edit Queue');
-    expect(screen.getByText('Reload Template')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Reload Template' })).toBeDisabled();
   });
 
   it('prompts before replacing divergent non-empty entries, then applies on confirm', async () => {
@@ -76,7 +76,7 @@ describe('QueuesPage reload template', () => {
     } as any);
     await openEditAndAssociate();
 
-    fireEvent.click(screen.getByText('Reload Template'));
+    fireEvent.click(screen.getByRole('button', { name: 'Reload Template' }));
     const confirm = await screen.findByRole('region', { name: 'Reload template' });
     fireEvent.click(within(confirm).getByRole('button', { name: 'Reload' }));
 
@@ -90,7 +90,7 @@ describe('QueuesPage reload template', () => {
     } as any);
     await openEditAndAssociate();
 
-    fireEvent.click(screen.getByText('Reload Template'));
+    fireEvent.click(screen.getByRole('button', { name: 'Reload Template' }));
     const confirm = await screen.findByRole('region', { name: 'Reload template' });
     fireEvent.click(within(confirm).getByRole('button', { name: 'Cancel' }));
 
@@ -107,7 +107,7 @@ describe('QueuesPage reload template', () => {
     } as any);
     await openEditAndAssociate();
 
-    fireEvent.click(screen.getByText('Reload Template'));
+    fireEvent.click(screen.getByRole('button', { name: 'Reload Template' }));
     await waitFor(() => expect(getTemplateMock).toHaveBeenCalled());
     expect(screen.queryByRole('region', { name: 'Reload template' })).not.toBeInTheDocument();
     expect(replaceEntriesMock).not.toHaveBeenCalled();
@@ -121,7 +121,7 @@ describe('QueuesPage reload template', () => {
     } as any);
     await openEditAndAssociate();
 
-    fireEvent.click(screen.getByText('Reload Template'));
+    fireEvent.click(screen.getByRole('button', { name: 'Reload Template' }));
     await waitFor(() => expect(replaceEntriesMock).toHaveBeenCalledWith('q1', ['seq-x']));
     expect(screen.queryByRole('region', { name: 'Reload template' })).not.toBeInTheDocument();
   });
@@ -130,7 +130,7 @@ describe('QueuesPage reload template', () => {
     await openEditAndAssociate();
     listTemplatesMock.mockResolvedValue([] as any);
 
-    fireEvent.click(screen.getByText('Reload Template'));
+    fireEvent.click(screen.getByRole('button', { name: 'Reload Template' }));
     expect(await screen.findByText('Template "Daily Farm" is no longer available.')).toBeInTheDocument();
     expect(replaceEntriesMock).not.toHaveBeenCalled();
   });

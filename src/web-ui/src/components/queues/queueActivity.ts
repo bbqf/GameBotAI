@@ -1,4 +1,4 @@
-import type { QueueDetailDto, QueueDto, QueueMonitorDto, QueueMonitorItemDto } from '../../services/queues';
+import type { EntryState, QueueDetailDto, QueueDto, QueueMonitorDto, QueueMonitorItemDto } from '../../services/queues';
 import type { QueueTemplateDetail, QueueTemplateEntryDto } from '../../services/queueTemplates';
 
 /** One scheduled entry of a queue, ready to show (data-model.md, ScheduleRow). */
@@ -11,6 +11,10 @@ export type ScheduleRow = {
   nextAt: string | null;
   timingText: string;
   repeats: boolean;
+  /** Stable ID of the template entry (feature 171), or null for an entry of an old template or with no template. */
+  entryId: string | null;
+  /** State of the entry in the running queue (feature 184), or null when the monitor gives none. */
+  entryState: EntryState | null;
 };
 
 const pad = (n: number): string => String(n).padStart(2, '0');
@@ -56,12 +60,13 @@ const monitorItems = (monitor: QueueMonitorDto | null | undefined): QueueMonitor
   return items.sort((a, b) => a.order - b.order);
 };
 
-type BaseEntry = { sequenceId: string; name: string; enabled: boolean; schedule: string };
+type BaseEntry = { sequenceId: string; entryId: string | null; name: string; enabled: boolean; schedule: string };
 
 const baseEntries = (template: QueueTemplateDetail | null | undefined, detail: QueueDetailDto | null | undefined): BaseEntry[] => {
   if (template) {
     return template.entries.map((e) => ({
       sequenceId: e.sequenceId,
+      entryId: e.entryId ? e.entryId : null,
       name: e.sequenceName ?? e.sequenceId ?? 'Unknown sequence',
       enabled: e.enabled ?? true,
       schedule: scheduleText(e)
@@ -69,6 +74,7 @@ const baseEntries = (template: QueueTemplateDetail | null | undefined, detail: Q
   }
   return (detail?.entries ?? []).map((e) => ({
     sequenceId: e.sequenceId,
+    entryId: null,
     name: e.sequenceName ?? e.sequenceId ?? 'Unknown sequence',
     enabled: true,
     schedule: 'not scheduled'
@@ -105,6 +111,12 @@ export const buildScheduleRows = (
         }
       }
     }
+    // Feature 184: the state of the entry. A touch screen has no tooltip, so the state is text on the row.
+    const entryState: EntryState | null =
+      entry.enabled && entry.entryId && monitor?.running ? monitor.entryStates?.[entry.entryId] ?? null : null;
+    if (entryState === 'queued') timingText = 'Queued to run next';
+    else if (entryState === 'running') timingText = 'Running';
+    else if (entryState === 'scheduled') timingText = `Scheduled · ${timingText}`;
     const row: ScheduleRow = {
       key: `${entry.sequenceId}-${index}`,
       index,
@@ -112,7 +124,9 @@ export const buildScheduleRows = (
       enabled: entry.enabled,
       nextAt,
       timingText,
-      repeats
+      repeats,
+      entryId: entry.entryId,
+      entryState
     };
     return { row, index };
   });

@@ -562,3 +562,97 @@ describe('PhoneQueuesView queue id', () => {
     expect(screen.queryByTestId('phone-queue-detail')).toBeNull();
   });
 });
+
+describe('PhoneQueuesView Run next (feature 184)', () => {
+  const runningTemplate = (): templatesApi.QueueTemplateDetail => ({
+    id: 't1', name: 'Daily tpl', entryCount: 3, createdAt: null, updatedAt: null,
+    entries: [
+      { entryId: 'e1', sequenceId: 's1', sequenceName: 'Help All', stale: false, scheduleType: 'OncePerRun', timerTimeOfDay: null, timerRelativeOffset: null, enabled: true },
+      { entryId: 'e2', sequenceId: 's2', sequenceName: 'Gift', stale: false, scheduleType: 'OncePerRun', timerTimeOfDay: null, timerRelativeOffset: null, enabled: true },
+      { entryId: 'e3', sequenceId: 's3', sequenceName: 'Chest', stale: false, scheduleType: 'OncePerRun', timerTimeOfDay: null, timerRelativeOffset: null, enabled: false }
+    ]
+  });
+
+  const openRunning = async (states: Record<string, queuesApi.EntryState>, props: Partial<PhoneQueuesViewProps> = {}) => {
+    queuesMock.getQueue.mockResolvedValue(detail({ status: 'Running' }));
+    templatesMock.getQueueTemplate.mockResolvedValue(runningTemplate());
+    queuesMock.getQueueMonitor.mockResolvedValue(monitorDto({ running: true, entryStates: states }));
+    render(<View initialQueueId="q1" {...props} />);
+    await screen.findByTestId('phone-queue-detail');
+    return screen.findByRole('switch', { name: 'Help All' });
+  };
+
+  it('shows the Run next button on an idle row of a running queue, as a touch size button', async () => {
+    await openRunning({ e1: 'idle', e2: 'scheduled' });
+
+    const button = await screen.findByRole('button', { name: 'Run next Help All' });
+    expect(button).toBeEnabled();
+    expect(button).toHaveClass('icon-button--touch');
+    expect(button).toHaveAttribute('title', 'Run next');
+  });
+
+  it('keeps the button off when the state is not idle, and gives the state as text on the row', async () => {
+    await openRunning({ e1: 'queued', e2: 'scheduled' });
+
+    expect(await screen.findByRole('button', { name: 'Run next Help All' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Run next Gift' })).toBeDisabled();
+    expect(screen.getByText('Queued to run next')).toBeInTheDocument();
+    expect(screen.getByText(/^Scheduled/)).toBeInTheDocument();
+  });
+
+  it('shows no button for a disabled row, and no button when the queue does not run', async () => {
+    await openRunning({ e1: 'idle' });
+    await screen.findByRole('button', { name: 'Run next Help All' });
+    expect(screen.queryByRole('button', { name: 'Run next Chest' })).toBeNull();
+  });
+
+  it('shows no Run next button for a stopped queue', async () => {
+    queuesMock.getQueue.mockResolvedValue(detail({ status: 'Stopped' }));
+    templatesMock.getQueueTemplate.mockResolvedValue(runningTemplate());
+    render(<View initialQueueId="q1" />);
+    await screen.findByRole('switch', { name: 'Help All' });
+
+    expect(screen.queryByRole('button', { name: /Run next/ })).toBeNull();
+  });
+
+  it('calls runNextEntry one time with the queue ID and the entry ID, then reads the detail again', async () => {
+    queuesMock.runNextEntry.mockResolvedValue({ entryId: 'e1', sequenceId: 's1', alreadyQueued: false, state: 'queued' });
+    await openRunning({ e1: 'idle' });
+    const button = await screen.findByRole('button', { name: 'Run next Help All' });
+    const reads = queuesMock.getQueue.mock.calls.length;
+
+    fireEvent.click(button);
+
+    await waitFor(() => expect(queuesMock.runNextEntry).toHaveBeenCalledWith('q1', 'e1'));
+    expect(queuesMock.runNextEntry).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(queuesMock.getQueue.mock.calls.length).toBeGreaterThan(reads));
+  });
+
+  it('shows the text of a refused call and sends no second call', async () => {
+    queuesMock.runNextEntry.mockRejectedValue(new Error('The entry has a pending run.'));
+    await openRunning({ e1: 'idle' });
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Run next Help All' }));
+
+    expect(await screen.findByText('The entry has a pending run.')).toBeInTheDocument();
+    expect(queuesMock.runNextEntry).toHaveBeenCalledTimes(1);
+  });
+
+  it('turns the button off and sends no call when the connection is lost', async () => {
+    await openRunning({ e1: 'idle' }, { connectionState: 'lost' });
+
+    const button = await screen.findByRole('button', { name: 'Run next Help All' });
+    expect(button).toBeDisabled();
+    fireEvent.click(button);
+    expect(queuesMock.runNextEntry).not.toHaveBeenCalled();
+  });
+
+  it('has the touch size rule and the phone row rule in the CSS (mobile principles 3 and 6)', () => {
+    const iconCss = readFileSync(join(__dirname, '..', 'IconButton.css'), 'utf8');
+    const phoneCss = readFileSync(join(__dirname, '..', '..', 'phone', 'phone.css'), 'utf8');
+
+    expect(iconCss).toMatch(/\.icon-button--touch\s*\{[^}]*width:\s*44px[^}]*height:\s*44px/s);
+    expect(phoneCss).toMatch(/\.phone-schedule-row \.icon-button\s*\{[^}]*width:\s*44px[^}]*height:\s*44px/s);
+    expect(phoneCss).toMatch(/\.phone-card__title\s*\{[^}]*text-overflow:\s*ellipsis/s);
+  });
+});

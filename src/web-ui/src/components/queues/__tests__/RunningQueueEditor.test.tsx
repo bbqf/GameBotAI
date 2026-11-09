@@ -1,7 +1,14 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { RunningQueueEditor } from '../RunningQueueEditor';
-import { addQueueEntry, removeQueueEntry, replaceQueueEntries, setQueueTemplateLink } from '../../../services/queues';
+import {
+  addQueueEntry,
+  getQueueMonitor,
+  removeQueueEntry,
+  replaceQueueEntries,
+  runNextEntry,
+  setQueueTemplateLink,
+} from '../../../services/queues';
 import { getQueueTemplate, listQueueTemplates, saveQueueTemplate } from '../../../services/queueTemplates';
 
 jest.mock('../../../services/queues');
@@ -203,5 +210,68 @@ describe('RunningQueueEditor with no linked template (FR-018)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Link template' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not link.');
+  });
+});
+
+describe('RunningQueueEditor Run next (feature 184)', () => {
+  const monitorMock = getQueueMonitor as jest.MockedFunction<typeof getQueueMonitor>;
+  const runNextMock = runNextEntry as jest.MockedFunction<typeof runNextEntry>;
+
+  it('reads the monitor, turns Run next on for an idle entry, and sends the call with the entry ID', async () => {
+    monitorMock.mockResolvedValue({ running: true, entryStates: { te1: 'idle' } } as any);
+    runNextMock.mockResolvedValue({ entryId: 'te1', sequenceId: 'seq-a', alreadyQueued: false, state: 'queued' });
+    await openEditor();
+
+    const button = await screen.findByRole('button', { name: 'Run next Alpha' });
+    await waitFor(() => expect(button).toBeEnabled());
+    const readsBefore = monitorMock.mock.calls.length;
+    fireEvent.click(button);
+
+    await waitFor(() => expect(runNextMock).toHaveBeenCalledWith('q1', 'te1'));
+    expect(runNextMock).toHaveBeenCalledTimes(1);
+    // The editor reads the monitor again after the call.
+    await waitFor(() => expect(monitorMock.mock.calls.length).toBeGreaterThan(readsBefore));
+  });
+
+  it('shows the text of a refused call and does not send it again', async () => {
+    monitorMock.mockResolvedValue({ running: true, entryStates: { te1: 'idle' } } as any);
+    runNextMock.mockRejectedValue(new Error('The entry runs now. Wait until it ends.'));
+    await openEditor();
+
+    const button = await screen.findByRole('button', { name: 'Run next Alpha' });
+    await waitFor(() => expect(button).toBeEnabled());
+    fireEvent.click(button);
+
+    expect(await screen.findByText('The entry runs now. Wait until it ends.')).toBeInTheDocument();
+    expect(runNextMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps Run next off for a scheduled entry and a disabled entry, with the reason on the row', async () => {
+    monitorMock.mockResolvedValue({ running: true, entryStates: { te1: 'scheduled' } } as any);
+    await openEditor();
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Run next Alpha' })).toHaveAttribute('title', 'Scheduled. Use the timer to change it.'));
+    expect(screen.getByRole('button', { name: 'Run next Alpha' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Run next Bravo' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Run next Bravo' })).toHaveAttribute('title', 'The entry is disabled');
+  });
+
+  it('reads no state and sends no call when the connection is lost', async () => {
+    monitorMock.mockResolvedValue({ running: true, entryStates: { te1: 'idle' } } as any);
+    await openEditor({}, { connectionState: 'lost' });
+
+    expect(monitorMock).not.toHaveBeenCalled();
+    const button = screen.getByRole('button', { name: 'Run next Alpha' });
+    expect(button).toBeDisabled();
+    fireEvent.click(button);
+    expect(runNextMock).not.toHaveBeenCalled();
+  });
+
+  it('shows the stopped hint when the monitor says the queue does not run', async () => {
+    monitorMock.mockResolvedValue({ running: false, entryStates: {} } as any);
+    await openEditor();
+
+    expect(await screen.findByText('Start the queue to use Run next.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Run next Alpha' })).toBeDisabled();
   });
 });

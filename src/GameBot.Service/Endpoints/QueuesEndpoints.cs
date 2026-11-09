@@ -467,6 +467,33 @@ internal static class QueuesEndpoints {
       });
     }).WithName("LiveScheduleQueueSequence");
 
+    // Run next (feature 184): queue one run of one template entry against the active run. The entry runs once,
+    // right after the sequence that runs now. The call is safe to repeat: a repeat adds no second run.
+    group.MapPost("{id}/run-next", async (string id, RunNextRequest? req, IQueueRepository repo, IQueueExecutionService execution) => {
+      // (1) Queue must exist.
+      var queue = await repo.GetAsync(id).ConfigureAwait(false);
+      if (queue is null) return NotFound();
+
+      // (2) The entry ID is required.
+      var entryId = req?.EntryId?.Trim();
+      if (string.IsNullOrWhiteSpace(entryId))
+        return Error(400, "invalid_request", "entryId is required");
+
+      // (3) The service checks the run and the state of the entry.
+      var result = execution.RunNext(id, entryId);
+      return result.Outcome switch {
+        RunNextOutcome.Queued or RunNextOutcome.AlreadyQueued => Results.Ok(new RunNextResponse {
+          EntryId = entryId,
+          SequenceId = result.SequenceId,
+          AlreadyQueued = result.Outcome == RunNextOutcome.AlreadyQueued
+        }),
+        RunNextOutcome.NotRunning => Error(409, "not_running", "The queue has no active run. Start the queue to use Run next."),
+        RunNextOutcome.EntryRunning => Error(409, "entry_running", "The entry runs now. Wait until it ends."),
+        RunNextOutcome.EntryScheduled => Error(409, "entry_scheduled", "The entry has a pending run. Wait for it, or change its timer."),
+        _ => Error(409, "entry_not_available", "The entry is not in the plan of the queue run. Save the template and apply the changes. Check that the entry is enabled.")
+      };
+    }).WithName("RunNextQueueEntry");
+
     return app;
   }
 
@@ -699,6 +726,9 @@ internal static class QueuesEndpoints {
         : new RunOutcomeResponse { Status = snapshot.LastOutcome.Status, Summary = snapshot.LastOutcome.Summary }
     };
     foreach (var item in snapshot.Upcoming) resp.Upcoming.Add(ProjectMonitorItem(item));
+    if (snapshot.EntryStates is not null) {
+      foreach (var pair in snapshot.EntryStates) resp.EntryStates[pair.Key] = pair.Value;
+    }
     return resp;
   }
 

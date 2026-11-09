@@ -72,6 +72,38 @@ describe('IconButton (feature 173, US3)', () => {
     expect(document.activeElement).toBe(button);
   });
 
+  it('has the icons of the template editor and Run next (feature 184)', () => {
+    ['runNext', 'parameters', 'remove', 'cancel', 'add', 'save', 'reload', 'link', 'unlink'].forEach((name) => {
+      expect(ICON_NAMES).toContain(name);
+    });
+  });
+
+  it('sets aria-expanded only when the prop is given (feature 184)', () => {
+    render(
+      <>
+        <IconButton icon="parameters" label="Parameters for A" ariaExpanded onClick={() => undefined} />
+        <IconButton icon="parameters" label="Parameters for B" ariaExpanded={false} onClick={() => undefined} />
+        <IconButton icon="edit" label="Edit" onClick={() => undefined} />
+      </>
+    );
+
+    expect(screen.getByRole('button', { name: 'Parameters for A' })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: 'Parameters for B' })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByRole('button', { name: 'Edit' })).not.toHaveAttribute('aria-expanded');
+  });
+
+  it('has the touch size class only when asked (feature 184)', () => {
+    render(
+      <>
+        <IconButton icon="runNext" label="Run next A" size="touch" onClick={() => undefined} />
+        <IconButton icon="runNext" label="Run next B" onClick={() => undefined} />
+      </>
+    );
+
+    expect(screen.getByRole('button', { name: 'Run next A' })).toHaveClass('icon-button--touch');
+    expect(screen.getByRole('button', { name: 'Run next B' })).not.toHaveClass('icon-button--touch');
+  });
+
   it('marks the destructive tone with its own class', () => {
     render(
       <>
@@ -96,5 +128,15 @@ describe('IconButton styles', () => {
 
   it('gives the destructive tone its own color', () => {
     expect(css).toMatch(/\.icon-button--destructive/);
+  });
+
+  it('gives the touch size a hit area of 44 x 44 px (mobile principle 3)', () => {
+    expect(css).toMatch(/\.icon-button--touch\s*\{[^}]*width:\s*44px[^}]*height:\s*44px/s);
+  });
+
+  it('puts each hover rule inside a hover media query (mobile principle 6)', () => {
+    const outside = css.replace(/@media \(hover: hover\)\s*\{[\s\S]*?\r?\n\}\r?\n/g, '');
+    expect(outside).not.toMatch(/:hover/);
+    expect(css).toMatch(/@media \(hover: hover\)/);
   });
 });

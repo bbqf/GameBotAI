@@ -589,6 +589,20 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
       SetRequestExample(operation, QueueLiveScheduleRequest(), context, typeof(GameBot.Service.Contracts.Queues.LiveScheduleRequest));
       SetResponseExample(operation, "200", QueueLiveScheduleResponse(), context, typeof(GameBot.Service.Contracts.Queues.LiveScheduleResponse));
     }
+    else if (IsMethod(method, HttpMethods.Post) && path.EndsWith("/run-next", StringComparison.OrdinalIgnoreCase)) {
+      operation.Summary ??= "Queue one run of a template entry to run next";
+      operation.Description ??=
+        "The entry runs once, right after the sequence that runs now. It runs with the parameter values of the entry. "
+        + "The call is safe to repeat. A repeat for a queued entry answers 200 with alreadyQueued: true and adds nothing. "
+        + "The call works while the queue is paused. The entry then runs after the resume. "
+        + "The call answers 409 not_running when the queue has no active run. "
+        + "It answers 409 entry_not_available when the entry is not in the plan of the run. "
+        + "It answers 409 entry_running when the entry runs now. "
+        + "It answers 409 entry_scheduled when the run still has a normal firing for the entry. "
+        + "GET /api/queues/{id}/monitor gives the state of each entry in entryStates.";
+      SetRequestExample(operation, QueueRunNextRequestExample(), context, typeof(GameBot.Service.Contracts.Queues.RunNextRequest));
+      SetResponseExample(operation, "200", QueueRunNextResponseExample(), context, typeof(GameBot.Service.Contracts.Queues.RunNextResponse));
+    }
     else if (IsMethod(method, HttpMethods.Post) && path.EndsWith("/pause", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Pause a running queue between sequences (operator pause)";
       operation.Description ??=
@@ -689,6 +703,17 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
   private static OpenApiObject QueueDuplicateRequest() => new OpenApiObject {
     ["name"] = new OpenApiString("Daily Farm 2"),
     ["emulatorSerial"] = new OpenApiString("emulator-5554")
+  };
+
+  private static OpenApiObject QueueRunNextRequestExample() => new OpenApiObject {
+    ["entryId"] = new OpenApiString("9f1c2b7e4d5a4c0e8f31a6b2c7d8e9f0")
+  };
+
+  private static OpenApiObject QueueRunNextResponseExample() => new OpenApiObject {
+    ["entryId"] = new OpenApiString("9f1c2b7e4d5a4c0e8f31a6b2c7d8e9f0"),
+    ["sequenceId"] = new OpenApiString("sequence-collect"),
+    ["alreadyQueued"] = new OpenApiBoolean(false),
+    ["state"] = new OpenApiString("queued")
   };
 
   private static OpenApiObject QueueLiveScheduleResponse() => new OpenApiObject {

@@ -29,6 +29,7 @@ internal sealed class QueueRunSchedule {
   private readonly Dictionary<string, DailyRetry> _dailyRetries = new(StringComparer.Ordinal);
   private readonly HashSet<string> _relativeFired = new(StringComparer.Ordinal);
   private readonly HashSet<string> _oncePerRunDoneThisCycle = new(StringComparer.Ordinal);
+  private readonly HashSet<string> _ranThisRun = new(StringComparer.Ordinal);
   private bool _oncePerRunPassDone;
   private QueueRunPlan _plan;
 
@@ -103,6 +104,7 @@ internal sealed class QueueRunSchedule {
     _dailyRetries.Remove(key);
     _relativeFired.Remove(key);
     _oncePerRunDoneThisCycle.Remove(key);
+    _ranThisRun.Remove(key);
   }
 
   private void RenameKeyLocked(string oldKey, string newKey) {
@@ -111,6 +113,7 @@ internal sealed class QueueRunSchedule {
     if (_dailyRetries.Remove(oldKey, out var retry)) _dailyRetries[newKey] = retry;
     if (_relativeFired.Remove(oldKey)) _relativeFired.Add(newKey);
     if (_oncePerRunDoneThisCycle.Remove(oldKey)) _oncePerRunDoneThisCycle.Add(newKey);
+    if (_ranThisRun.Remove(oldKey)) _ranThisRun.Add(newKey);
   }
 
   // A monitor poll can hold an index of the plan from before a swap. A position that is now out of range
@@ -196,6 +199,29 @@ internal sealed class QueueRunSchedule {
       }
       return due;
     }
+  }
+
+  /// <summary>True while a daily retry is armed for the entry at <paramref name="index"/> (feature 184).</summary>
+  public bool HasDailyRetry(int index) {
+    lock (_gate) { return _dailyRetries.ContainsKey(KeyAt(index)); }
+  }
+
+  // ── Entries that run outside the once-per-run pass (feature 184) ─────────────────────────────
+
+  /// <summary>
+  /// Records that an at-queue-start, before-each-run, or every-step entry ran in this run. The state of the entry
+  /// (<see cref="QueueEntryStateReader"/>) is "idle" after that. An entry that is not in the current plan is ignored.
+  /// </summary>
+  public void MarkEntryRan(QueueTemplateEntry entry) {
+    lock (_gate) {
+      var index = _plan.IndexOf(entry);
+      if (index >= 0) _ranThisRun.Add(_plan.Keys[index]);
+    }
+  }
+
+  /// <summary>True when the entry at <paramref name="index"/> ran in this run (see <see cref="MarkEntryRan"/>).</summary>
+  public bool EntryRan(int index) {
+    lock (_gate) { return _ranThisRun.Contains(KeyAt(index)); }
   }
 
   // ── Relative-offset timers (fire at most once per run) ───────────────────────────────────────
@@ -315,6 +341,8 @@ internal sealed class QueueRunSchedule {
     foreach (var liveAt in handle.PendingLiveSchedules.Values) Consider(liveAt);
     // Any queued self-reschedule work that would drain this cycle is effectively due now.
     if (!handle.PendingOncePerRun.IsEmpty || !handle.PendingNextCycleStart.IsEmpty) Consider(now);
+    // A waiting run-next request (feature 184) is due now too, so an idle pause ends at once.
+    if (handle.HasPendingRunNext) Consider(now);
 
     return earliest;
   }

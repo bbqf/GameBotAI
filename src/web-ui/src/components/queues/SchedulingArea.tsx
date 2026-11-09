@@ -7,6 +7,7 @@ import { TimerMode } from './QueueEntryList';
 import { SchedulingSequenceCard } from './SchedulingSequenceCard';
 import { AREA_LABELS, SchedulingAreaId, SchedulingCard } from './schedulingAreas';
 import type { ParameterBinding, ParameterDeclaration } from '../parameters/types';
+import type { RunNextSupport } from './runNext';
 
 type SchedulingAreaProps = {
   areaId: SchedulingAreaId;
@@ -23,6 +24,8 @@ type SchedulingAreaProps = {
   /** Declarations per referenced sequence id, so each card can render its own binding form. */
   parametersBySequenceId?: Map<string, ParameterDeclaration[]>;
   onParameterValuesChange?: (entryId: string, values: ParameterBinding[]) => void;
+  /** Run next of each row (feature 184). Left out, the rows show no Run next button. */
+  runNext?: RunNextSupport;
 };
 
 const EMPTY_HINT = 'Drop sequences here.';
@@ -41,6 +44,7 @@ export const SchedulingArea: React.FC<SchedulingAreaProps> = ({
   onToggleEnabled,
   parametersBySequenceId,
   onParameterValuesChange,
+  runNext,
 }) => {
   const label = AREA_LABELS[areaId];
   // The area itself is a droppable so empty areas can receive a dragged card.
@@ -77,6 +81,7 @@ export const SchedulingArea: React.FC<SchedulingAreaProps> = ({
                     onToggleEnabled={onToggleEnabled}
                     sequenceParameters={parametersBySequenceId?.get(card.sequenceId)}
                     onParameterValuesChange={onParameterValuesChange}
+                    runNext={runNext}
                   />
                 </div>
               </React.Fragment>

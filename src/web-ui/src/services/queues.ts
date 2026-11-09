@@ -236,7 +236,8 @@ export type ScheduleKind =
   | 'TimerRelative'
   | 'LiveSchedule'
   | 'SelfReschedule'
-  | 'IdlePause';
+  | 'IdlePause'
+  | 'RunNext';
 
 /** One now/up-next item in the live monitor plan. */
 export type QueueMonitorItemDto = {
@@ -272,7 +273,31 @@ export type QueueMonitorDto = {
   upcoming: QueueMonitorItemDto[];
   nothingScheduled: boolean;
   lastOutcome: RunOutcomeDto | null;
+  /**
+   * The state of each enabled template entry that has an ID, keyed by the entry ID (feature 184). Empty when the
+   * queue does not run. An old service does not send it.
+   */
+  entryStates?: Record<string, EntryState>;
 };
+
+/** The state of a template entry in a running queue (feature 184). 'idle' is the state where Run next works. */
+export type EntryState = 'running' | 'queued' | 'scheduled' | 'idle';
+
+/** Result of a run-next call (feature 184). */
+export type RunNextResult = {
+  entryId: string;
+  sequenceId: string;
+  /** True when the entry already waited. The call then added nothing. */
+  alreadyQueued: boolean;
+  state: 'queued';
+};
+
+/**
+ * Queues one run of a template entry of a running queue (feature 184). The entry runs once, right after the sequence
+ * that runs now. The call is safe to repeat. It does not retry: a refused call throws, and the caller shows the text.
+ */
+export const runNextEntry = (queueId: string, entryId: string) =>
+  postJson<RunNextResult>(`${base}/${queueId}/run-next`, { entryId });
 
 /** Fetch the live monitor snapshot for a queue. Safe to poll; no side effects. */
 export const getQueueMonitor = (id: string) => getJson<QueueMonitorDto>(`${base}/${id}/monitor`);

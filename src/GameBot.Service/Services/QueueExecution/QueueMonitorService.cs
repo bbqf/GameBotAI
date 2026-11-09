@@ -77,7 +77,13 @@ internal sealed class QueueMonitorService : IQueueMonitorService {
     var selfTimerFirings = handle.SnapshotPendingTimerFirings();
 
     var current = BuildCurrent(handle, schedule, names, cycling);
-    var upcoming = BuildUpcoming(schedule, names, now, cycling, current, liveSchedules, selfTimerFirings);
+    var upcoming = BuildUpcoming(schedule, names, now, cycling, current, liveSchedules, selfTimerFirings, handle.SnapshotRunNext());
+
+    // Feature 184: the state of each entry, read by the same class as the run-next call. Before the run loop
+    // publishes its schedule (the fallback above), no entry has a state.
+    var entryStates = handle.Schedule is null
+      ? new Dictionary<string, string>(StringComparer.Ordinal)
+      : QueueEntryStateReader.ReadAll(handle, handle.Schedule, now);
 
     // NothingScheduled (FR-011): running with nothing left to do of ANY kind. Derived from the
     // projection itself so the banner can never contradict the list next to it — a live-scheduled-only
@@ -90,7 +96,8 @@ internal sealed class QueueMonitorService : IQueueMonitorService {
       // Feature 079 (FR-018): the device this run holds, taken from its own handle so concurrent runs
       // never report one another's emulator. Falls back to the queue's bound serial for a handle
       // built before the run assigned it (and in tests that hand-build one).
-      DeviceSerial: string.IsNullOrWhiteSpace(handle.DeviceSerial) ? queue?.EmulatorSerial : handle.DeviceSerial);
+      DeviceSerial: string.IsNullOrWhiteSpace(handle.DeviceSerial) ? queue?.EmulatorSerial : handle.DeviceSerial,
+      EntryStates: entryStates);
   }
 
   // ── Current ("now") ────────────────────────────────────────────────────────────────────────
@@ -130,8 +137,14 @@ internal sealed class QueueMonitorService : IQueueMonitorService {
   private static List<QueueMonitorItem> BuildUpcoming(
     QueueRunSchedule schedule, IReadOnlyDictionary<string, string> names,
     DateTimeOffset now, bool cycling, QueueMonitorItem? current,
-    KeyValuePair<string, DateTimeOffset>[] liveSchedules, IReadOnlyList<SelfRescheduleEntry> selfTimerFirings) {
+    KeyValuePair<string, DateTimeOffset>[] liveSchedules, IReadOnlyList<SelfRescheduleEntry> selfTimerFirings,
+    IReadOnlyList<PendingRunNext> runNext) {
     var entries = schedule.Entries;
+
+    // (0) Run-next requests (feature 184) come first: each runs right after the sequence that runs now.
+    var runNextItems = runNext.Select(r => NewItem(
+      r.SequenceId, names, ScheduleKind.RunNext, ReasonFor(ScheduleKind.RunNext, null),
+      expectedAt: null, relativeLabel: "next", repeats: false, order: 0)).ToList();
 
     // (1) OncePerRun spine in template order — the "playlist" backbone, limited to the steps this run
     // has NOT already consumed. A non-cycling run whose once-per-run pass is done never runs them
@@ -208,7 +221,7 @@ internal sealed class QueueMonitorService : IQueueMonitorService {
     // trail because they have no ExpectedAt of their own; putting them ahead of the timed firings
     // would push the run's real next action down the list (the exact confusion feature 072/073 fixed
     // for the once-per-run spine).
-    return spineItems.Concat(timed).Concat(beforeEachRunItems).Concat(everyStepItems)
+    return runNextItems.Concat(spineItems).Concat(timed).Concat(beforeEachRunItems).Concat(everyStepItems)
       .Select((item, i) => item with { Order = i }).ToList();
   }
 
@@ -257,6 +270,7 @@ internal sealed class QueueMonitorService : IQueueMonitorService {
     ScheduleKind.TimerRelative => entry?.TimerRelativeOffset is { } off ? $"+{off} after start" : "Timed",
     ScheduleKind.LiveSchedule => "Scheduled live",
     ScheduleKind.SelfReschedule => "Rescheduled by a sequence",
+    ScheduleKind.RunNext => "Run next",
     _ => "Once per run"
   };
 

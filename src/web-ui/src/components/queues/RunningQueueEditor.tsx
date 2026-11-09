@@ -1,5 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { QueueDetailDto, QueueEntryDto, setQueueTemplateLink } from '../../services/queues';
+import {
+  EntryState,
+  getQueueMonitor,
+  QueueDetailDto,
+  QueueEntryDto,
+  runNextEntry,
+  setQueueTemplateLink,
+} from '../../services/queues';
+import { ConnectionState } from '../../hooks/useConnectionState';
+import { usePolling } from '../../hooks/usePolling';
 import { SequenceDto } from '../../services/sequences';
 import {
   getQueueTemplate,
@@ -11,6 +20,7 @@ import {
 import { EntrySchedule } from './QueueEntryList';
 import { QueueSchedulingAreas } from './QueueSchedulingAreas';
 import { QueueTemplateControls } from './QueueTemplateControls';
+import { IconButton } from './IconButton';
 import { SchedulingAreasState } from './schedulingAreas';
 import type { ParameterBinding } from '../parameters/types';
 import { buildTemplateSaveEntries, defaultEntrySchedule, scheduleFromTemplateEntry } from './templateEntryEditing';
@@ -29,7 +39,12 @@ export type RunningQueueEditorProps = {
   onTemplateSaved?: () => void;
   /** Called after a template is linked to a queue that had none. */
   onLinked?: () => void;
+  /** The connection state. When it is 'lost', the editor reads no state and sends no Run next call (feature 184). */
+  connectionState?: ConnectionState;
 };
+
+/** How often the editor reads the entry states from the monitor (feature 184). */
+export const ENTRY_STATE_POLL_MS = 5000;
 
 type SaveResult = { kind: 'success' | 'error'; message: string };
 
@@ -40,8 +55,52 @@ const messageOf = (err: unknown, fallback: string): string => (err instanceof Er
  * add-entry, remove-entry, or replace-entries calls of the queue, so the run does not change until the operator pauses,
  * reviews, and applies the changes.
  */
-export const RunningQueueEditor: React.FC<RunningQueueEditorProps> = ({ queue, sequences, carried, onTemplateSaved, onLinked }) => {
+export const RunningQueueEditor: React.FC<RunningQueueEditorProps> = ({
+  queue,
+  sequences,
+  carried,
+  onTemplateSaved,
+  onLinked,
+  connectionState = 'online',
+}) => {
   const templateId = queue.linkedTemplateId;
+  const lost = connectionState === 'lost';
+  // Feature 184: the state of each entry comes from the monitor. The editor reads it again after each Run next call.
+  const [entryStates, setEntryStates] = useState<Record<string, EntryState> | undefined>(undefined);
+  const [queueRunning, setQueueRunning] = useState(true);
+  const [runNextBusy, setRunNextBusy] = useState(false);
+  const [runNextError, setRunNextError] = useState<string | undefined>(undefined);
+  const runNextBusyRef = useRef(false);
+
+  const loadEntryStates = useCallback(async () => {
+    try {
+      const monitor = await getQueueMonitor(queue.id);
+      if (!monitor) return;
+      setQueueRunning(Boolean(monitor.running));
+      setEntryStates(monitor.entryStates ?? {});
+    } catch {
+      // Keep the old states. The next poll tries again.
+    }
+  }, [queue.id]);
+
+  usePolling(() => { void loadEntryStates(); }, { intervalMs: ENTRY_STATE_POLL_MS, enabled: !lost });
+
+  // One call at a time. The call is never sent again by the editor: a refused call shows its text (mobile principle 10).
+  const handleRunNext = async (entryId: string) => {
+    if (runNextBusyRef.current || lost) return;
+    runNextBusyRef.current = true;
+    setRunNextBusy(true);
+    setRunNextError(undefined);
+    try {
+      await runNextEntry(queue.id, entryId);
+    } catch (err: unknown) {
+      setRunNextError(messageOf(err, 'Run next failed'));
+    } finally {
+      runNextBusyRef.current = false;
+      setRunNextBusy(false);
+      void loadEntryStates();
+    }
+  };
   const [entries, setEntries] = useState<QueueEntryDto[]>(carried?.entries ?? []);
   const [schedule, setSchedule] = useState<Record<string, EntrySchedule>>(carried?.schedule ?? {});
   const [templateName, setTemplateName] = useState<string | undefined>(queue.linkedTemplateName ?? undefined);
@@ -120,7 +179,9 @@ export const RunningQueueEditor: React.FC<RunningQueueEditorProps> = ({ queue, s
       saveResult={saveResult}
     >
       {loadError && <div className="form-error" role="alert">{loadError}</div>}
+      {runNextError && <div className="form-error" role="alert">{runNextError}</div>}
       <QueueSchedulingAreas
+        runNext={{ queueRunning, states: entryStates, busy: runNextBusy, lost, onRunNext: (entryId) => void handleRunNext(entryId) }}
         entries={entries}
         sequences={sequences}
         entrySchedule={schedule}
@@ -182,7 +243,7 @@ const NoTemplateView: React.FC<NoTemplateViewProps> = ({ queue, onLinked }) => {
           <option value="">Select a template…</option>
           {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
         </select>
-        <button type="button" onClick={() => void link()} disabled={!chosen || linking}>Link template</button>
+        <IconButton icon="link" label="Link template" onClick={() => void link()} disabled={!chosen || linking} />
       </div>
       {error && <div className="form-error" role="alert">{error}</div>}
     </section>
