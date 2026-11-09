@@ -216,6 +216,38 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     return new LiveScheduleResult(LiveScheduleOutcome.Scheduled, fireAt);
   }
 
+  public RunNextResult RunNext(string queueId, string entryId) {
+    // The run publishes its schedule and its queue scope when the loop starts. Before that, there is nothing to ask.
+    if (!_registry.TryGet(queueId, out var handle) || handle.Schedule is not { } schedule || handle.QueueScope is not { } queueScope)
+      return new RunNextResult(RunNextOutcome.NotRunning);
+
+    var plan = schedule.Plan;
+    var index = string.IsNullOrEmpty(entryId) || entryId.StartsWith(QueueRunPlan.IndexKeyPrefix, StringComparison.Ordinal)
+      ? -1
+      : plan.IndexOfKey(entryId);
+    if (index < 0) return new RunNextResult(RunNextOutcome.EntryNotAvailable);
+
+    var entry = plan.Entries[index];
+    var now = _timeProvider.GetLocalNow();
+    var state = QueueEntryStateReader.Read(handle, schedule, index, now, QueueEntryStateReader.PendingBookingSequences(handle));
+    switch (state) {
+      case QueueEntryState.Queued: return new RunNextResult(RunNextOutcome.AlreadyQueued, entry.SequenceId);
+      case QueueEntryState.Running: return new RunNextResult(RunNextOutcome.EntryRunning, entry.SequenceId);
+      case QueueEntryState.Scheduled: return new RunNextResult(RunNextOutcome.EntryScheduled, entry.SequenceId);
+    }
+
+    // The scope is fixed now, so a later live apply does not change a request that waits (FR-005).
+    var scope = entry.ParameterValues.Count > 0
+      ? queueScope.Child(ParameterScopeLayers.Entry, entry.ParameterValues, null)
+      : queueScope;
+    // The add is one step under the lock. A second caller at the same time gets "already queued".
+    if (!handle.TryAddRunNext(new PendingRunNext(entryId, entry.SequenceId, scope, now)))
+      return new RunNextResult(RunNextOutcome.AlreadyQueued, entry.SequenceId);
+
+    QueueExecutionLog.RunNextQueued(_logger, queueId, entryId, entry.SequenceId, now);
+    return new RunNextResult(RunNextOutcome.Queued, entry.SequenceId);
+  }
+
   public async Task<QueueStartOutcome> StartAsync(string queueId, CancellationToken ct = default) {
     var queue = await _queues.GetAsync(queueId).ConfigureAwait(false);
     if (queue is null) return QueueStartOutcome.NotFound;
@@ -330,6 +362,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
         // three queues that already differ by emulator serial drive one shared sequence with no extra
         // setup. Each firing layers its entry's values on top (FR-010, FR-012).
         var queueScope = ParameterScope.FromQueue(queue);
+        handle.QueueScope = queueScope;
         ParameterScope EntryScope(QueueTemplateEntry entry) =>
             entry.ParameterValues.Count > 0
               ? queueScope.Child(ParameterScopeLayers.Entry, entry.ParameterValues, null)
@@ -413,6 +446,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                 ct.ThrowIfCancellationRequested();
                 EnsureSessionBound();
                 var esOk = await RunOneSequenceAsync(esEntry.SequenceId, rootId, ++index, sessionId, queue.Id, EntryScope(esEntry), ct).ConfigureAwait(false);
+                handle.Schedule?.MarkEntryRan(esEntry);
                 if (!esOk) failed++;
                 handle.Cycles.RecordEntry(esEntry.SequenceId, esOk);
               }
@@ -443,6 +477,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                 ct.ThrowIfCancellationRequested();
                 EnsureSessionBound();
                 var berOk = await RunOneSequenceAsync(berEntry.SequenceId, rootId, ++index, sessionId, queue.Id, EntryScope(berEntry), ct).ConfigureAwait(false);
+                handle.Schedule?.MarkEntryRan(berEntry);
                 if (!berOk) failed++;
                 handle.Cycles.RecordEntry(berEntry.SequenceId, berOk);
               }
@@ -510,11 +545,34 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
               return await RunOneSequenceAsync(sequenceId, rootId, ++index, sessionId, queue.Id, scope, ct, originActionId).ConfigureAwait(false);
             }
 
+            // Run-next drain (feature 184). It fires the requests of the register in order. The loop calls it at the
+            // live-schedule step and after each firing group of the once-per-run pass, so an entry runs right after the
+            // running sequence (FR-004). The pause gate comes first, so a request stays queued while the queue is paused.
+            // A held request goes back to the front and the drain stops (feature 106 rule).
+            async Task DrainRunNextAsync() {
+              while (true) {
+                await WaitAtOperatorGateAsync().ConfigureAwait(false);
+                if (!handle.TryTakeRunNext(out var request)) return;
+                QueueExecutionLog.RunNextFiring(_logger, queue.Id, request.EntryId, request.SequenceId);
+                var runNextResult = await FireGroupAsync(request.SequenceId, request.Scope, beforeEachRun: true).ConfigureAwait(false);
+                if (runNextResult is not { } runNextOk) {
+                  handle.PutBackRunNext(request);
+                  return;
+                }
+                executed++;
+                if (!runNextOk) failed++;
+                handle.Cycles.RecordEntry(request.SequenceId, runNextOk);
+                await RunEveryStepPassAsync().ConfigureAwait(false);
+              }
+            }
+
             // (0) At-queue-start pre-pass (feature 060, FR-003/FR-004/FR-007/FR-014/FR-015).
             // Run every at-queue-start entry once, in template order, BEFORE any timer evaluation
             // and before the first OncePerRun step. Runs once per run (outside the do/while, so it
             // never repeats on a cycling queue). Each firing COUNTS toward `executed`; a failure is
             // non-fatal (recorded in `failed`, run continues), consistent with OncePerRun handling.
+            // The schedule of the run does not exist yet, so the entries that ran are marked after it is made (feature 184).
+            var atStartRan = new List<QueueTemplateEntry>();
             for (var startPos = 0; startPos < plan.AtQueueStart.Count; startPos++) {
               var startEntry = plan.AtQueueStart[startPos];
               ct.ThrowIfCancellationRequested();
@@ -530,6 +588,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
               }
               executed++;
               if (startOk == false) failed++;
+              atStartRan.Add(startEntry);
               await RunEveryStepPassAsync().ConfigureAwait(false);
             }
 
@@ -557,12 +616,15 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
             handle.RunStartedAt = runStartedAt;
             var schedule = new QueueRunSchedule(plan, runStartedAt, queue.CycleExecution);
             handle.Schedule = schedule;
+            foreach (var ranAtStart in atStartRan) schedule.MarkEntryRan(ranAtStart);
 
             // True while a relative-offset timer (template) or a live schedule is still pending and
             // could yet fire — keeps a non-cyclic run alive until its scheduled firings land.
             bool HasPendingRelativeOrLive() {
               if (schedule.HasUnfiredRelativeTimers) return true;
               if (!handle.PendingLiveSchedules.IsEmpty) return true;
+              // A waiting run-next request (feature 184) keeps the run alive until it fires.
+              if (handle.HasPendingRunNext) return true;
               // An armed daily retry is pending work too: without this the run could break out of the
               // loop between a failed firing and its retry, silently losing the retry it just armed.
               if (schedule.HasPendingDailyRetries) return true;
@@ -619,6 +681,12 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                   }
                   executed++;
                   if (nextOk == false) failed++;
+                  // An at-start entry that a hold moved here has now run (feature 184).
+                  if (originActionId is null
+                      && int.TryParse(nextCycleEntry.Id.AsSpan(AtQueueStartHoldIdPrefix.Length), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var heldAtStartIndex)
+                      && heldAtStartIndex >= 0 && heldAtStartIndex < plan.Entries.Count) {
+                    schedule.MarkEntryRan(plan.Entries[heldAtStartIndex]);
+                  }
                   handle.Cycles.RecordEntry(nextCycleEntry.SequenceId, nextOk.Value);
                   await RunEveryStepPassAsync().ConfigureAwait(false);
                 }
@@ -703,6 +771,9 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                   await RunEveryStepPassAsync().ConfigureAwait(false);
                 }
 
+                // (a3b) Run-next requests (feature 184): fire each once, right after the sequence that ran last.
+                await DrainRunNextAsync().ConfigureAwait(false);
+
                 // (a4) Self-reschedule Timer firings (feature 065, FR-005/FR-006): fire those whose
                 // resolved instant is at/before now, once each, then remove. Count toward executed; a
                 // failed firing is non-fatal. Entries never due before the run ends are discarded with
@@ -752,6 +823,8 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                       // Run every-step sequences after each OncePerRun step (FR-006).
                       await RunEveryStepPassAsync().ConfigureAwait(false);
                       handle.Cycles.ClearCurrentEntryIndex();
+                      // Feature 184: a run-next request fires right after this sequence, not after the whole pass.
+                      await DrainRunNextAsync().ConfigureAwait(false);
                     }
                   }
                   else if (plan.EveryStep.Count > 0 && !everyStepRanThisIteration && !held) {
@@ -889,6 +962,8 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
       // Feature 171 (FR-007): the pause belongs to the run. It clears when the run ends for any reason, so no
       // waiter stays blocked and no queue stays "paused" for a run that is not active.
       handle.ClearOperatorPause();
+      // Feature 184 (FR-007): a run-next request belongs to the run. It ends with the run.
+      handle.ClearRunNext();
       // Feature 106: stop the liveness watch before the session stops.
       await StopLivenessWatchAsync(watchCts, watchTask).ConfigureAwait(false);
       watchCts?.Dispose();
@@ -1544,4 +1619,10 @@ internal static partial class QueueExecutionLog {
 
   [LoggerMessage(EventId = 1135, Level = LogLevel.Information, Message = "Queue {QueueId} left the operator pause and goes on with the same run.")]
   public static partial void OperatorResumed(ILogger logger, string QueueId);
+
+  [LoggerMessage(EventId = 1138, Level = LogLevel.Information, Message = "Queue {QueueId} accepted a run-next request for entry {EntryId} (sequence {SequenceId}) at {RequestedAt:u}. The entry runs after the running sequence.")]
+  public static partial void RunNextQueued(ILogger logger, string QueueId, string EntryId, string SequenceId, DateTimeOffset RequestedAt);
+
+  [LoggerMessage(EventId = 1139, Level = LogLevel.Information, Message = "Queue {QueueId} fires the run-next request for entry {EntryId} (sequence {SequenceId}).")]
+  public static partial void RunNextFiring(ILogger logger, string QueueId, string EntryId, string SequenceId);
 }

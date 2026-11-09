@@ -58,6 +58,79 @@ internal sealed class QueueRunHandle {
   public ConcurrentDictionary<string, DateTimeOffset> PendingLiveSchedules { get; } =
     new(StringComparer.Ordinal);
 
+  /// <summary>
+  /// The outermost parameter scope of the run (the queue layer). Set by the run loop when it starts. The run-next call
+  /// builds the scope of an entry from it (feature 184).
+  /// </summary>
+  public GameBot.Domain.Parameters.ParameterScope? QueueScope { get; set; }
+
+  // ── Run next (feature 184) ───────────────────────────────────────────────────────────────────
+  // The register of "run next" requests. In memory only, and discarded with the handle when the run ends (FR-007).
+  // At most one request for each entry ID. The run loop takes the requests in the order of adding.
+
+  private readonly List<PendingRunNext> _pendingRunNext = new();
+  private readonly object _runNextLock = new();
+
+  /// <summary>
+  /// Adds a request. Returns false, and adds nothing, when a request for the same entry already waits.
+  /// The check and the write are one step under the lock, so two callers at once add one request.
+  /// </summary>
+  public bool TryAddRunNext(PendingRunNext request) {
+    ArgumentNullException.ThrowIfNull(request);
+    lock (_runNextLock) {
+      if (_pendingRunNext.Exists(x => string.Equals(x.EntryId, request.EntryId, StringComparison.Ordinal))) return false;
+      _pendingRunNext.Add(request);
+      return true;
+    }
+  }
+
+  /// <summary>Returns a copy of the waiting requests, in order. It does not change the register.</summary>
+  public IReadOnlyList<PendingRunNext> SnapshotRunNext() {
+    lock (_runNextLock) { return _pendingRunNext.ToArray(); }
+  }
+
+  /// <summary>True while a request for <paramref name="entryId"/> waits.</summary>
+  public bool IsRunNextQueued(string entryId) {
+    lock (_runNextLock) {
+      return _pendingRunNext.Exists(x => string.Equals(x.EntryId, entryId, StringComparison.Ordinal));
+    }
+  }
+
+  /// <summary>True while any request waits.</summary>
+  public bool HasPendingRunNext {
+    get { lock (_runNextLock) { return _pendingRunNext.Count > 0; } }
+  }
+
+  /// <summary>Removes and returns the oldest request. Returns false when none waits.</summary>
+  public bool TryTakeRunNext(out PendingRunNext request) {
+    lock (_runNextLock) {
+      if (_pendingRunNext.Count == 0) {
+        request = null!;
+        return false;
+      }
+      request = _pendingRunNext[0];
+      _pendingRunNext.RemoveAt(0);
+      return true;
+    }
+  }
+
+  /// <summary>
+  /// Puts back a request that a liveness hold stopped (feature 106 rule). It goes to the front, so the order stays.
+  /// It adds nothing when a request for the same entry waits.
+  /// </summary>
+  public void PutBackRunNext(PendingRunNext request) {
+    ArgumentNullException.ThrowIfNull(request);
+    lock (_runNextLock) {
+      if (_pendingRunNext.Exists(x => string.Equals(x.EntryId, request.EntryId, StringComparison.Ordinal))) return;
+      _pendingRunNext.Insert(0, request);
+    }
+  }
+
+  /// <summary>Clears the register when the run ends.</summary>
+  public void ClearRunNext() {
+    lock (_runNextLock) { _pendingRunNext.Clear(); }
+  }
+
   // ── Self-reschedule ephemeral registers (feature 065) ────────────────────────────────────────
   // All four are in-memory only and discarded with the handle — on normal completion AND on
   // stop/abort (FR-010, FR-017). Unlike PendingLiveSchedules (most-recent-wins per sequence), these
@@ -649,8 +722,23 @@ internal sealed class QueueRunHandle {
     HasPendingTimerFirings
     || !PendingNextCycleStart.IsEmpty
     || !PendingOncePerRun.IsEmpty
-    || !PendingLiveSchedules.IsEmpty;
+    || !PendingLiveSchedules.IsEmpty
+    || HasPendingRunNext;
 }
+
+/// <summary>
+/// One "run next" request (feature 184). Never persisted; it lives on the <see cref="QueueRunHandle"/> until the
+/// entry fires or the run ends.
+/// </summary>
+/// <param name="EntryId">The stable ID of the template entry.</param>
+/// <param name="SequenceId">The sequence of the entry, copied from the run plan at request time.</param>
+/// <param name="Scope">The parameter scope of the entry, fixed at request time (FR-005).</param>
+/// <param name="RequestedAt">The local-clock instant of the request.</param>
+internal sealed record PendingRunNext(
+  string EntryId,
+  string SequenceId,
+  GameBot.Domain.Parameters.ParameterScope Scope,
+  DateTimeOffset RequestedAt);
 
 /// <summary>
 /// One ephemeral, run-scoped self-reschedule firing (feature 065). Never persisted; lives on the

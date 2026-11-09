@@ -3,6 +3,7 @@ import { QueueStatus } from '../../services/queues';
 import { ApiError } from '../../lib/api';
 import { TemplatePickerDialog } from './TemplatePickerDialog';
 import { TemplateUpgradeNotice } from './TemplateUpgradeNotice';
+import { IconButton } from './IconButton';
 
 /** An inline confirmation prompt shown between the template header and sequences. */
 export type TemplateConfirm = {
@@ -191,8 +192,9 @@ export const QueueTemplateControls: React.FC<QueueTemplateControlsProps> = ({
 
       {/* Template action buttons below sequences */}
       <div className="queue-template-row">
-        <button
-          type="button"
+        <IconButton
+          icon="save"
+          label="Save Template"
           onClick={handleQuickSave}
           disabled={saving || !associatedTemplateName}
           title={
@@ -200,12 +202,11 @@ export const QueueTemplateControls: React.FC<QueueTemplateControlsProps> = ({
               ? 'Name and save a new template with the template name field above.'
               : `Save changes to "${associatedTemplateName}".`
           }
-        >
-          Save Template
-        </button>
+        />
         {!templateOnly && (
-          <button
-            type="button"
+          <IconButton
+            icon="reload"
+            label="Reload Template"
             onClick={onReload}
             disabled={!associatedTemplateName || running}
             title={
@@ -213,11 +214,9 @@ export const QueueTemplateControls: React.FC<QueueTemplateControlsProps> = ({
                 ? 'No template to reload.'
                 : running
                   ? 'Stop the queue before reloading a template.'
-                  : undefined
+                  : 'Reload Template'
             }
-          >
-            Reload Template
-          </button>
+          />
         )}
       </div>
 

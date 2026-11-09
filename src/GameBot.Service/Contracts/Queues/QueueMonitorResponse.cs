@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 
 namespace GameBot.Service.Contracts.Queues {
@@ -37,6 +38,12 @@ namespace GameBot.Service.Contracts.Queues {
 
     /// <summary>Best-effort last finalized run outcome when <see cref="Running"/> is false; null otherwise.</summary>
     public RunOutcomeResponse? LastOutcome { get; set; }
+
+    /// <summary>
+    /// State of each enabled template entry that has an ID (feature 184): running, queued, scheduled or idle.
+    /// Empty when the queue does not run.
+    /// </summary>
+    public Dictionary<string, string> EntryStates { get; } = new(StringComparer.Ordinal);
   }
 
   /// <summary>A single now/up-next monitor item (camelCase wire shape).</summary>

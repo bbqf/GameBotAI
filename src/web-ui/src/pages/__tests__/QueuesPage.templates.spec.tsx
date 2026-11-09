@@ -126,7 +126,7 @@ describe('QueuesPage template save wiring', () => {
     await openEditQueue();
     expect(screen.getByText('Daily Farm')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText('Save Template'));
+    fireEvent.click(screen.getByRole('button', { name: 'Save Template' }));
 
     await waitFor(() =>
       expect(saveTemplateMock).toHaveBeenCalledWith({
@@ -153,7 +153,7 @@ describe('QueuesPage template save wiring', () => {
     // Edit the name in the manage area but do NOT click Rename, then use the bottom Save Template.
     const area = await openManageArea('Daily Farm');
     fireEvent.change(within(area).getByLabelText('Template name'), { target: { value: 'Renamed Farm' } });
-    fireEvent.click(screen.getByText('Save Template'));
+    fireEvent.click(screen.getByRole('button', { name: 'Save Template' }));
 
     await waitFor(() =>
       expect(saveTemplateMock).toHaveBeenCalledWith({
@@ -169,7 +169,7 @@ describe('QueuesPage template save wiring', () => {
 
   it('disables Save Template (bottom) when the queue has no associated template', async () => {
     await openEditQueue();
-    expect(screen.getByText('Save Template')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save Template' })).toBeDisabled();
   });
 
   it('on a differing name that collides (409) prompts to overwrite (near Rename) and re-saves with overwrite=true', async () => {
@@ -439,7 +439,7 @@ describe('QueuesPage scheduling areas round-trip (feature 061)', () => {
     await openEditor();
 
     fireEvent.change(screen.getByLabelText('Add sequence'), { target: { value: 'seq-c' } });
-    fireEvent.click(screen.getByText('Add'));
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
 
     const oncePerRun = await screen.findByRole('region', { name: 'Once per run' });
     await waitFor(() => expect(within(oncePerRun).getByText('Charlie')).toBeInTheDocument());

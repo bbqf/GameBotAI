@@ -98,6 +98,27 @@
   font-weight: 500;
 }
 
+/* Feature 184: the controls of a row are icon buttons, so a row fits on one line on a big screen. */
+.scheduling-card .icon-button {
+  margin: 0;
+}
+
+/* Feature 184: the reason of an off Run next button, as short text on the row. */
+.scheduling-card__run-next-note {
+  flex: 0 1 auto;
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8rem;
+  color: var(--gb-color-text-muted, #666);
+}
+
+/* Feature 184: the hint above the sequences when the queue does not run. */
+.scheduling-areas__run-next-hint {
+  margin: 0 0 var(--gb-space-2);
+}
+
 /* Narrow viewports: collapse the two columns into a single stacked column. */
 @media (max-width: 720px) {
   .scheduling-areas__body {

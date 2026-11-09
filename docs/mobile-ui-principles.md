@@ -1,6 +1,6 @@
 # Mobile UI Principles
 
-Last reviewed: 2026-10-31 (features 139, 140, 171, and 173)
+Last reviewed: 2026-11-09 (features 139, 140, 171, 173, and 184)
 
 Each UI feature must state its **phone support level** and follow these rules. Reviewers use the checklist at the end.
 
@@ -62,6 +62,12 @@ The queue detail shows what the queue does now and what it will do next.
   extra request. The guide is `docs/live-template-changes.md`.
 - **Review changes** is part of the notice "N changes wait in the template." (feature 173). The notice shows only when the
   template differs from the running queue. The big screen shows the same notice with the same words.
+- **Run next** (feature 184, phone support level: `full`): each enabled row of a running queue that has an entry ID shows a Run next icon
+  button, next to the enable switch. The button is 44 x 44 px (`IconButton` with `size="touch"`). It is on only when the state of the entry is
+  `idle`. The row summary gives the state as text (`Queued to run next`, `Running`, or `Scheduled · <timing>`), so a reason never depends on a
+  tooltip. One press sends one call (`POST /api/queues/{id}/run-next`), and the view reads the detail again. The view never sends the call
+  again, and it turns the button off when the connection is lost. A refused call shows its text in the message area. The template editor
+  stays `desktop-only`.
 - A switch on a running queue changes the template only. It does not pause or apply. The notice shows the waiting change
   after the switch. The operator pauses, reviews, and applies it.
 

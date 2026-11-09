@@ -211,6 +211,7 @@ Status vocabulary:
 | 181 | Report Which Image of a List Matched | Implemented |
 | 182 | Revalidate an Image After an Overwrite | Implemented |
 | 183 | Show the Queue Name in Notify Messages | Implemented |
+| 184 | Run Next for Unscheduled Tasks | Implemented |
 
 ## Numbering notes
 

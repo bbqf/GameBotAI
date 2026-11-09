@@ -13,6 +13,13 @@ All notable changes to this project will be documented in this file.
   - **Version**: the patch version is now 1.12.12.
 
 ### Added
+- Run next for idle entries, and icon buttons in the template editor (184-showdown-run-next)
+  - **Run next**: an operator can queue one run of any enabled template entry that has no pending run, while the queue runs or is paused. No queue restart is needed. The entry runs once, right after the running sequence, with its own parameter values. A repeat request adds no second run. A stop ends a waiting request.
+  - **API**: `POST /api/queues/{id}/run-next` with `{ entryId }`. The codes of a refusal are `not_running`, `entry_not_available`, `entry_running`, and `entry_scheduled`. `GET /api/queues/{id}/monitor` has the new field `entryStates` (`running`, `queued`, `scheduled`, `idle`) and the new `scheduleKind` value `RunNext`.
+  - **Web UI**: the template editor of a running queue and the phone queue detail show a Run next icon button for each idle entry (phone support: full). The template editor shows Run next, Parameters, Remove, Add, Save Template, Reload Template, Unlink, and Link template as icon buttons with a name and a tooltip. A sequence row uses one line at 1024 px (50 px instead of 114 px).
+  - **Docs**: `docs/architecture.md` and `docs/mobile-ui-principles.md` state the call, the register, and the phone rule.
+  - **Not changed**: the template file, the schedule of other entries, the queue list, and the pause and failure-policy controls.
+  - **Version**: the patch version is now 1.12.14.
 - Show the queue name in notify messages (183-notify-queue-name, #387)
   - **Change**: the text that a `notify` step with no `url` sends to the notification targets starts with the queue name and " : ". For example, `Farm A : Daily reward ready`.
   - **Rules**: a run outside a queue sends the plain text with no label. A blank name, a missing queue, or a failed queue read gives the queue ID as the label.

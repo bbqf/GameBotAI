@@ -41,6 +41,7 @@ public sealed class UpdateQueueStopperTests {
     public bool IsRunning(string queueId) => Running.Contains(queueId);
 
     public LiveScheduleResult ScheduleRelative(string queueId, string sequenceId, TimeSpan offset) => throw new NotSupportedException();
+    public RunNextResult RunNext(string queueId, string entryId) => throw new NotSupportedException();
   }
 
   private readonly FakeQueues _queues = new();

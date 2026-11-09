@@ -41,7 +41,10 @@ internal enum ScheduleKind {
   /// next firing. Not a real sequence and never written to the execution log; surfaced only as the
   /// monitor's current item, with <c>ExpectedAt</c> = the resume instant.
   /// </summary>
-  IdlePause
+  IdlePause,
+
+  /// <summary>A "run next" request (feature 184) — fires once, right after the running sequence.</summary>
+  RunNext
 }
 
 /// <summary>
@@ -62,7 +65,12 @@ internal sealed record QueueMonitorSnapshot(
   /// The emulator this run exclusively holds (feature 079, FR-018); null when not running. Read from
   /// the run's own handle so several concurrent runs each report their own device.
   /// </summary>
-  string? DeviceSerial = null);
+  string? DeviceSerial = null,
+  /// <summary>
+  /// The state of each enabled entry that has an ID (feature 184): <c>running</c>, <c>queued</c>, <c>scheduled</c>
+  /// or <c>idle</c>. Empty when the queue does not run.
+  /// </summary>
+  IReadOnlyDictionary<string, string>? EntryStates = null);
 
 /// <summary>One item in the monitor's now/up-next plan.</summary>
 internal sealed record QueueMonitorItem(

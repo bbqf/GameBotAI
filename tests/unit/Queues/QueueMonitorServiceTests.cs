@@ -25,7 +25,7 @@ namespace GameBot.UnitTests.Queues;
 /// ordering rule, current-highlight, cycling marker, nothing-scheduled and last-outcome case is asserted
 /// without spinning the queue engine.
 /// </summary>
-public sealed class QueueMonitorServiceTests {
+public sealed partial class QueueMonitorServiceTests {
   private static readonly DateTimeOffset Now = new(2026, 1, 1, 12, 0, 0, TimeSpan.Zero);
 
   // ── Fakes ─────────────────────────────────────────────────────────────

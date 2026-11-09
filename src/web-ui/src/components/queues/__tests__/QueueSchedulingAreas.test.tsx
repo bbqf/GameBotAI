@@ -184,7 +184,7 @@ describe('QueueSchedulingAreas', () => {
     const props = baseProps();
     render(<QueueSchedulingAreas entries={[]} entrySchedule={{}} {...props} />);
     fireEvent.change(screen.getByLabelText('Add sequence'), { target: { value: 'seq-b' } });
-    fireEvent.click(screen.getByText('Add'));
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
     expect(props.onAdd).toHaveBeenCalledWith('seq-b');
   });
 });

@@ -68,6 +68,7 @@ public sealed class QueueResumeOnStartupServiceTests {
     public Task StopAsync(string queueId, CancellationToken ct = default) => Task.CompletedTask;
     public bool IsRunning(string queueId) => false;
     public LiveScheduleResult ScheduleRelative(string queueId, string sequenceId, TimeSpan offset) => new(LiveScheduleOutcome.NotRunning, default);
+    public RunNextResult RunNext(string queueId, string entryId) => new(RunNextOutcome.NotRunning);
   }
 
   private sealed class CapturingLogger : ILogger<QueueResumeOnStartupService> {

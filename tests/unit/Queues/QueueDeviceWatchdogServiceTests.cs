@@ -48,6 +48,8 @@ public sealed class QueueDeviceWatchdogServiceTests {
 
     public LiveScheduleResult ScheduleRelative(string queueId, string sequenceId, TimeSpan offset)
       => new(LiveScheduleOutcome.NotRunning, default);
+
+    public RunNextResult RunNext(string queueId, string entryId) => new(RunNextOutcome.NotRunning);
   }
 
   private sealed class FakeQueues : IQueueRepository {

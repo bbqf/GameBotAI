@@ -622,6 +622,8 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
                 saveResult={templateSaveResult}
               >
                 <QueueSchedulingAreas
+                  // Feature 184: this queue does not run, so each row shows Run next off, with the reason.
+                  runNext={{ queueRunning: false }}
                   entries={detail.entries}
                   sequences={sequences}
                   onAdd={(sid) => void onAddEntry(sid)}

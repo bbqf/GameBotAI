@@ -64,13 +64,13 @@ describe('QueueTemplateControls', () => {
 
   it('disables Save Template when no template is associated (use Rename to create one)', () => {
     renderControls();
-    expect(screen.getByText('Save Template')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save Template' })).toBeDisabled();
   });
 
   it('Save Template (bottom) quick-saves the associated template under its existing name', async () => {
     const { onSaveTemplate } = renderControls({ associatedTemplateName: 'Daily Farm' });
     // Save directly without opening the area or changing the name.
-    fireEvent.click(screen.getByText('Save Template'));
+    fireEvent.click(screen.getByRole('button', { name: 'Save Template' }));
     await waitFor(() => expect(onSaveTemplate).toHaveBeenCalledWith('Daily Farm', true));
     expect(screen.queryByRole('region', { name: 'Confirm overwrite' })).not.toBeInTheDocument();
   });
@@ -80,7 +80,7 @@ describe('QueueTemplateControls', () => {
     const area = await openManageArea('Daily Farm');
     // Edit the name but do NOT click Rename.
     fireEvent.change(within(area).getByLabelText('Template name'), { target: { value: 'New Name' } });
-    fireEvent.click(screen.getByText('Save Template'));
+    fireEvent.click(screen.getByRole('button', { name: 'Save Template' }));
     await waitFor(() => expect(onSaveTemplate).toHaveBeenCalledWith('Daily Farm', true));
   });
 
@@ -139,17 +139,17 @@ describe('QueueTemplateControls', () => {
 
   it('disables Reload Template when no template is associated', () => {
     renderControls();
-    expect(screen.getByText('Reload Template')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Reload Template' })).toBeDisabled();
   });
 
   it('disables Reload Template while the queue is running', () => {
     renderControls({ associatedTemplateName: 'Daily Farm', status: 'Running' });
-    expect(screen.getByText('Reload Template')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Reload Template' })).toBeDisabled();
   });
 
   it('fires onReload when enabled and clicked', () => {
     const { onReload } = renderControls({ associatedTemplateName: 'Daily Farm' });
-    fireEvent.click(screen.getByText('Reload Template'));
+    fireEvent.click(screen.getByRole('button', { name: 'Reload Template' }));
     expect(onReload).toHaveBeenCalled();
   });
 

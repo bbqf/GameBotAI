@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { QueueStatus } from '../../services/queues';
 import { GamePickerDialog } from './GamePickerDialog';
+import { IconButton } from './IconButton';
 
 type QueueGameControlsProps = {
   linkedGameId: string | null;
@@ -32,8 +33,9 @@ export const QueueGameControls: React.FC<QueueGameControlsProps> = ({
         >
           {linkedGameName ?? '(no game)'}
         </button>
-        <button
-          type="button"
+        <IconButton
+          icon="unlink"
+          label="Unlink"
           onClick={onUnlink}
           disabled={!linkedGameId || running}
           title={
@@ -41,11 +43,9 @@ export const QueueGameControls: React.FC<QueueGameControlsProps> = ({
               ? 'No game linked.'
               : running
                 ? 'Stop the queue before unlinking a game.'
-                : undefined
+                : 'Unlink'
           }
-        >
-          Unlink
-        </button>
+        />
       </div>
 
       <GamePickerDialog

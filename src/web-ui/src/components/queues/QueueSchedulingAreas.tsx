@@ -17,6 +17,8 @@ import { ScheduleType } from '../../services/queueTemplates';
 import { EntrySchedule, TimerMode } from './QueueEntryList';
 import { SchedulingArea } from './SchedulingArea';
 import type { ParameterBinding } from '../parameters/types';
+import { IconButton } from './IconButton';
+import { RUN_NEXT_STOPPED_TEXT, RunNextSupport } from './runNext';
 import {
   applyDragMove,
   areaForScheduleType,
@@ -46,6 +48,12 @@ export type QueueSchedulingAreasProps = {
    * differ only by a value.
    */
   onParameterValuesChange?: (entryId: string, values: ParameterBinding[]) => void;
+  /**
+   * Run next of each row (feature 184). The editor of a running queue gives the entry states and the handler. The editor
+   * of a stopped queue gives `queueRunning: false`, so each row shows Run next off, with a hint above the sequences.
+   * Left out, the rows show no Run next button.
+   */
+  runNext?: RunNextSupport;
   disabled?: boolean;
 };
 
@@ -78,6 +86,7 @@ export const QueueSchedulingAreas: React.FC<QueueSchedulingAreasProps> = ({
   onTimerRelativeOffsetChange,
   onToggleEnabled,
   onParameterValuesChange,
+  runNext,
   disabled,
 }) => {
   // Declarations come from the sequence list the page already loaded, so opening a card's Parameters
@@ -159,6 +168,9 @@ export const QueueSchedulingAreas: React.FC<QueueSchedulingAreasProps> = ({
 
   return (
     <section className="queue-entries scheduling-areas" aria-label="Queue sequences">
+      {runNext && !runNext.queueRunning && (
+        <p className="form-hint scheduling-areas__run-next-hint">{RUN_NEXT_STOPPED_TEXT}.</p>
+      )}
       <DndContext
         sensors={sensors}
         collisionDetection={collisionDetectionStrategy}
@@ -183,6 +195,7 @@ export const QueueSchedulingAreas: React.FC<QueueSchedulingAreasProps> = ({
               onToggleEnabled={onToggleEnabled}
               parametersBySequenceId={parametersBySequenceId}
               onParameterValuesChange={onParameterValuesChange}
+              runNext={runNext}
             />
           </div>
           <div className="scheduling-areas__body">
@@ -201,6 +214,7 @@ export const QueueSchedulingAreas: React.FC<QueueSchedulingAreasProps> = ({
                 onToggleEnabled={onToggleEnabled}
                 parametersBySequenceId={parametersBySequenceId}
                 onParameterValuesChange={onParameterValuesChange}
+                runNext={runNext}
               />
               <SchedulingArea
                 areaId="scheduled"
@@ -216,6 +230,7 @@ export const QueueSchedulingAreas: React.FC<QueueSchedulingAreasProps> = ({
                 onToggleEnabled={onToggleEnabled}
                 parametersBySequenceId={parametersBySequenceId}
                 onParameterValuesChange={onParameterValuesChange}
+                runNext={runNext}
               />
             </div>
             <div className="scheduling-areas__right">
@@ -233,6 +248,7 @@ export const QueueSchedulingAreas: React.FC<QueueSchedulingAreasProps> = ({
                 onToggleEnabled={onToggleEnabled}
                 parametersBySequenceId={parametersBySequenceId}
                 onParameterValuesChange={onParameterValuesChange}
+                runNext={runNext}
               />
               <SchedulingArea
                 areaId="afterEveryStep"
@@ -248,6 +264,7 @@ export const QueueSchedulingAreas: React.FC<QueueSchedulingAreasProps> = ({
                 onToggleEnabled={onToggleEnabled}
                 parametersBySequenceId={parametersBySequenceId}
                 onParameterValuesChange={onParameterValuesChange}
+                runNext={runNext}
               />
             </div>
           </div>
@@ -264,17 +281,17 @@ export const QueueSchedulingAreas: React.FC<QueueSchedulingAreasProps> = ({
           disabled={disabled}
           onChange={(v) => setSelected(v)}
         />
-        <button
-          type="button"
+        <IconButton
+          icon="add"
+          label="Add"
+          title="Add sequence"
           disabled={disabled || !selected}
           onClick={() => {
             if (!selected) return;
             onAdd(selected);
             setSelected(undefined);
           }}
-        >
-          Add
-        </button>
+        />
       </div>
     </section>
   );

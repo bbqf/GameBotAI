@@ -253,6 +253,20 @@
     min-width: 44px;
   }
 
+  /* Feature 184: the Run next icon button of a schedule row. It is 44 x 44 px and keeps its place when the name is long. */
+  .phone-schedule-row .icon-button {
+    flex: 0 0 auto;
+    width: 44px;
+    height: 44px;
+    margin: 0;
+    padding: 0;
+    border: 1px solid currentColor;
+    border-radius: var(--gb-radius-md);
+    background: transparent;
+    box-shadow: none;
+    color: inherit;
+  }
+
   .phone-stale {
     align-self: flex-start;
     padding: 2px 8px;

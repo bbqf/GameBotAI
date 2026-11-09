@@ -6,6 +6,8 @@ import { TimerMode } from './QueueEntryList';
 import { SchedulingAreaId, SchedulingCard } from './schedulingAreas';
 import { ParameterBindingForm } from '../parameters/ParameterBindingForm';
 import type { ParameterBinding, ParameterDeclaration } from '../parameters/types';
+import { IconButton } from './IconButton';
+import { describeRunNext, RunNextSupport } from './runNext';
 
 type SchedulingSequenceCardProps = {
   card: SchedulingCard;
@@ -27,6 +29,11 @@ type SchedulingSequenceCardProps = {
   sequenceParameters?: ParameterDeclaration[];
   /** Persist this entry's supplied values (declared bindings and ad-hoc names alike). */
   onParameterValuesChange?: (entryId: string, values: ParameterBinding[]) => void;
+  /**
+   * Run next (feature 184). The row shows the Run next icon button, with the reason as text when it is off. Left out,
+   * the row shows no Run next button.
+   */
+  runNext?: RunNextSupport;
 };
 
 const SCHEDULE_LABELS: Record<ScheduleType, string> = {
@@ -63,6 +70,7 @@ export const SchedulingSequenceCard: React.FC<SchedulingSequenceCardProps> = ({
   onToggleEnabled,
   sequenceParameters,
   onParameterValuesChange,
+  runNext,
 }) => {
   const [parametersOpen, setParametersOpen] = useState(false);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -81,6 +89,8 @@ export const SchedulingSequenceCard: React.FC<SchedulingSequenceCardProps> = ({
   const schedule = card.schedule;
   const label = card.label;
   const enabled = card.enabled;
+  // Feature 184: Run next. Only an editor that passes the support shows it.
+  const runNextView = runNext ? describeRunNext(runNext, card.entryId, enabled) : null;
   const isScheduled = areaId === 'scheduled';
   const timerMode: TimerMode = schedule.timerMode ?? (schedule.timerRelativeOffset ? 'relative' : 'timeOfDay');
   const isRelative = isScheduled && timerMode === 'relative';
@@ -206,27 +216,40 @@ export const SchedulingSequenceCard: React.FC<SchedulingSequenceCardProps> = ({
         </span>
       )}
 
-      {onParameterValuesChange && (
-        <button
-          type="button"
-          className="scheduling-card__parameters-toggle"
-          aria-expanded={parametersOpen}
-          aria-label={`Parameters for ${label}`}
-          disabled={disabled}
-          onClick={() => setParametersOpen((open) => !open)}
-        >
-          Parameters
-        </button>
+      {runNextView && (
+        <>
+          {runNextView.note && (
+            <span className="scheduling-card__run-next-note" role="status">{runNextView.note}</span>
+          )}
+          <IconButton
+            icon="runNext"
+            label={`Run next ${label}`}
+            title={runNextView.tooltip}
+            disabled={disabled || !runNextView.enabled}
+            onClick={() => runNext?.onRunNext?.(card.entryId)}
+          />
+        </>
       )}
 
-      <button
-        type="button"
-        onClick={() => onRemove(card.entryId)}
+      {onParameterValuesChange && (
+        <IconButton
+          icon="parameters"
+          label={`Parameters for ${label}`}
+          title="Parameters"
+          ariaExpanded={parametersOpen}
+          disabled={disabled}
+          onClick={() => setParametersOpen((open) => !open)}
+        />
+      )}
+
+      <IconButton
+        icon="remove"
+        label={`Remove ${label}`}
+        title="Remove"
+        tone="destructive"
         disabled={disabled}
-        aria-label={`Remove ${label}`}
-      >
-        Remove
-      </button>
+        onClick={() => onRemove(card.entryId)}
+      />
 
       {parametersOpen && onParameterValuesChange && (
         <div className="scheduling-card__parameters">

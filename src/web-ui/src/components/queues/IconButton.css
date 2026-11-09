@@ -1,8 +1,9 @@
-/* Feature 173: the icon buttons of the Queues list on the big screen. The phone does not use them. */
+/* Feature 173: the icon buttons of the Queues list and (feature 184) the template editor and the phone schedule rows. */
 .icon-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 auto;
   width: 32px;
   height: 32px;
   padding: 0;
@@ -14,8 +15,17 @@
   cursor: pointer;
 }
 
-.icon-button:hover:not(:disabled) {
-  background: rgba(127, 127, 127, 0.18);
+/* The touch size is for the phone: a hit area of at least 44 x 44 px (mobile principle 3). */
+.icon-button--touch {
+  width: 44px;
+  height: 44px;
+}
+
+/* Mobile principle 6: a hover rule is only for a pointer that can hover. */
+@media (hover: hover) {
+  .icon-button:hover:not(:disabled) {
+    background: rgba(127, 127, 127, 0.18);
+  }
 }
 
 .icon-button:focus-visible {
