@@ -27,7 +27,7 @@ export type ActionStepEntry = {
    * still round-trips, and its scalar slots stay parametrizable.
    */
   primitiveAction?: SequencePrimitiveActionPayload;
-  conditionType: 'none' | 'imageVisible' | 'commandOutcome' | 'commandStepOutcome';
+  conditionType: 'none' | 'imageVisible' | 'commandOutcome' | 'commandStepOutcome' | 'matchedImage';
   conditionNegate?: boolean;
   imageId: string;
   minSimilarity: string;

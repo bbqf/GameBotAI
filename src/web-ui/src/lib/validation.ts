@@ -1,6 +1,11 @@
 import { ApiError, ApiValidationError } from './api';
 import type { ConditionExpression, SequenceFlowUpsertRequest } from '../types/sequenceFlow';
-import type { CommandStepOutcomeStepCondition, SequenceLinearStep, SequenceStepCondition } from '../types/sequenceFlow';
+import type {
+  CommandStepOutcomeStepCondition,
+  MatchedImageStepCondition,
+  SequenceLinearStep,
+  SequenceStepCondition
+} from '../types/sequenceFlow';
 import { COMMAND_STEP_OUTCOME_STATES } from '../types/sequenceFlow';
 
 export type ParsedValidation = {
@@ -331,6 +336,37 @@ const validateCommandStepOutcomeCondition = (
   return errors;
 };
 
+/**
+ * Feature 181: the rules for a matchedImage condition. The messages are the same as the service
+ * messages (the part after the step label and the path).
+ */
+const validateMatchedImageCondition = (
+  condition: MatchedImageStepCondition,
+  stepLabel: string,
+  position: number,
+  positionByStepId: Map<string, number>
+): string[] => {
+  const errors: string[] = [];
+  const prefix = `Step '${stepLabel}' condition at $: `;
+  const stepRef = condition.stepRef;
+  if (!stepRef?.trim()) {
+    errors.push(`${prefix}matchedImage condition requires stepRef.`);
+  } else {
+    const referencedPosition = positionByStepId.get(stepRef);
+    if (referencedPosition === undefined) {
+      errors.push(`${prefix}matchedImage references unknown prior step '${stepRef}'.`);
+    } else if (referencedPosition >= position) {
+      errors.push(`${prefix}matchedImage stepRef '${stepRef}' must reference a prior step.`);
+    }
+  }
+
+  if (!condition.imageId?.trim()) {
+    errors.push(`${prefix}matchedImage condition requires imageId.`);
+  }
+
+  return errors;
+};
+
 export const validatePerStepConditions = (steps: SequenceLinearStep[]): string[] => {
   const errors: string[] = [];
   const seenStepIds = new Set<string>();
@@ -408,6 +444,9 @@ export const validatePerStepConditions = (steps: SequenceLinearStep[]): string[]
     for (const slot of slots) {
       if (slot?.type === 'commandStepOutcome') {
         errors.push(...validateCommandStepOutcomeCondition(slot, stepLabel, position, positionByStepId, stepsByStepId));
+      }
+      if (slot?.type === 'matchedImage') {
+        errors.push(...validateMatchedImageCondition(slot, stepLabel, position, positionByStepId));
       }
     }
   });

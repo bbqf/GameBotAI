@@ -25,6 +25,9 @@ public static class ParameterScopeLayers {
   /// <summary>The ephemeral per-iteration layer carrying <c>iteration</c>.</summary>
   public const string Loop = "loop";
 
+  /// <summary>The matched image id of a prior step (feature 181), read from the run.</summary>
+  public const string Step = "step";
+
   /// <summary>Reported when a value came from a declaration's default rather than any binding.</summary>
   public const string Default = "default";
 }
@@ -297,6 +300,14 @@ public sealed class ParameterScope {
       }
     }
 
+    // Feature 181: the reserved step.<stepRef>.matchedImageId name reads the matched image of a prior step.
+    if (StepResultPlaceholderRules.TryParse(name, out var stepRef)
+        && GameBot.Domain.Services.StepImageMatchScope.Current is { } matches
+        && matches.TryGet(stepRef, out var match)) {
+      value = new ParameterValue(match.MatchedImageId, ParameterScopeLayers.Step, null, Mapped: true);
+      return true;
+    }
+
     value = default;
     return false;
   }
@@ -355,6 +366,13 @@ public sealed class ParameterScope {
     var map = new Dictionary<string, string>(StringComparer.Ordinal);
     foreach (var entry in Describe()) {
       if (entry.Value is not null) map[entry.Name] = entry.Value;
+    }
+
+    // Feature 181: the matched image of each prior step, under the reserved step. namespace.
+    if (GameBot.Domain.Services.StepImageMatchScope.Current is { } matches) {
+      foreach (var (stepKey, match) in matches.Snapshot()) {
+        map[StepResultPlaceholderRules.NameFor(stepKey)] = match.MatchedImageId;
+      }
     }
 
     return map;

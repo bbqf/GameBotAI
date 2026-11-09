@@ -159,6 +159,10 @@ public static class ParameterReferenceScanner {
             allowsList: true);
         AddItems(found, image.ImageIds, $"{fieldPath}.imageIds", stepLabel, insideLoop);
         break;
+      case MatchedImageStepCondition matchedImage:
+        // Feature 181: imageId is a single-value position that names an image, so the static check is skipped.
+        AddFrom(found, matchedImage.ImageId, $"{fieldPath}.imageId", stepLabel, insideLoop, defeatsStaticCheck: true);
+        break;
       case OcrTextStepCondition ocr:
         // These fields name no image, so the static check is not skipped.
         AddFrom(found, ocr.Pattern, $"{fieldPath}.pattern", stepLabel, insideLoop, isRegexPattern: true);

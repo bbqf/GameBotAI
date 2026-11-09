@@ -651,6 +651,11 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
           ["confidence"] = waitDetails?.Confidence ?? waitConfig?.DetectionTarget?.Confidence,
           ["exitCondition"] = isWaitForImageStep ? (waitDetails?.ExitCondition ?? actionOutcome) : null,
           ["imageLoadStatus"] = imageLoadStatus,
+          // Feature 181: the matched image of an image check. Both are null when no image matched.
+          ["matchedImageId"] = waitDetails?.MatchedImageId ?? step.MatchedImageId,
+          ["matchedImageConfidence"] = waitDetails?.MatchedImageId is not null
+            ? waitDetails.Confidence
+            : step.MatchedImageConfidence,
           ["sequenceId"] = sequenceId,
           ["sequenceLabel"] = sequenceName,
           ["stepId"] = stepId,

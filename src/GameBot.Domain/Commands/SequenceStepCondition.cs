@@ -8,6 +8,7 @@ namespace GameBot.Domain.Commands;
 [JsonDerivedType(typeof(ImageVisibleStepCondition), typeDiscriminator: "imageVisible")]
 [JsonDerivedType(typeof(CommandOutcomeStepCondition), typeDiscriminator: "commandOutcome")]
 [JsonDerivedType(typeof(CommandStepOutcomeStepCondition), typeDiscriminator: "commandStepOutcome")]
+[JsonDerivedType(typeof(MatchedImageStepCondition), typeDiscriminator: "matchedImage")]
 [JsonDerivedType(typeof(AllStepCondition), typeDiscriminator: "all")]
 [JsonDerivedType(typeof(AnyStepCondition), typeDiscriminator: "any")]
 [JsonDerivedType(typeof(NoneStepCondition), typeDiscriminator: "none")]
@@ -69,6 +70,21 @@ public sealed class CommandStepOutcomeStepCondition : SequenceStepCondition {
 
   /// <summary>One of <see cref="CommandStepOutcomeStates.All"/> (not case-sensitive).</summary>
   public string ExpectedState { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// True when the latest matched image of a prior step is <see cref="ImageId"/> (feature 181, issue #380).
+/// A step with no matched image gives false before <c>negate</c>.
+/// </summary>
+public sealed class MatchedImageStepCondition : SequenceStepCondition {
+  [JsonIgnore]
+  public override string Type => "matchedImage";
+
+  /// <summary>The id of a prior sequence step that did an image check.</summary>
+  public string StepRef { get; set; } = string.Empty;
+
+  /// <summary>The image id to compare with the matched image id of that step.</summary>
+  public string ImageId { get; set; } = string.Empty;
 }
 
 /// <summary>

@@ -37,9 +37,15 @@ export const ConditionFields: React.FC<ConditionFieldsProps> = ({
       value={condition?.type ?? 'imageVisible'}
       disabled={disabled}
       onChange={(e) => {
-        const type = e.target.value as 'imageVisible' | 'commandOutcome' | 'commandStepOutcome';
+        const type = e.target.value as 'imageVisible' | 'commandOutcome' | 'commandStepOutcome' | 'matchedImage';
         if (type === 'imageVisible') {
           onConditionChange?.({ type: 'imageVisible', imageId: condition?.type === 'imageVisible' ? condition.imageId : '', minSimilarity: null });
+        } else if (type === 'matchedImage') {
+          onConditionChange?.(
+            condition?.type === 'matchedImage'
+              ? condition
+              : { type: 'matchedImage', stepRef: '', imageId: '' }
+          );
         } else if (type === 'commandStepOutcome') {
           onConditionChange?.(
             condition?.type === 'commandStepOutcome'
@@ -54,6 +60,7 @@ export const ConditionFields: React.FC<ConditionFieldsProps> = ({
       <option value="imageVisible">imageVisible</option>
       <option value="commandOutcome">commandOutcome</option>
       <option value="commandStepOutcome">commandStepOutcome</option>
+      <option value="matchedImage">matchedImage</option>
     </select>
 
     {condition?.type === 'imageVisible' && (
@@ -92,6 +99,23 @@ export const ConditionFields: React.FC<ConditionFieldsProps> = ({
           <option value="failed">failed</option>
           <option value="skipped">skipped</option>
         </select>
+      </>
+    )}
+    {condition?.type === 'matchedImage' && (
+      <>
+        <input
+          data-testid={`${testIdPrefix}-stepRef`}
+          placeholder="Step ref"
+          value={condition.stepRef}
+          disabled={disabled}
+          onChange={(e) => onConditionChange?.({ ...condition, stepRef: e.target.value })}
+        />
+        <ImageSelectorDropdown
+          data-testid={`${testIdPrefix}-imageId`}
+          value={condition.imageId}
+          onChange={(id) => onConditionChange?.({ ...condition, imageId: id })}
+          disabled={disabled}
+        />
       </>
     )}
     {condition?.type === 'commandStepOutcome' && (

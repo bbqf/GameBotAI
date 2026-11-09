@@ -737,6 +737,12 @@ internal static class SequencesEndpoints {
         expectedState = stepOutcome.ExpectedState,
         negate = stepOutcome.Negate
       },
+      MatchedImageStepCondition matchedImage => new {
+        type = "matchedImage",
+        stepRef = matchedImage.StepRef,
+        imageId = matchedImage.ImageId,
+        negate = matchedImage.Negate
+      },
       LastRunStepCondition lastRun => MapLastRunConditionToDto(lastRun),
       OcrTextStepCondition ocrText => new {
         type = "ocrText",
@@ -1577,6 +1583,11 @@ internal static class SequencesEndpoints {
         CommandStepOrder = stepOutcome.CommandStepOrder,
         ExpectedState = stepOutcome.ExpectedState ?? string.Empty,
         Negate = stepOutcome.Negate
+      },
+      MatchedImageConditionContract matchedImage => new MatchedImageStepCondition {
+        StepRef = matchedImage.StepRef ?? string.Empty,
+        ImageId = matchedImage.ImageId ?? string.Empty,
+        Negate = matchedImage.Negate
       },
       LastRunConditionContract lastRun => new LastRunStepCondition {
         Sequence = lastRun.Sequence ?? string.Empty,

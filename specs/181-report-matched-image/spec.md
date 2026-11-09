@@ -2,7 +2,7 @@
 
 **Feature Branch**: `181-report-matched-image`
 **Created**: 2026-11-09
-**Status**: Draft
+**Status**: Implemented
 **Input**: User description: "FR-044: Report which image of a list matched. Source: GitHub issue #380. After an any-of image check, the step result and a later condition or value can read the id of the image that matched."
 
 ## Clarifications

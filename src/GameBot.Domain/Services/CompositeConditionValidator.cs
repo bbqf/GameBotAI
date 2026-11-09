@@ -73,7 +73,7 @@ public static class CompositeConditionValidator {
     // gate covers all six slots and no message is written two times.
     // Feature 167: the same is true for a commandStepOutcome leaf.
     if (condition is not CompositeStepCondition and not LastRunStepCondition and not OcrTextStepCondition
-        and not CommandStepOutcomeStepCondition && !validateLeafAtRoot) {
+        and not CommandStepOutcomeStepCondition and not MatchedImageStepCondition && !validateLeafAtRoot) {
       return;
     }
 
@@ -135,6 +135,10 @@ public static class CompositeConditionValidator {
 
       case CommandStepOutcomeStepCondition stepOutcome:
         ValidateCommandStepOutcome(stepOutcome, stepLabel, path, errors, positionByStepId, referencingStepPosition);
+        break;
+
+      case MatchedImageStepCondition matchedImage:
+        ValidateMatchedImage(matchedImage, stepLabel, path, errors, positionByStepId, referencingStepPosition);
         break;
 
       case LastRunStepCondition lastRun:
@@ -214,6 +218,35 @@ public static class CompositeConditionValidator {
     }
 
     CommandStepOutcomeRules.ValidateFields(condition, stepLabel, path, errors);
+  }
+
+  /// <summary>
+  /// Feature 181: adds the problems of a <c>matchedImage</c> leaf. The <c>stepRef</c> must name a prior step.
+  /// The <c>imageId</c> must not be empty.
+  /// </summary>
+  private static void ValidateMatchedImage(
+      MatchedImageStepCondition condition,
+      string stepLabel,
+      string path,
+      ICollection<string> errors,
+      IReadOnlyDictionary<string, int>? positionByStepId,
+      int? referencingStepPosition) {
+    var prefix = $"Step '{stepLabel}' condition at {path}: ";
+    if (string.IsNullOrWhiteSpace(condition.StepRef)) {
+      errors.Add($"{prefix}matchedImage condition requires stepRef.");
+    }
+    else if (positionByStepId is not null) {
+      if (!positionByStepId.TryGetValue(condition.StepRef, out var referencedPosition)) {
+        errors.Add($"{prefix}matchedImage references unknown prior step '{condition.StepRef}'.");
+      }
+      else if (referencingStepPosition is { } ownPosition && referencedPosition >= ownPosition) {
+        errors.Add($"{prefix}matchedImage stepRef '{condition.StepRef}' must reference a prior step.");
+      }
+    }
+
+    if (string.IsNullOrWhiteSpace(condition.ImageId)) {
+      errors.Add($"{prefix}matchedImage condition requires imageId.");
+    }
   }
 
   /// <summary>

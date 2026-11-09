@@ -239,13 +239,21 @@ public static class SequenceStepConditionEvaluator {
           // Feature 180: any-of. The first visible image ends the check. An empty list is false.
           foreach (var imageId in image.ImageIds) {
             ct.ThrowIfCancellationRequested();
-            if (await imageEvaluator(NewImageCondition(imageId, image), ct).ConfigureAwait(false)) return true;
+            if (await imageEvaluator(NewImageCondition(imageId, image), ct).ConfigureAwait(false)) {
+              NoteImageMatch(imageId);
+              return true;
+            }
           }
 
           return false;
         }
 
-        return await imageEvaluator(NewImageCondition(image.ImageId, image), ct).ConfigureAwait(false);
+        var single = await imageEvaluator(NewImageCondition(image.ImageId, image), ct).ConfigureAwait(false);
+        if (single) NoteImageMatch(image.ImageId);
+        return single;
+
+      case MatchedImageStepCondition matchedImage:
+        return EvaluateMatchedImage(matchedImage);
 
       case CommandStepOutcomeStepCondition stepOutcome:
         return EvaluateCommandStepOutcome(stepOutcome, evaluators);
@@ -267,6 +275,29 @@ public static class SequenceStepConditionEvaluator {
           condition.Type,
           $"Unsupported condition type '{condition.Type}'.");
     }
+  }
+
+  /// <summary>Feature 181: tells the ambient match scope which image the last true check matched.</summary>
+  private static void NoteImageMatch(string imageId) =>
+    StepImageMatchScope.Current?.NoteMatch(imageId, GameBot.Domain.Vision.ImageDetectionPassScope.Current?.LastPass?.BestScore);
+
+  /// <summary>
+  /// Feature 181: evaluates a <c>matchedImage</c> leaf. A step with no matched image gives false and no
+  /// failure. <c>negate</c> is applied by the caller. Each evaluation writes one log line to the ambient scope.
+  /// </summary>
+  private static bool EvaluateMatchedImage(MatchedImageStepCondition condition) {
+    string? actual = null;
+    if (StepImageMatchScope.Current is { } scope && scope.TryGet(condition.StepRef, out var match)) {
+      actual = match.MatchedImageId;
+    }
+
+    var result = actual is not null && string.Equals(actual, condition.ImageId, StringComparison.Ordinal);
+    var actualText = actual ?? "none (no matched image recorded)";
+    CommandStepStateScope.Current?.AddLog(string.Format(
+      CultureInfo.InvariantCulture,
+      "matchedImage(stepRef={0}, expected={1}) actual={2}",
+      condition.StepRef, condition.ImageId, actualText));
+    return result;
   }
 
   private static Condition NewImageCondition(string imageId, ImageVisibleStepCondition image) => new() {
@@ -388,6 +419,9 @@ public static class SequenceStepConditionEvaluator {
 
       case CommandStepOutcomeStepCondition stepOutcome:
         return $"{negatePrefix}commandStepOutcome(stepRef={stepOutcome.StepRef}, order={stepOutcome.CommandStepOrder}, expected={stepOutcome.ExpectedState})";
+
+      case MatchedImageStepCondition matchedImage:
+        return $"{negatePrefix}matchedImage(stepRef={matchedImage.StepRef}, imageId={matchedImage.ImageId})";
 
       case LastRunStepCondition lastRun:
         var window = lastRun.Since is not null ? $"since={lastRun.Since}" : $"within={lastRun.Within}";

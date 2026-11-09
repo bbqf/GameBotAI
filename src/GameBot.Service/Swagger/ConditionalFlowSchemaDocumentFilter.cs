@@ -38,6 +38,8 @@ internal sealed class ConditionalFlowSchemaDocumentFilter : IDocumentFilter {
     context.SchemaGenerator.GenerateSchema(typeof(OcrTextConditionContract), context.SchemaRepository);
     // Feature 167: the commandStepOutcome condition on the state of one step inside a command.
     context.SchemaGenerator.GenerateSchema(typeof(CommandStepOutcomeConditionContract), context.SchemaRepository);
+    // Feature 181: the matchedImage condition on the matched image of a prior step.
+    context.SchemaGenerator.GenerateSchema(typeof(MatchedImageConditionContract), context.SchemaRepository);
     // Feature 094: the execution-log entry shape carrying cancellationReason/timeLimitMs, so a consumer
     // can find how a time-limit cancellation is reported without first hitting one. (ExecutionTreeNodeDto
     // is not registered: its nested trace/deep-link DTOs share schema ids with the Contracts.Sequences
@@ -64,6 +66,7 @@ internal sealed class ConditionalFlowSchemaDocumentFilter : IDocumentFilter {
     AliasSchema(context, nameof(LastRunConditionContract), "LastRunCondition");
     AliasSchema(context, nameof(OcrTextConditionContract), "OcrTextCondition");
     AliasSchema(context, nameof(CommandStepOutcomeConditionContract), "CommandStepOutcomeCondition");
+    AliasSchema(context, nameof(MatchedImageConditionContract), "MatchedImageCondition");
     // Feature 130: the optional pixel region of an image condition and of a detection target.
     AliasSchema(context, nameof(DetectionTargetDto), "DetectionTarget");
     AliasSchema(context, nameof(PixelRegionDto), "PixelRegion");

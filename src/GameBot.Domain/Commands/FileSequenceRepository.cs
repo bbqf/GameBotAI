@@ -424,6 +424,18 @@ namespace GameBot.Domain.Commands {
 
           return;
 
+        case MatchedImageStepCondition matchedImageCondition:
+          // Feature 181: the last guard only. The save path gives a 400 before this point.
+          if (string.IsNullOrWhiteSpace(matchedImageCondition.StepRef)) {
+            throw new InvalidOperationException($"Step '{stepId}' matchedImage condition requires stepRef.");
+          }
+
+          if (string.IsNullOrWhiteSpace(matchedImageCondition.ImageId)) {
+            throw new InvalidOperationException($"Step '{stepId}' matchedImage condition requires imageId.");
+          }
+
+          return;
+
         case LastRunStepCondition lastRunCondition:
           // Feature 105: the last guard only. The save path gives a 400 before this point.
           var lastRunErrors = LastRunConditionRules.Validate(lastRunCondition);

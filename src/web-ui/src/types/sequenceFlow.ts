@@ -75,7 +75,7 @@ export type ConditionEvaluationTrace = {
   operatorSteps?: Array<Record<string, unknown>>;
 };
 
-export type PerStepConditionType = 'imageVisible' | 'commandOutcome' | 'commandStepOutcome';
+export type PerStepConditionType = 'imageVisible' | 'commandOutcome' | 'commandStepOutcome' | 'matchedImage';
 
 export type ImageVisibleStepCondition = {
   type: 'imageVisible';
@@ -121,7 +121,22 @@ export type CommandStepOutcomeStepCondition = {
   negate?: boolean;
 };
 
-export type SequenceStepCondition = ImageVisibleStepCondition | CommandOutcomeStepCondition | CommandStepOutcomeStepCondition;
+/**
+ * True when the latest matched image of a prior step is `imageId` (feature 181). The `stepRef` names a
+ * prior step that did an image check.
+ */
+export type MatchedImageStepCondition = {
+  type: 'matchedImage';
+  stepRef: string;
+  imageId: string;
+  negate?: boolean;
+};
+
+export type SequenceStepCondition =
+  | ImageVisibleStepCondition
+  | CommandOutcomeStepCondition
+  | CommandStepOutcomeStepCondition
+  | MatchedImageStepCondition;
 
 export type SequenceActionPayload = {
   type: string;

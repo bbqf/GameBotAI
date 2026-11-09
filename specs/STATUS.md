@@ -207,7 +207,8 @@ Status vocabulary:
 | 177 | Fix Installed WaitForImage | Implemented |
 | 178 | Force Reinstall Gamepack | Implemented |
 | 179 | List-Valued Sequence Parameters | Implemented |
-| 180 | Any-of Image List Condition and WaitForImage | Implemented |
+| 180 | Any-of Image List Condition and WaitForImage | Implemented (iterated by 181) |
+| 181 | Report Which Image of a List Matched | Implemented |
 
 ## Numbering notes
 

@@ -11,7 +11,8 @@ namespace GameBot.Domain.Utils;
 /// Keys are dotted identifiers (<c>\w+(?:\.\w+)*</c>), which covers both the original loop
 /// <c>{{iteration}}</c> key and the reserved <c>{{queue.emulatorSerial}}</c>-style built-ins added by
 /// feature 078. The pattern is a strict superset of the original <c>\w+</c>, so every placeholder
-/// that matched before still matches.
+/// that matched before still matches. Feature 181 adds the form <c>{{step.&lt;stepRef&gt;.matchedImageId}}</c>,
+/// where a segment after <c>step.</c> may also hold a hyphen, as a step id may.
 /// </para>
 /// <para>
 /// <see cref="Substitute"/> and <see cref="SubstitutePayload"/> are <em>lenient</em>: unknown keys are
@@ -21,7 +22,7 @@ namespace GameBot.Domain.Utils;
 /// </summary>
 public static class TemplateSubstitutor {
   private static readonly Regex PlaceholderPattern =
-      new(@"\{\{(\w+(?:\.\w+)*)\}\}", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
+      new(@"\{\{(step(?:\.[\w-]+)+|\w+(?:\.\w+)*)\}\}", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
   /// <summary>
   /// Returns every distinct <c>{{key}}</c> name referenced by <paramref name="template"/>, in order
