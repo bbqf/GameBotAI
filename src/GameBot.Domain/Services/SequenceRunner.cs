@@ -130,6 +130,9 @@ namespace GameBot.Domain.Services {
       // gets a new scope, and the scope of the caller comes back at the end.
       using var stepStateScope = CommandStepStateScope.Push(new CommandStepStateScope());
 
+      // Feature 181: each run has its own matched images, with the same lifetime as the step states.
+      using var imageMatchScope = StepImageMatchScope.Push(new StepImageMatchScope());
+
       // The sequence's own declarations join the scope so their defaults apply to any name no caller
       // supplied. Bindings still outrank defaults regardless of layer depth (see ParameterScope).
       var runScope = (scope ?? ParameterScope.Empty)
@@ -747,6 +750,8 @@ namespace GameBot.Domain.Services {
         Dictionary<string, string> stepOutcomes,
         CancellationToken ct) {
       var waitOutcome = await WaitForImageAsync(step.WaitForImage, conditionEvaluator, sequenceId, stepKey, ct).ConfigureAwait(false);
+      // Feature 181: the wait result holds the matched image of this step, not the guard.
+      result.SetPendingMatch(stepKey, null);
       result.AddStep(
           stepKey,
           appliedDelay,
@@ -1091,6 +1096,9 @@ namespace GameBot.Domain.Services {
               : "loaded"
       };
 
+      // Feature 181: the latest run of the step counts, so an older match is removed first.
+      StepImageMatchScope.Current?.Clear(stepKey);
+
       if (detectionTarget is null || string.IsNullOrWhiteSpace(detectionTarget.ReferenceImageId)) {
         // A wait with no image to look for is a plain delay, not a search that failed. Reported as
         // such so the log distinguishes "paused on purpose" from "looked for something and never
@@ -1116,6 +1124,8 @@ namespace GameBot.Domain.Services {
       };
 
       // Feature 180: a written list. The wait ends when any image is visible. For "absent", no image is visible.
+      // Feature 181: the first item that returns true is the matched image.
+      var matchedListId = new System.Runtime.CompilerServices.StrongBox<string?>(null);
       if (detectionTarget.ReferenceImageIds is { Count: > 1 } listIds) {
         var singleEvaluator = conditionEvaluator;
         conditionEvaluator = async (item, token) => {
@@ -1127,7 +1137,10 @@ namespace GameBot.Domain.Services {
               ConfidenceThreshold = item.ConfidenceThreshold,
               PixelRegion = item.PixelRegion
             };
-            if (await singleEvaluator(listCondition, token).ConfigureAwait(false)) return true;
+            if (await singleEvaluator(listCondition, token).ConfigureAwait(false)) {
+              matchedListId.Value = listId;
+              return true;
+            }
           }
 
           return false;
@@ -1160,6 +1173,9 @@ namespace GameBot.Domain.Services {
       var (pollResult, passCount) = await PollImageConditionAsync(condition, conditionEvaluator, deadline, ct).ConfigureAwait(false);
       if (pollResult == WaitPollResult.Detected) {
         detail.ExitCondition = "image_detected";
+        // Feature 181: report the matched image. A single image is its own match.
+        detail.MatchedImageId = matchedListId.Value ?? detectionTarget.ReferenceImageId;
+        StepImageMatchScope.Current?.Set(stepKey, detail.MatchedImageId, ImageDetectionPassScope.Current?.LastPass?.BestScore);
         return new WaitForImageStepOutcome("image_detected", detail);
       }
       if (pollResult == WaitPollResult.Unavailable) {
@@ -1340,11 +1356,14 @@ namespace GameBot.Domain.Services {
         CancellationToken ct) {
       var conditionType = condition.Type;
       ConditionEvaluation conditionOutcome;
+      SequenceStepCondition resolved;
+      var imageMatchScope = StepImageMatchScope.Current;
+      _ = imageMatchScope?.TakeNoted();
 
       try {
         // Feature 114: the guard uses the scope of the step, so a placeholder in an imageVisible
         // leaf gets the value of this step.
-        var resolved = ResolveCondition(condition, scope, "condition", stepKey);
+        resolved = ResolveCondition(condition, scope, "condition", stepKey);
         conditionOutcome = await SequenceStepConditionEvaluator
             .EvaluateAsync(resolved, conditionEvaluator, stepOutcomes, SequenceRunContext.Current?.LastRunEvaluator, ct)
             .ConfigureAwait(false);
@@ -1367,6 +1386,21 @@ namespace GameBot.Domain.Services {
       // Issue #338: the text that an ocrText condition read. A guard that passes has no log entry of its
       // own, so its lines are dropped here and do not leak into a later step.
       var guardOcrLog = OcrTextEvaluationScope.DrainLog();
+
+      // Feature 181: only a top-level, non-negated imageVisible condition gives a matched image. The
+      // latest result of the step counts, so any other result removes the older entry.
+      if (imageMatchScope is not null && !string.IsNullOrWhiteSpace(stepKey)) {
+        var noted = imageMatchScope.TakeNoted();
+        if (resolved is ImageVisibleStepCondition { Negate: false } && conditionOutcome.Value && noted is not null) {
+          imageMatchScope.Set(stepKey, noted.MatchedImageId, noted.Confidence);
+          result.SetPendingMatch(stepKey, noted);
+        }
+        else {
+          imageMatchScope.Clear(stepKey);
+          result.SetPendingMatch(stepKey, null);
+        }
+      }
+
       if (conditionOutcome.Value) {
         return StepGuardDecision.Run;
       }
@@ -2777,6 +2811,16 @@ namespace GameBot.Domain.Services {
     private readonly System.Collections.Generic.List<ConditionStepTraceResult> _conditionTraces = new();
     public System.Collections.Generic.IReadOnlyList<ConditionStepTraceResult> ConditionTraces => _conditionTraces.AsReadOnly();
 
+    private (string Key, StepImageMatch? Match)? _pendingMatch;
+
+    /// <summary>
+    /// Feature 181: keeps the matched image of the guard of a step until the entry of that step is added.
+    /// A null match removes the older value.
+    /// </summary>
+    internal void SetPendingMatch(string stepKey, StepImageMatch? match) {
+      _pendingMatch = match is null ? null : (stepKey, match);
+    }
+
     public static SequenceExecutionResult Start(string sequenceId) {
       return new SequenceExecutionResult {
         SequenceId = sequenceId,
@@ -2804,7 +2848,18 @@ namespace GameBot.Domain.Services {
         WaitForImageStepResultDetails? waitForImageDetails = null,
         string? stepId = null,
         bool? removed = null) {
+      // Feature 181: the matched image of the guard of this step goes to the entry of the step.
+      StepImageMatch? matched = null;
+      if (_pendingMatch is { Match: not null } pending
+          && (string.Equals(pending.Key, stepId, StringComparison.Ordinal)
+              || string.Equals(pending.Key, commandId, StringComparison.Ordinal))) {
+        matched = pending.Match;
+        _pendingMatch = null;
+      }
+
       _steps.Add(new StepResult {
+        MatchedImageId = matched?.MatchedImageId,
+        MatchedImageConfidence = matched?.Confidence,
         CommandId = commandId,
         StepId = stepId,
         Status = status,
@@ -2919,6 +2974,18 @@ namespace GameBot.Domain.Services {
     /// <summary>For a reschedule-self Cancel step: true if a booking was removed. Null for other steps.</summary>
     public bool? Removed { get; set; }
     public WaitForImageStepResultDetails? WaitForImageDetails { get; set; }
+
+    /// <summary>
+    /// The id of the image that matched in the top-level <c>imageVisible</c> guard of the step (feature 181).
+    /// Null when the step has no such guard or no image matched. Omitted from the response when null.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? MatchedImageId { get; set; }
+
+    /// <summary>The similarity of the match of <see cref="MatchedImageId"/>. Omitted from the response when null.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public double? MatchedImageConfidence { get; set; }
+
     /// <summary>Per-iteration results for loop steps; null for non-loop steps.</summary>
     public IReadOnlyList<LoopIterResult>? LoopIterations { get; set; }
     /// <summary>Why a loop step stopped iterating; null for non-loop steps.</summary>
@@ -2945,6 +3012,13 @@ namespace GameBot.Domain.Services {
     public double? Confidence { get; set; }
     public string? ExitCondition { get; set; }
     public string? ImageLoadStatus { get; set; }
+
+    /// <summary>
+    /// The id of the image that matched (feature 181). Set only when the exit condition is
+    /// <c>image_detected</c>. Null in all other cases.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? MatchedImageId { get; set; }
   }
 
   internal sealed record WaitForImageStepOutcome(string ExitCondition, WaitForImageStepResultDetails Detail);

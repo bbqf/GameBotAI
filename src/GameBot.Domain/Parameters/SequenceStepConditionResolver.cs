@@ -67,6 +67,7 @@ public static class SequenceStepConditionResolver {
   private static bool HasPlaceholder(SequenceStepCondition? condition) => condition switch {
     ImageVisibleStepCondition image => TemplateSubstitutor.ContainsPlaceholder(image.ImageId)
         || (image.ImageIds is not null && image.ImageIds.Any(TemplateSubstitutor.ContainsPlaceholder)),
+    MatchedImageStepCondition matched => TemplateSubstitutor.ContainsPlaceholder(matched.ImageId),
     OcrTextStepCondition ocr => TemplateSubstitutor.ContainsPlaceholder(ocr.Pattern)
         || TemplateSubstitutor.ContainsPlaceholder(ocr.Expected),
     CompositeStepCondition composite => composite.Children is not null && AnyChildHasPlaceholder(composite.Children),
@@ -93,6 +94,18 @@ public static class SequenceStepConditionResolver {
     switch (condition) {
       case ImageVisibleStepCondition image:
         return TryResolveImage(image, scope, context, $"{fieldPath}.imageId", used, ref error, out resolved);
+
+      case MatchedImageStepCondition matched when HasPlaceholder(matched):
+        if (!TryResolveText(matched.ImageId, $"{fieldPath}.imageId", scope, context, used, ref error, out var matchedImageId)) {
+          return false;
+        }
+
+        resolved = new MatchedImageStepCondition {
+          StepRef = matched.StepRef,
+          ImageId = matchedImageId,
+          Negate = matched.Negate
+        };
+        return true;
 
       case OcrTextStepCondition ocr when HasPlaceholder(ocr):
         return TryResolveOcrText(ocr, scope, context, fieldPath, used, ref error, out resolved);

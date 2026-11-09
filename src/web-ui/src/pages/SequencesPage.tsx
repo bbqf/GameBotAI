@@ -52,7 +52,7 @@ type SequenceStep = {
   waitUntil?: 'present' | 'absent';
   /** Feature 175: consecutive captures without the image, as typed. Empty means the default (2). */
   waitAbsentCaptures?: string;
-  conditionType: 'none' | 'imageVisible' | 'commandOutcome' | 'commandStepOutcome';
+  conditionType: 'none' | 'imageVisible' | 'commandOutcome' | 'commandStepOutcome' | 'matchedImage';
   conditionNegate: boolean;
   imageId: string;
   minSimilarity: string;
@@ -395,14 +395,16 @@ const linearBodyToStepEntries = (body: SequenceLinearStep[]): StepEntry[] => {
       primitiveAction: inline ? primitiveAction! : undefined,
       conditionType: child.condition?.type === 'imageVisible' ? 'imageVisible'
         : child.condition?.type === 'commandOutcome' ? 'commandOutcome'
-          : child.condition?.type === 'commandStepOutcome' ? 'commandStepOutcome' : 'none',
+          : child.condition?.type === 'commandStepOutcome' ? 'commandStepOutcome'
+            : child.condition?.type === 'matchedImage' ? 'matchedImage' : 'none',
       stepOutcomeOrder: child.condition?.type === 'commandStepOutcome' && child.condition.commandStepOrder > 0
         ? String(child.condition.commandStepOrder) : '',
       stepOutcomeState: child.condition?.type === 'commandStepOutcome' ? child.condition.expectedState : '',
       conditionNegate: child.condition?.negate ?? false,
-      imageId: child.condition?.type === 'imageVisible' ? child.condition.imageId : '',
+      imageId: child.condition?.type === 'imageVisible' || child.condition?.type === 'matchedImage' ? child.condition.imageId : '',
       minSimilarity: child.condition?.type === 'imageVisible' && child.condition.minSimilarity != null ? String(child.condition.minSimilarity) : '',
       outcomeStepRef: child.condition?.type === 'commandOutcome' || child.condition?.type === 'commandStepOutcome'
+        || child.condition?.type === 'matchedImage'
         ? child.condition.stepRef : '',
       expectedState: child.condition?.type === 'commandOutcome' ? child.condition.expectedState : 'success'
     };
@@ -436,7 +438,25 @@ const loopDtoToEntry = (step: SequenceLinearStep): LoopStepEntry => {
 
 const toStepEntriesFromLinear = (steps: SequenceLinearStep[]): SequenceStep[] =>
   // The label is attached here rather than in each branch below so no future branch can forget it.
-  steps.map((step) => ({ ...withCommandStepOutcomeFields(linearStepToFormStep(step), step), label: step.label }));
+  steps.map((step) => ({
+    ...withMatchedImageFields(withCommandStepOutcomeFields(linearStepToFormStep(step), step), step),
+    label: step.label
+  }));
+
+/** Feature 181: copies a matchedImage step condition into the form fields, for every step kind. */
+const withMatchedImageFields = (formStep: SequenceStep, step: SequenceLinearStep): SequenceStep => {
+  const condition = step.condition;
+  if (condition?.type !== 'matchedImage') {
+    return formStep;
+  }
+  return {
+    ...formStep,
+    conditionType: 'matchedImage',
+    conditionNegate: condition.negate ?? false,
+    outcomeStepRef: condition.stepRef,
+    imageId: condition.imageId
+  };
+};
 
 /**
  * Feature 167: copies a commandStepOutcome step condition into the form fields. This runs for every step
@@ -745,8 +765,21 @@ const buildConditionPayload = (step: SequenceStep) => {
   if (step.conditionType === 'commandStepOutcome') {
     return buildCommandStepOutcomePayload(step);
   }
+  if (step.conditionType === 'matchedImage') {
+    return buildMatchedImagePayload(step);
+  }
   return null;
 };
+
+/** Feature 181: the matchedImage condition. The service checks that both fields are not empty. */
+const buildMatchedImagePayload = (
+  step: Pick<SequenceStep, 'outcomeStepRef' | 'imageId' | 'conditionNegate'>
+) => ({
+  type: 'matchedImage' as const,
+  stepRef: step.outcomeStepRef.trim(),
+  imageId: step.imageId.trim(),
+  negate: step.conditionNegate || undefined
+});
 
 /** Feature 167: an empty or bad order is sent as 0, so the validation shows the order message. */
 const buildCommandStepOutcomePayload = (
@@ -810,7 +843,9 @@ const bodyEntryToPayloadStep = (entry: StepEntry): SequenceLinearStep => {
       ? { type: 'commandOutcome' as const, stepRef: a.outcomeStepRef.trim(), expectedState: a.expectedState, negate: a.conditionNegate || undefined }
       : a.conditionType === 'commandStepOutcome'
         ? buildCommandStepOutcomePayload({ ...a, conditionNegate: a.conditionNegate ?? false })
-        : null;
+        : a.conditionType === 'matchedImage'
+          ? buildMatchedImagePayload({ ...a, conditionNegate: a.conditionNegate ?? false })
+          : null;
 
   // An inline action goes back exactly as it came in, apart from the slots edited in the form.
   if (a.primitiveAction) {
@@ -1457,9 +1492,10 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                 ? {
                   ...candidate,
                   conditionType: value,
-                  imageId: value === 'imageVisible' ? candidate.imageId : '',
+                  imageId: value === 'imageVisible' || value === 'matchedImage' ? candidate.imageId : '',
                   minSimilarity: value === 'imageVisible' ? candidate.minSimilarity : '',
-                  outcomeStepRef: value === 'commandOutcome' || value === 'commandStepOutcome' ? candidate.outcomeStepRef : '',
+                  outcomeStepRef: value === 'commandOutcome' || value === 'commandStepOutcome' || value === 'matchedImage'
+                    ? candidate.outcomeStepRef : '',
                   expectedState: value === 'commandOutcome' ? candidate.expectedState : 'success',
                   stepOutcomeOrder: value === 'commandStepOutcome' ? candidate.stepOutcomeOrder : '',
                   stepOutcomeState: value === 'commandStepOutcome' ? candidate.stepOutcomeState : ''
@@ -1474,6 +1510,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
           <option value="imageVisible">imageVisible</option>
           <option value="commandOutcome">commandOutcome</option>
           <option value="commandStepOutcome">commandStepOutcome</option>
+          <option value="matchedImage">matchedImage</option>
         </select>
       </div>
 
@@ -1553,6 +1590,47 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                   }));
                   setDirty(true);
                 }
+              }}
+              disabled={submitting || loading}
+            />
+          </div>
+        </div>
+      )}
+
+      {step.conditionType === 'matchedImage' && (
+        <div className="sequence-step-condition-pair">
+          <div className="sequence-step-condition-field sequence-step-condition-field--step-ref">
+            <label htmlFor={`step-matched-step-ref-${step.id}`}>Step Ref</label>
+            <select
+              id={`step-matched-step-ref-${step.id}`}
+              value={step.outcomeStepRef}
+              onChange={(event) => {
+                setForm((prev) => ({
+                  ...prev,
+                  steps: prev.steps.map((candidate) => candidate.id === step.id ? { ...candidate, outcomeStepRef: event.target.value } : candidate)
+                }));
+                setDirty(true);
+              }}
+              disabled={submitting || loading}
+            >
+              <option value="">Select prior step</option>
+              {form.steps.slice(0, index).map((candidate, candidateIndex) => (
+                <option key={candidate.id} value={candidate.stepId}>{`Step ${candidateIndex + 1}`}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="sequence-step-condition-field sequence-step-condition-field--image-id">
+            <ImageSelectorDropdown
+              id={`step-matched-image-id-${step.id}`}
+              label="Matched Image Id"
+              value={step.imageId}
+              onChange={(id) => {
+                setForm((prev) => ({
+                  ...prev,
+                  steps: prev.steps.map((candidate) => candidate.id === step.id ? { ...candidate, imageId: id } : candidate)
+                }));
+                setDirty(true);
               }}
               disabled={submitting || loading}
             />

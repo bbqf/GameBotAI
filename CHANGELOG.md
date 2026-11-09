@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Report which image of a list matched (181-report-matched-image, #380)
+  - **Result**: the `WaitForImage` step result has `matchedImageId` (the id of the image that matched) when the exit condition is `image_detected`. It is omitted when no image matched. `referenceImageId` and `confidence` do not change.
+  - **Condition**: the new condition `matchedImage` with `stepRef` and `imageId` is true when the latest matched image of that earlier step is `imageId`. A step with no matched image gives false, with a reason in the run log. The save rejects an empty field, an unknown step, and a step that is not prior.
+  - **Placeholder**: `{{step.<stepRef>.matchedImageId}}` gives the matched image id in a later step. A missing match gives the usual unresolved-placeholder error.
+  - **Guard**: a step whose own condition is a top-level, not negated `imageVisible` gives its matched image under the name of that step.
+  - **Run log**: the entry of an image check step shows `matchedImageId`.
+  - **Web UI**: the condition editor has the type `matchedImage` with two fields (phone support: reduced).
+  - **Not changed**: the matching logic, old sequences, and old results.
+  - **Version**: the patch version is now 1.12.11.
 - Any-of image list for a condition and WaitForImage (180-any-of-image-list, #379)
   - **Condition**: `imageVisible` has `imageIds` (a written list, 1 to 50 items) and `match` (only `any`). The condition is true when any image of the list is visible. `imageId` and `imageIds` cannot be set together.
   - **WaitForImage**: the detection target has `referenceImageIds`. The step ends when any image of the list is visible. The result has `matchedImageId`, and `referenceImageId` holds the first image of the list.

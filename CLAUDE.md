@@ -11,5 +11,5 @@ Before you push a branch for a new PR, bump the version in `installer/versioning
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/180-any-of-image-list/plan.md
+at specs/181-report-matched-image/plan.md
 <!-- SPECKIT END -->

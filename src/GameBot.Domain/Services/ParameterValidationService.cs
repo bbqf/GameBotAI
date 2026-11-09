@@ -215,6 +215,7 @@ public static class ParameterValidationService {
     }
 
     AddResolvedPatternIssues(references, sequence.Parameters, errors);
+    AddStepResultReferenceIssues(references, sequence, errors);
 
     foreach (var step in FlattenSteps(sequence.Steps)) {
       if (step.ParameterBindings is not { Count: > 0 }) continue;
@@ -783,6 +784,9 @@ public static class ParameterValidationService {
     if (declared.Contains(reference.ParameterName)) return;
     if (ParameterNameRules.IsBuiltIn(reference.ParameterName)) return;
 
+    // Feature 181: step.<stepRef>.matchedImageId is read from the run. The stepRef is checked in ValidateSequence.
+    if (StepResultPlaceholderRules.TryParse(reference.ParameterName, out _)) return;
+
     // {{iteration}} keeps its original rule: meaningful inside a loop, rejected anywhere else.
     if (string.Equals(reference.ParameterName, ParameterNameRules.IterationName, StringComparison.Ordinal)) {
       if (reference.InsideLoop) return;
@@ -861,6 +865,40 @@ public static class ParameterValidationService {
           $"Step '{stepLabel}': '{fieldPath}' with the default values gives the pattern '{pattern}', which is not a valid regular expression: {problem?.TrimEnd('.')}. Change the default value or the pattern.",
           fieldPath,
           keys[0]));
+    }
+  }
+
+  /// <summary>
+  /// Feature 181: the <c>stepRef</c> of a <c>step.&lt;stepRef&gt;.matchedImageId</c> reference must name a prior
+  /// step of the sequence. "Prior" is the authored (document) order across the whole sequence.
+  /// </summary>
+  private static void AddStepResultReferenceIssues(
+      IEnumerable<ParameterReference> references,
+      CommandSequence sequence,
+      List<ParameterValidationIssue> errors) {
+    var position = new Dictionary<string, int>(StringComparer.Ordinal);
+    var index = 0;
+    foreach (var step in FlattenSteps(sequence.Steps)) {
+      position.TryAdd(StepLabel(step), index);
+      index++;
+    }
+
+    foreach (var reference in references) {
+      if (!StepResultPlaceholderRules.TryParse(reference.ParameterName, out var stepRef)) continue;
+      if (!position.TryGetValue(stepRef, out var referenced)) {
+        errors.Add(new ParameterValidationIssue(
+            ParameterValidationCodes.UnresolvableReference,
+            $"Step '{reference.StepLabel}': '{reference.ParameterName}' names step '{stepRef}', which is not in the sequence. Use the id of a prior step.",
+            reference.FieldPath,
+            reference.ParameterName));
+      }
+      else if (position.TryGetValue(reference.StepLabel, out var own) && referenced >= own) {
+        errors.Add(new ParameterValidationIssue(
+            ParameterValidationCodes.UnresolvableReference,
+            $"Step '{reference.StepLabel}': '{reference.ParameterName}' names step '{stepRef}', which is not a prior step. Use the id of a prior step.",
+            reference.FieldPath,
+            reference.ParameterName));
+      }
     }
   }
 

@@ -123,6 +123,7 @@ internal static class GameBotServiceSetup {
       options.SchemaFilter<LastRunConditionSchemaFilter>();
       options.SchemaFilter<OcrTextConditionSchemaFilter>();
       options.SchemaFilter<CommandStepOutcomeConditionSchemaFilter>();
+      options.SchemaFilter<MatchedImageConditionSchemaFilter>();
       options.SchemaFilter<TemplateTimerTimeOfDaySchemaFilter>();
       options.SchemaFilter<StepThroughSchemaFilter>();
       options.SchemaFilter<OcrReadSchemaFilter>();
