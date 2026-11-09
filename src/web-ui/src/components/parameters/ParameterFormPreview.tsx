@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import type { ParameterBinding, ParameterDeclaration } from './types';
+import { isMultiple, splitListText } from './types';
 import { ParameterBindingForm } from './ParameterBindingForm';
 import { validateParameterName } from './parameterNameRules';
 import { checkParameterValue } from './parameterValueRules';
@@ -23,8 +24,11 @@ export const ParameterFormPreview: React.FC<ParameterFormPreviewProps> = ({ para
 
   const bindings = useMemo<ParameterBinding[]>(
     // A default that does not fit its declaration shows as empty. The card shows the message.
-    () => shown.map((p) => typed.find((b) => b.name === p.name)
-      ?? { name: p.name, value: p.default && checkParameterValue(p, p.default) === null ? p.default : '' }),
+    () => shown.map((p) => {
+      const fitting = p.default && checkParameterValue(p, p.default) === null ? p.default : '';
+      return typed.find((b) => b.name === p.name)
+        ?? (isMultiple(p) ? { name: p.name, value: fitting, values: splitListText(fitting) } : { name: p.name, value: fitting });
+    }),
     [shown, typed],
   );
 

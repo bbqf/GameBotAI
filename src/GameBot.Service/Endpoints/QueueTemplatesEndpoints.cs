@@ -147,7 +147,12 @@ internal static class QueueTemplatesEndpoints {
       }
 
       // Feature 168 (FR-012): a value that does not match its declaration is a warning. The save works.
-      var valueWarnings = await FindInvalidValueWarningsAsync(target, sequences, commands, images, ct).ConfigureAwait(false);
+      var (valueWarnings, listErrors) = await FindInvalidValueWarningsAsync(target, sequences, commands, images, ct).ConfigureAwait(false);
+
+      // Feature 179: an empty required list or a list outside its limits blocks the save.
+      if (listErrors.Count > 0) {
+        return Results.BadRequest(ParameterDtoMapper.ToErrorBody(listErrors));
+      }
 
       if (existing is null) {
         var created = await repo.CreateAsync(target).ConfigureAwait(false);
@@ -284,13 +289,14 @@ internal static class QueueTemplatesEndpoints {
   /// Finds each saved value of the template that does not match its declaration (feature 168). The
   /// check looks at each entry. An entry whose sequence does not exist is not checked.
   /// </summary>
-  private static async Task<List<ParameterValidationIssue>> FindInvalidValueWarningsAsync(
+  private static async Task<(List<ParameterValidationIssue> Warnings, List<ParameterValidationIssue> ListErrors)> FindInvalidValueWarningsAsync(
       QueueTemplate template,
       ISequenceRepository sequences,
       ICommandRepository commands,
       IImageRepository images,
       CancellationToken ct) {
     var warnings = new List<ParameterValidationIssue>();
+    var listErrors = new List<ParameterValidationIssue>();
     for (var index = 0; index < template.Entries.Count; index++) {
       var entry = template.Entries[index];
       if (entry.ParameterValues.Count == 0) continue;
@@ -304,9 +310,11 @@ internal static class QueueTemplatesEndpoints {
 
       var result = ParameterValidationService.ValidateTemplateEntry(entry, index, sequence, declarations, null, imageExists);
       warnings.AddRange(result.Warnings.Where(w => w.Code == ParameterValidationCodes.InvalidValue));
+      listErrors.AddRange(result.Errors.Where(e => e.Code == ParameterValidationCodes.EmptyList
+          || e.Code == ParameterValidationCodes.ListOutOfLimits));
     }
 
-    return warnings;
+    return (warnings, listErrors);
   }
 
   private static string? ValidateName(string? trimmedName) => QueueTemplateRules.ValidateName(trimmedName);

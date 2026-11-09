@@ -39,6 +39,15 @@ internal sealed class ParameterDeclarationDto {
   /// <summary>Technical text with exactly one {value} marker. The result is text.</summary>
   [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
   public string? Pattern { get; init; }
+  /// <summary>When true, the parameter holds a list of values. Only for the kinds image and choice (feature 179).</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public bool? Multiple { get; init; }
+  /// <summary>Lowest number of items in the list. Only with multiple. 1 or more (feature 179).</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public int? MinItems { get; init; }
+  /// <summary>Highest number of items in the list. Only with multiple. 1 or more (feature 179).</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public int? MaxItems { get; init; }
 }
 
 /// <summary>One option of a choice parameter on the wire (feature 168).</summary>
@@ -55,7 +64,11 @@ internal sealed class ParameterOptionDto {
 /// </summary>
 internal sealed class ParameterBindingDto {
   public string? Name { get; init; }
+  /// <summary>The text value. For a list, the items joined by "|". If the request also has Values, Values wins.</summary>
   public string? Value { get; init; }
+  /// <summary>The ordered list of values for a multi-value parameter (feature 179). The system removes duplicates.</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public Collection<string>? Values { get; init; }
 }
 
 /// <summary>

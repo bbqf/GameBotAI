@@ -2026,7 +2026,7 @@ namespace GameBot.Domain.Services {
     /// <see cref="ConditionEvaluationFailureKind.ParameterUnresolved"/>.
     /// </summary>
     internal static ConditionEvaluationFailureKind ToFailureKind(string reason) =>
-        reason == ParameterResolutionReasons.InvalidPattern
+        reason == ParameterResolutionReasons.InvalidPattern || reason == ParameterResolutionReasons.ListInSingleField
             ? ConditionEvaluationFailureKind.ParameterValueInvalid
             : ConditionEvaluationFailureKind.ParameterUnresolved;
 

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { ParameterBinding, ParameterDeclaration, ParameterScopeEntry } from './types';
-import { defaultDisplayText, displayLabel, originLayerLabel } from './types';
+import { defaultDisplayText, displayLabel, isMultiple, joinListText, originLayerLabel, readValuesAsList } from './types';
 import { validateParameterName } from './ParameterDeclarationList';
 import { ParameterValueField } from './fields/ParameterValueField';
 
@@ -67,7 +67,14 @@ export const ParameterBindingForm: React.FC<ParameterBindingFormProps> = ({
       onChange([...bindings, { name, value }]);
       return;
     }
-    onChange(bindings.map((b) => (b.name === name ? { ...b, value } : b)));
+    onChange(bindings.map((b) => (b.name === name ? { ...b, value, values: undefined } : b)));
+  };
+
+  // A list binding keeps the items in `values` and the same items joined by "|" in `value` (feature 179).
+  const setValues = (name: string, values: string[]) => {
+    const next = { name, value: joinListText(values), values };
+    const existing = bindingFor(name);
+    onChange(existing ? bindings.map((b) => (b.name === name ? { ...b, ...next } : b)) : [...bindings, next]);
   };
 
   const removeBinding = (name: string) => onChange(bindings.filter((b) => b.name !== name));
@@ -133,6 +140,8 @@ export const ParameterBindingForm: React.FC<ParameterBindingFormProps> = ({
             <ParameterValueField
               declaration={declaration}
               value={binding?.value ?? ''}
+              values={isMultiple(declaration) ? readValuesAsList(declaration, binding) : undefined}
+              onChangeValues={(next) => setValues(name, next)}
               disabled={disabled || inheriting}
               sequenceDeclarations={sequenceDeclarations}
               onChange={(next) => setValue(name, next)}

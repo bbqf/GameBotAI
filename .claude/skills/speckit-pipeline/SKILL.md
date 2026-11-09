@@ -1,6 +1,6 @@
 ---
 name: "speckit-pipeline"
-description: "Orchestrate the full spec-kit pipeline end to end autonomously: specify -> clarify -> plan -> tasks -> analyze -> 2 loops of (fix -> analyze) -> commit -> compact context -> implement -> commit -> wait for CI -> open PR, without stopping for manual review. Every step runs in the same session and reuses its context."
+description: "Orchestrate the full spec-kit pipeline end to end autonomously: specify -> clarify -> plan -> tasks -> analyze -> 2 loops of (fix -> analyze) -> commit -> context break -> implement -> commit -> wait for CI -> open PR, without stopping for manual review. The run has two phases. Phase 1 (design) ends at the design commit. Phase 2 (implementation) starts in a new, empty context."
 argument-hint: "Describe the feature to build (forwarded to /speckit-specify)"
 compatibility: "Requires spec-kit project structure with .specify/ directory"
 metadata:
@@ -16,8 +16,16 @@ $ARGUMENTS
 ```
 
 Treat the input above as the **feature description**. It is required for a fresh
-run and is forwarded verbatim to `/speckit-specify`. If it is empty, assume the
-spec already exists on the current branch and start from step 2 (clarify).
+run and is forwarded verbatim to `/speckit-specify`. If it is empty, the spec
+already exists on the current branch. Then choose the phase:
+
+- If `tasks.md` exists in the feature directory, and the design commit exists,
+  and no implementation commit exists, start **phase 2** at step 9.
+- If not, start **phase 1** at step 2 (clarify).
+
+Phase 1 is steps 1 to 7. Phase 2 is steps 9 to 12. Step 8 is the break between
+them. A run does **one phase only**: never run phase 2 in the same context as
+phase 1.
 
 ## Goal
 
@@ -28,9 +36,10 @@ hard failure (see Halting rules) stops the run.
 
 ## Execution model
 
-- **All steps run in this one session.** Do not start sub-agents. Each step
-  reuses the context of the earlier steps: the spec, plan, tasks, and analyze
-  findings that you already have in this conversation.
+- **The steps of one phase run in this one context.** Do not start sub-agents.
+  Each step reuses the context of the earlier steps of the same phase.
+- **Phase 2 never reuses the design context.** It starts with an empty context
+  and reads the spec, plan, and tasks from disk.
 - Run each step by invoking its skill with the Skill tool (or by doing the
   work directly where the step says so). Follow the rules from `CLAUDE.md`:
   PowerShell with absolute paths, no `cd dir;` prefix, commit messages via
@@ -38,7 +47,7 @@ hard failure (see Halting rules) stops the run.
   than `Get-Content`/`Set-Content` for UTF-8 files.
 - Run each skill **fully autonomously** — no questions, no pauses, no
   confirmation gates.
-- Keep the report of each step short. Step 8 (compact) removes the design
+- Keep the report of each step short. Step 8 (context break) removes the design
   context before implementation, so the files on disk (spec, plan, tasks) must
   hold everything that implementation needs.
 
@@ -74,24 +83,32 @@ hard failure (see Halting rules) stops the run.
    If that is so, skip the rest of step 6.
 
    So the full order is: specify, clarify, plan, tasks, analyze; then loop 1
-   (fix, analyze); then loop 2 (fix, analyze); then commit, compact, and
-   implement. Never run a third loop.
+   (fix, analyze); then loop 2 (fix, analyze); then commit, and stop (step 8).
+   Phase 2 does the implementation. Never run a third loop.
 7. **Commit** — run `/speckit-git-commit` to commit the spec, plan, tasks, and
    fixes before any implementation. This creates a clean checkpoint separating
    the design artifacts from the implementation. Keep the commit SHA.
-8. **Compact the context — MANDATORY.** Before you start implementation, you
-   **MUST** compact the context of this session. Do not skip this step. Do not
-   start step 9 before the compact is done. Use the `/compact` command with
-   these focus instructions: "Keep: the feature directory path
-   (`specs/<NNN-feature>/`), the branch name, the design commit SHA, the clarify
-   answers, the analyze findings fixed, and the findings left open. Drop the
-   detailed content of the spec, plan, tasks, and analyze reports. They are on
-   disk and the next step reads them from there." If you cannot run `/compact`
-   yourself, stop and tell the user to run it (this is the only allowed pause
-   in the pipeline). After the compact, re-read `spec.md`, `plan.md`, and
-   `tasks.md` from disk as step 9 needs them.
-9. **`/speckit-implement`** — execute the tasks. Keep: tasks completed /
-   skipped, test and build results, anything left undone.
+8. **Context break — MANDATORY. End phase 1 here.** Do **not** run step 9 in
+   this context. Do **not** run `/compact` (a sub-agent cannot run it). Stop
+   and print this report:
+
+   ```
+   [pipeline] PHASE 1 COMPLETE
+   branch: <branch>
+   feature directory: specs/<NNN-feature>/
+   design commit: <sha>
+   clarify answers: <list>
+   analyze findings fixed: <list>
+   findings left open: <list>
+   next: run the pipeline again with an empty argument in a NEW, empty context
+   ```
+
+   The caller (a user, or `resolve-github-issue`) must start phase 2 in a new
+   context. This is the only allowed stop that is not an error.
+9. **`/speckit-implement`** — (phase 2 starts here, in an empty context.) First
+   read `spec.md`, `plan.md`, and `tasks.md` from disk. Then execute the tasks.
+   Keep: tasks completed / skipped, test and build results, anything left
+   undone.
 10. **Commit the implementation** — run `/speckit-git-commit` again to commit
     all changes produced by `implement`. **Before this commit, bump the
     version** (constitution, "Version bump"): compare
@@ -127,7 +144,7 @@ Stop **only** if a step throws a hard error or its required inputs are missing
 commit, `git push` is rejected). Report the error and where it stopped. Do
 **not** stop for consistency findings, clarify questions, or anything that
 would normally need human judgment — resolve those autonomously and keep going.
-The only other allowed pause is step 8, if you cannot run `/compact` yourself.
+The only other allowed stop is step 8, the end of phase 1.
 
 **CI failure is a hard stop for the PR step only:** if any CI run fails, do
 **not** open the PR. Report the failing workflow and the diagnosis. You may

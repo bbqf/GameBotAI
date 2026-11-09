@@ -1,5 +1,5 @@
 import type { ParameterDeclaration } from './types';
-import { effectiveKind } from './types';
+import { effectiveKind, isMultiple, splitListText } from './types';
 
 /**
  * Checks one value against its declaration (feature 168). The checks and the message texts match
@@ -15,6 +15,16 @@ export const checkParameterValue = (
 ): string | null => {
   if (value == null) return null;
   if (isWholePlaceholder(value)) return null;
+
+  // A multi-value parameter keeps its items joined by "|" (feature 179). Check each item.
+  if (isMultiple(declaration)) {
+    const single = { ...declaration, multiple: false };
+    for (const item of splitListText(value)) {
+      const problem = checkParameterValue(single, item);
+      if (problem) return problem;
+    }
+    return null;
+  }
 
   const { name } = declaration;
   switch (effectiveKind(declaration)) {

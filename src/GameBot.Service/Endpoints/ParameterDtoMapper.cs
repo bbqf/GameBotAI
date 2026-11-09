@@ -37,7 +37,10 @@ internal static class ParameterDtoMapper {
         Min = dto.Min,
         Max = dto.Max,
         Unit = dto.Unit,
-        Pattern = dto.Pattern
+        Pattern = dto.Pattern,
+        Multiple = dto.Multiple ?? false,
+        MinItems = dto.MinItems,
+        MaxItems = dto.MaxItems
       });
     }
 
@@ -91,7 +94,10 @@ internal static class ParameterDtoMapper {
       Min = d.Min,
       Max = d.Max,
       Unit = d.Unit,
-      Pattern = d.Pattern
+      Pattern = d.Pattern,
+      Multiple = d.Multiple ? true : null,
+      MinItems = d.MinItems,
+      MaxItems = d.MaxItems
     }).ToList());
   }
 
@@ -102,6 +108,17 @@ internal static class ParameterDtoMapper {
     if (dtos is null) return result;
     foreach (var dto in dtos) {
       if (string.IsNullOrWhiteSpace(dto.Name)) continue;
+      if (dto.Values is not null) {
+        // Values wins over Value. The joined text goes into Value, so the scope stays text-based.
+        var items = ParameterListRules.Normalize(dto.Values);
+        result.Add(new ParameterBinding {
+          Name = dto.Name!,
+          Value = items.Count == 0 ? null : ParameterListRules.Join(items),
+          Values = items
+        });
+        continue;
+      }
+
       result.Add(new ParameterBinding { Name = dto.Name!, Value = dto.Value });
     }
 
@@ -114,7 +131,11 @@ internal static class ParameterDtoMapper {
       IReadOnlyCollection<ParameterBinding>? bindings) {
     if (bindings is null || bindings.Count == 0) return null;
     return new Collection<ParameterBindingDto>(
-        bindings.Select(b => new ParameterBindingDto { Name = b.Name, Value = b.Value }).ToList());
+        bindings.Select(b => new ParameterBindingDto {
+          Name = b.Name,
+          Value = b.Value,
+          Values = b.Values is null ? null : new Collection<string>(b.Values.ToList())
+        }).ToList());
   }
 
   /// <summary>Projects a scope description for the authoring UI's picker and preview.</summary>

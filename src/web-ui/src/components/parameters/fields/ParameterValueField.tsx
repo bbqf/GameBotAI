@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import type { ParameterDeclaration } from '../types';
-import { displayLabel, effectiveKind } from '../types';
+import { displayLabel, effectiveKind, isMultiple } from '../types';
 import { checkParameterValue } from '../parameterValueRules';
 import { ParameterPassThrough, passThroughCandidates, passThroughName } from '../ParameterPassThrough';
 import { ChoiceField } from './ChoiceField';
@@ -21,6 +21,10 @@ export type ParameterValueFieldProps = {
    * "Use a parameter of this sequence" (feature 168, FR-028).
    */
   sequenceDeclarations?: readonly ParameterDeclaration[];
+  /** The selected items of a multi-value parameter (feature 179). */
+  values?: readonly string[];
+  /** Called with the new ordered list of a multi-value parameter (feature 179). */
+  onChangeValues?: (values: string[]) => void;
 };
 
 const TextField: React.FC<{
@@ -60,6 +64,8 @@ export const ParameterValueField: React.FC<ParameterValueFieldProps> = ({
   disabled,
   ariaLabel,
   sequenceDeclarations,
+  values,
+  onChangeValues,
 }) => {
   const kind = effectiveKind(declaration);
   const name = ariaLabel ?? `Value for ${declaration.name}`;
@@ -67,7 +73,9 @@ export const ParameterValueField: React.FC<ParameterValueFieldProps> = ({
   const canPassThrough = sequenceDeclarations !== undefined
     && passThroughCandidates(declaration, sequenceDeclarations).length > 0;
 
-  const props = { declaration, value, onChange, disabled, ariaLabel: name };
+  // A multi-value parameter shows the list controls. Another kind ignores the flag.
+  const listDeclaration = isMultiple(declaration) ? declaration : { ...declaration, multiple: false };
+  const props = { declaration: listDeclaration, value, onChange, disabled, ariaLabel: name, values, onChangeValues };
   let control: React.ReactNode;
   switch (kind) {
     case 'choice':

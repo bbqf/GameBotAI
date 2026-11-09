@@ -32,6 +32,7 @@ All members except `name` are optional. A declaration with only `name` and `type
 | `allowedImages` | For `image`: 1 to 50 image IDs. The person can select only these images |
 | `min`, `max`, `unit` | For `number`: the range and a unit text (up to 20 characters) |
 | `pattern` | For `number`: technical text with one `{value}` marker |
+| `multiple`, `minItems`, `maxItems` | For `image` and `choice`: the parameter holds a list. The limits are 1 or more, and `minItems` is not more than `maxItems` or the number of allowed items |
 
 Example of three typed parameters in a sequence:
 
@@ -51,6 +52,26 @@ Example of three typed parameters in a sequence:
   text, so `{{` in it is not resolved.
 - **Number with pattern:** the person enters a number. The run puts it in `{value}`. Entering 5 gives
   `emulator-5`. The result is text, so you cannot use it in a numeric field.
+
+## Several values in one parameter
+
+Set `multiple` to `true` on an `image` or `choice` parameter to let the person select several items. A binding
+then has `values` (an ordered list of unique items). The service also gives `value`, which holds the same
+items joined by `|`. No allowed image ID and no option value may contain `|`. A `default` can list several
+items joined by `|`.
+
+```json
+{ "name": "quests", "type": "text", "kind": "image", "multiple": true, "minItems": 1, "maxItems": 3,
+  "allowedImages": ["quest-a", "quest-b", "quest-c"] }
+```
+
+- **Empty list:** a required parameter with an empty list gives the error `empty_parameter_list`.
+- **Limits:** a list with too few or too many items gives the error `parameter_list_out_of_limits`.
+- **Wrong item:** an item that is not allowed gives the warning `invalid_parameter_value`.
+- **Text field:** `{{quests}}` gives the items joined by `|`, in order.
+- **Image id field or numeric field:** one item works. Two or more items fail the step with a message that
+  names the parameter, the field, and the item count.
+- **Pass-through:** a binding to another multi-value parameter keeps the full list.
 
 ## Use a parameter in a step
 

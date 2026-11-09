@@ -167,9 +167,19 @@ public static class CommandStepResolver {
       ParameterScope scope,
       List<ResolvedParameter> used,
       ref ParameterResolutionError? error,
-      out string? resolved) {
+      out string? resolved,
+      bool singleValueField = false) {
     resolved = value;
     if (!TemplateSubstitutor.ContainsPlaceholder(value)) return true;
+
+    if (singleValueField && TemplateSubstitutor.IsWholePlaceholder(value, out var wholeName)
+        && scope.TryResolve(wholeName, out var wholeValue)
+        && ListHasManyItems(scope, wholeName, wholeValue.Text, out var itemCount)) {
+      error = new ParameterResolutionError(
+          wholeName, fieldPath, ParameterResolutionReasons.ListInSingleField,
+          itemCount.ToString(CultureInfo.InvariantCulture));
+      return false;
+    }
 
     if (!TemplateSubstitutor.TrySubstitute(value, context, out var substituted, out var unresolved)) {
       error = new ParameterResolutionError(unresolved[0], fieldPath, ParameterResolutionReasons.Unresolved);
@@ -201,7 +211,7 @@ public static class CommandStepResolver {
     if (step.FieldTemplates is not null && step.FieldTemplates.ContainsKey(imageIdPath)) {
       if (!TryOverlayValue(step, imageIdPath, scope, used, ref error, out imageId, isTextField: true)) return false;
     }
-    else if (!TryText(target.ReferenceImageId, imageIdPath, context, scope, used, ref error, out imageId)) {
+    else if (!TryText(target.ReferenceImageId, imageIdPath, context, scope, used, ref error, out imageId, singleValueField: true)) {
       return false;
     }
 
@@ -313,9 +323,27 @@ public static class CommandStepResolver {
       return false;
     }
 
+    if (ListHasManyItems(scope, keys[0], value.Text, out var count)) {
+      error = new ParameterResolutionError(
+          keys[0], fieldPath, ParameterResolutionReasons.ListInSingleField,
+          count.ToString(CultureInfo.InvariantCulture));
+      return false;
+    }
+
     AddUsage(keys[0], value, used);
     text = value.Text;
     return true;
+  }
+
+  /// <summary>
+  /// True when the parameter is multi-value and its text holds two or more items (feature 179).
+  /// A field that takes one value cannot use such a list.
+  /// </summary>
+  private static bool ListHasManyItems(ParameterScope scope, string name, string text, out int count) {
+    count = 0;
+    if (!scope.TryFindDeclaration(name, out var declaration) || !declaration.Multiple) return false;
+    count = ParameterListRules.Count(text);
+    return count >= 2;
   }
 
   private static string NameFromTemplate(CommandStep step, string fieldPath) {

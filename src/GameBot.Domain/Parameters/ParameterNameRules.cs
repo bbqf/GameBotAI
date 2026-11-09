@@ -184,7 +184,60 @@ public static class ParameterNameRules {
     if (d.Pattern is not null && isNumberType && CountMarkers(d.Pattern) != 1)
       errors.Add($"pattern of parameter '{name}' must have exactly one {PatternMarker} marker. Write the marker one time in the pattern.");
 
-    AddDefaultFitError(d, errors);
+    AddListErrors(d, errors);
+    if (d.Multiple) AddListDefaultErrors(d, errors);
+    else AddDefaultFitError(d, errors);
+  }
+
+  private static void AddListErrors(ParameterDeclaration d, List<string> errors) {
+    var name = d.Name;
+    var effective = d.EffectiveKind;
+    var listKind = effective == ParameterInputKind.Image || effective == ParameterInputKind.Choice;
+
+    if (d.Multiple && !listKind) {
+      errors.Add($"parameter '{name}' allows several values but is not an image or a choice. Remove the multiple setting or set the kind to image or choice.");
+    }
+
+    if (!d.Multiple && (d.MinItems is not null || d.MaxItems is not null)) {
+      errors.Add($"parameter '{name}' has a minimum or maximum number of items but does not allow several values. Remove the limits or allow several values.");
+      return;
+    }
+
+    if (!d.Multiple) return;
+
+    if (d.MinItems is < 1)
+      errors.Add($"minimum number of items {d.MinItems} of parameter '{name}' is below 1. Use 1 or more.");
+    if (d.MaxItems is < 1)
+      errors.Add($"maximum number of items {d.MaxItems} of parameter '{name}' is below 1. Use 1 or more.");
+    if (d.MinItems is not null && d.MaxItems is not null && d.MinItems > d.MaxItems)
+      errors.Add($"minimum number of items {d.MinItems} of parameter '{name}' is more than the maximum {d.MaxItems}. Change one of the two numbers.");
+
+    var allowedCount = AllowedItems(d)?.Count();
+    if (d.MinItems is not null && allowedCount is not null && d.MinItems > allowedCount)
+      errors.Add($"minimum number of items {d.MinItems} of parameter '{name}' is more than the {allowedCount} allowed items. Lower the minimum or add items.");
+
+    var separator = ParameterListRules.Separator.ToString();
+    if (AllowedItems(d) is { } items && items.Any(i => i is not null && i.Contains(separator, System.StringComparison.Ordinal)))
+      errors.Add($"parameter '{name}' allows several values, so no image ID or option value may contain '{separator}'. Remove the '{separator}' character from the item.");
+  }
+
+  private static IEnumerable<string>? AllowedItems(ParameterDeclaration d) => d.EffectiveKind switch {
+    ParameterInputKind.Image => d.AllowedImages,
+    ParameterInputKind.Choice => d.Options?.Select(o => o.Value),
+    _ => null
+  };
+
+  private static void AddListDefaultErrors(ParameterDeclaration d, List<string> errors) {
+    if (d.Default is null) return;
+    var allowed = AllowedItems(d)?.ToHashSet(System.StringComparer.Ordinal);
+    if (allowed is null) return;
+    var name = d.Name;
+    var items = ParameterListRules.Split(d.Default);
+    foreach (var item in items.Where(i => !allowed.Contains(i)))
+      errors.Add($"default list of parameter '{name}' holds '{item}', which is not allowed. Pick only allowed items.");
+    var limit = ParameterListRules.CheckLimits(d, items.Count);
+    if (limit is not null)
+      errors.Add($"default list of {limit}");
   }
 
   private static int CountMarkers(string pattern) {

@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import type { ParameterDeclaration, ParameterInputKind, ParameterValueType } from './types';
 import { effectiveKind } from './types';
+import { LIST_SEPARATOR, joinListText, splitListText } from './types';
 import { validateParameterName } from './parameterNameRules';
 import { suggestParameterName } from './suggestParameterName';
 import { OptionsEditor } from './OptionsEditor';
@@ -43,6 +44,12 @@ export const patchForKind = (parameter: ParameterDeclaration, kind: ParameterInp
     unit: kind === 'number' ? parameter.unit ?? null : null,
     pattern: kind === 'number' ? parameter.pattern ?? null : null,
   };
+  // The list setting fits only the image and choice kinds (feature 179).
+  if (kind !== 'choice' && kind !== 'image') {
+    patch.multiple = null;
+    patch.minItems = null;
+    patch.maxItems = null;
+  }
   if (kind === 'choice' || kind === 'image') patch.default = null;
   return patch;
 };
@@ -72,6 +79,16 @@ export const ParameterDeclarationCard: React.FC<ParameterDeclarationCardProps> =
     parameter.type === 'number' && parameter.default != null && parameter.default !== '' && !/^-?\d+$/.test(parameter.default)
       ? 'A numeric default must be a whole number.'
       : undefined;
+
+  const separatorError = parameter.multiple === true
+    && ((parameter.allowedImages ?? []).some((id) => id.includes(LIST_SEPARATOR))
+      || (parameter.options ?? []).some((o) => o.value.includes(LIST_SEPARATOR)))
+    ? `A parameter that allows several values cannot use the character "${LIST_SEPARATOR}" in an item. Remove it from the image IDs and option values.`
+    : undefined;
+  const limitError = parameter.multiple === true && parameter.minItems != null && parameter.maxItems != null
+    && parameter.minItems > parameter.maxItems
+    ? 'The minimum is more than the maximum. Change one of the two numbers.'
+    : undefined;
 
   const changeLabel = (label: string) => {
     const patch: Partial<ParameterDeclaration> = { label };
@@ -149,7 +166,31 @@ export const ParameterDeclarationCard: React.FC<ParameterDeclarationCardProps> =
 
         <label>
           <span>Default</span>
-          {kind === 'choice' ? (
+          {parameter.multiple === true && (kind === 'choice' || kind === 'image') ? (
+            <span className="parameter-default-multiple" role="group" aria-label={`Parameter ${index + 1} default`}>
+              {(kind === 'choice'
+                ? (parameter.options ?? []).filter((o) => o.value !== '').map((o) => ({ value: o.value, text: o.label || o.value }))
+                : (parameter.allowedImages ?? []).map((id) => ({ value: id, text: id }))
+              ).map((item) => {
+                const items = splitListText(parameter.default);
+                return (
+                  <label key={item.value} className="parameter-declaration-required">
+                    <input
+                      type="checkbox"
+                      checked={items.includes(item.value)}
+                      disabled={disabled}
+                      aria-label={`Default ${item.text}`}
+                      onChange={() => {
+                        const next = items.includes(item.value) ? items.filter((i) => i !== item.value) : [...items, item.value];
+                        onChange({ default: next.length === 0 ? null : joinListText(next) });
+                      }}
+                    />
+                    <span>{item.text}</span>
+                  </label>
+                );
+              })}
+            </span>
+          ) : kind === 'choice' ? (
             <select
               value={parameter.default ?? ''}
               disabled={disabled}
@@ -217,6 +258,53 @@ export const ParameterDeclarationCard: React.FC<ParameterDeclarationCardProps> =
         />
       )}
       {kind === 'number' && <NumberSettings parameter={parameter} disabled={disabled} onChange={onChange} />}
+      {(kind === 'choice' || kind === 'image') && (
+        <div className="parameter-declaration-multiple">
+          <label className="parameter-declaration-required">
+            <input
+              type="checkbox"
+              checked={parameter.multiple === true}
+              disabled={disabled}
+              aria-label={`Parameter ${index + 1} select several`}
+              onChange={(e) => onChange(e.target.checked
+                ? { multiple: true }
+                : { multiple: null, minItems: null, maxItems: null })}
+            />
+            <span>Select several</span>
+          </label>
+          {parameter.multiple === true && (
+            <>
+              <label>
+                <span>Minimum items</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={parameter.minItems ?? ''}
+                  disabled={disabled}
+                  aria-label={`Parameter ${index + 1} minimum items`}
+                  onChange={(e) => onChange({ minItems: e.target.value === '' ? null : Number.parseInt(e.target.value, 10) })}
+                />
+              </label>
+              <label>
+                <span>Maximum items</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={parameter.maxItems ?? ''}
+                  disabled={disabled}
+                  aria-label={`Parameter ${index + 1} maximum items`}
+                  onChange={(e) => onChange({ maxItems: e.target.value === '' ? null : Number.parseInt(e.target.value, 10) })}
+                />
+              </label>
+              {limitError && (
+                <p className="parameter-declaration-error" role="alert">
+                  {limitError}
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       <label className="parameter-declaration-description">
         <span>Help text</span>
@@ -263,6 +351,11 @@ export const ParameterDeclarationCard: React.FC<ParameterDeclarationCardProps> =
       {defaultError && (
         <p className="parameter-declaration-error" role="alert">
           {defaultError}
+        </p>
+      )}
+      {separatorError && (
+        <p className="parameter-declaration-error" role="alert">
+          {separatorError}
         </p>
       )}
       {parameter.required && (parameter.default ?? '') === '' && (

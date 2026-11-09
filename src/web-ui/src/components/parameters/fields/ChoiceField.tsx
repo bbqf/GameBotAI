@@ -1,13 +1,55 @@
 import React, { useMemo, useState } from 'react';
 import type { ParameterFieldProps } from './fieldProps';
-import { BUTTON_LIMIT, SEARCH_THRESHOLD } from './fieldProps';
+import { BUTTON_LIMIT, SEARCH_THRESHOLD, limitsText, toggleListItem } from './fieldProps';
 
 /**
  * The choice field of a choice parameter (feature 168). The person sees the readable labels only. The
  * technical value is stored. Six options or fewer show buttons. A longer list shows a drop-down, with a
  * search box above 12 options.
  */
-export const ChoiceField: React.FC<ParameterFieldProps> = ({ declaration, value, onChange, disabled, ariaLabel }) => {
+export const ChoiceField: React.FC<ParameterFieldProps> = (props) =>
+  props.declaration.multiple === true ? <MultiChoiceField {...props} /> : <SingleChoiceField {...props} />;
+
+/**
+ * The choice field of a multi-value choice parameter (feature 179). Each option is a toggle button, so the
+ * person can select several. The selected options keep the order of selection. The limits show as help text.
+ */
+const MultiChoiceField: React.FC<ParameterFieldProps> = ({ declaration, values, onChangeValues, disabled, ariaLabel }) => {
+  const options = useMemo(() => declaration.options ?? [], [declaration.options]);
+  const selected = values ?? [];
+  const gone = selected.filter((v) => !options.some((o) => o.value === v));
+  const limits = limitsText(declaration);
+
+  return (
+    <div className="choice-field choice-field-multiple">
+      <div role="group" aria-label={ariaLabel} className="choice-buttons">
+        {options.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            role="checkbox"
+            aria-checked={selected.includes(option.value)}
+            className={`choice-button${selected.includes(option.value) ? ' choice-button-selected' : ''}`}
+            disabled={disabled}
+            onClick={() => onChangeValues?.(toggleListItem(selected, option.value))}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+      <p className="parameter-value-message parameter-list-count" aria-live="polite">
+        {selected.length} selected{limits ? `. ${limits}` : ''}
+      </p>
+      {gone.length > 0 && (
+        <p className="parameter-value-message" role="alert">
+          This option no longer exists: {gone.join(', ')}. Select only the options.
+        </p>
+      )}
+    </div>
+  );
+};
+
+const SingleChoiceField: React.FC<ParameterFieldProps> = ({ declaration, value, onChange, disabled, ariaLabel }) => {
   const options = useMemo(() => declaration.options ?? [], [declaration.options]);
   const [search, setSearch] = useState('');
   const current = value ?? '';

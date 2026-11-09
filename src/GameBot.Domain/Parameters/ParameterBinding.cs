@@ -27,4 +27,12 @@ public sealed class ParameterBinding {
   /// </para>
   /// </summary>
   public string? Value { get; init; }
+
+  /// <summary>
+  /// The ordered list of unique values for a multi-value parameter (feature 179), or <c>null</c> when
+  /// the binding holds no list. When set, <see cref="Value"/> holds the items joined by the list
+  /// separator, so the text-based scope keeps working. An empty list means "no value".
+  /// </summary>
+  [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+  public IReadOnlyList<string>? Values { get; init; }
 }

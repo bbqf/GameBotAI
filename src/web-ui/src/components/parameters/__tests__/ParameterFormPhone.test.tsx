@@ -55,4 +55,19 @@ describe('value form at phone width', () => {
     expect(screen.queryByRole('button', { name: 'Add parameter' })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Parameter 1 name')).not.toBeInTheDocument();
   });
+
+  it('renders the multi-select controls with the touch-size classes', () => {
+    const multi: ParameterDeclaration[] = [
+      { name: 'imgs', type: 'text', kind: 'image', required: false, multiple: true, allowedImages: ['img-a', 'img-b'] },
+      { name: 'chs', type: 'text', kind: 'choice', required: false, multiple: true, options: [{ label: 'One', value: '1' }, { label: 'Two', value: '2' }] },
+    ];
+    const { container } = render(
+      <ParameterBindingForm declarations={multi} bindings={[]} onChange={jest.fn()} />,
+    );
+
+    expect(screen.getByRole('group', { name: 'Value for imgs' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Value for chs' })).toBeInTheDocument();
+    expect(container.querySelectorAll('.image-tile').length).toBe(2);
+    expect(container.querySelectorAll('.choice-button').length).toBe(2);
+  });
 });

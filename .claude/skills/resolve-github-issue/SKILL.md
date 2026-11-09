@@ -39,7 +39,10 @@ autonomously, using `/speckit-pipeline` for the actual specify -> plan -> tasks
    with backslashes. No `&&` chaining (PowerShell 5.1); use `;` or separate
    calls. Write files with the Write tool, not `Set-Content` (it mangles UTF-8).
 6. Temporary files go in the session scratchpad directory, never in the repo.
-7. Execute Step 1 in its own Sub-Agent, Steps 2-4 in another one and the Step 5 in its own Sub-Agent again. Continue in this session from Step 6 on.
+7. Execute Step 1 in its own Sub-Agent, Steps 2-4 in another one, Step 5 phase 1
+   in another one, and Step 5 phase 2 in a last, new one. Continue in this
+   session from Step 6 on. Each sub-agent starts with an empty context. Never
+   tell a sub-agent to skip a step of a skill.
 8. **Name the session after the issue.** A sub-agent cannot rename the session,
    so the Steps 2-4 sub-agent must return the issue number and title (on the
    resume path, the Step 1 sub-agent returns them). Step 5 then renames the
@@ -58,7 +61,8 @@ git -C C:\src\GameBot branch --show-current
   it has a `specs/<branch>/spec.md` that references an issue which is still open
   and still labelled `in-progress`, this session is resuming that issue.
   Skip Steps 2-4 and go straight to Step 5, restarting `/speckit-pipeline` with
-  an empty argument (it then picks up from the existing spec). Return the
+  an empty argument (it then picks the phase from the files on the branch: phase
+  2 if `tasks.md` and the design commit exist, else phase 1). Return the
   issue number and title (`gh issue view <N> --json number,title`) so Step 5
   can name the session.
 - Otherwise start from `master`:
@@ -167,11 +171,19 @@ First, rename this session so it is easy to find. Call
 title is longer than 80 characters, cut it at a word boundary. If the rename is
 declined or fails, continue - the name is not a hard requirement.
 
-Then invoke the `speckit-pipeline` skill with that description as its argument. It
-owns specify -> clarify -> plan -> tasks -> analyze -> 2 loops of (clarify ->
-fix rest -> plan -> tasks, with analyze in loop 1 only) -> commit -> implement -> commit -> push -> wait for CI -> open PR. Do not duplicate its
-steps here and do not second-guess it mid-run; let it run to its own halting
-rules.
+The `speckit-pipeline` skill has two phases. Run each phase in its own new
+sub-agent. This is the context break of the pipeline. Do not duplicate the
+pipeline steps here and do not second-guess them mid-run.
+
+- **Phase 1 sub-agent:** invoke `speckit-pipeline` with the description as its
+  argument. It runs specify to the design commit and stops with
+  `[pipeline] PHASE 1 COMPLETE`. It returns the branch, the spec directory, and
+  the design commit SHA. If it does not report PHASE 1 COMPLETE, go to Step 7.
+- **Phase 2 sub-agent:** after phase 1, start a NEW sub-agent. Tell it to check
+  out the branch, then invoke `speckit-pipeline` with an **empty** argument. It
+  runs implement, commit, version bump, push, CI, and PR. It returns the PR URL
+  and the CI result. Do not pass design details to it: it reads the spec files
+  from disk.
 
 ## Step 6 - Link the PR to the issue
 
