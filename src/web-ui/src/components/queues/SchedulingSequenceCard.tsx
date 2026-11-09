@@ -1,18 +1,23 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { ScheduleType } from '../../services/queueTemplates';
 import { TimerMode } from './QueueEntryList';
 import { SchedulingAreaId, SchedulingCard } from './schedulingAreas';
-import { ParameterBindingForm } from '../parameters/ParameterBindingForm';
 import type { ParameterBinding, ParameterDeclaration } from '../parameters/types';
 import { IconButton } from './IconButton';
 import { describeRunNext, RunNextSupport } from './runNext';
+import { EntrySettingsPanel, timerModeOf } from './EntrySettingsPanel';
+import { scheduleSummary } from './scheduleSummary';
 
 type SchedulingSequenceCardProps = {
   card: SchedulingCard;
   areaId: SchedulingAreaId;
   disabled?: boolean;
+  /** True when the Entry settings panel of this card is open. The editor holds this state (feature 185). */
+  open?: boolean;
+  /** Toggle the Entry settings panel of this card. */
+  onToggleOpen?: (entryId: string) => void;
   onRemove: (entryId: string) => void;
   /** Non-drag reassign path: change the card's schedule option (moves it to the matching area). */
   onReassign: (entryId: string, scheduleType: ScheduleType) => void;
@@ -36,32 +41,12 @@ type SchedulingSequenceCardProps = {
   runNext?: RunNextSupport;
 };
 
-const SCHEDULE_LABELS: Record<ScheduleType, string> = {
-  OncePerRun: 'Once Per Run',
-  // Display label only — the stored/wire identifier remains "EveryStep" (FR-002/FR-010).
-  EveryStep: 'After Every Step',
-  Timer: 'Timer',
-  AtQueueStart: 'At Queue Start',
-  BeforeEachRun: 'Before Each Run',
-};
-
-const pad2 = (n: number): string => n.toString().padStart(2, '0');
-
-const parseOffset = (raw: string | undefined): { h: number; m: number; s: number } => {
-  const [h, m, s] = (raw ?? '').split(':').map((x) => parseInt(x, 10));
-  return {
-    h: Number.isFinite(h) ? h : 0,
-    m: Number.isFinite(m) ? m : 0,
-    s: Number.isFinite(s) ? s : 0,
-  };
-};
-
-const composeOffset = (h: number, m: number, s: number): string => `${pad2(h)}:${pad2(m)}:${pad2(s)}`;
-
 export const SchedulingSequenceCard: React.FC<SchedulingSequenceCardProps> = ({
   card,
   areaId,
   disabled,
+  open = false,
+  onToggleOpen,
   onRemove,
   onReassign,
   onTimerTimeChange,
@@ -72,7 +57,6 @@ export const SchedulingSequenceCard: React.FC<SchedulingSequenceCardProps> = ({
   onParameterValuesChange,
   runNext,
 }) => {
-  const [parametersOpen, setParametersOpen] = useState(false);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: card.entryId,
     data: { areaId },
@@ -92,178 +76,107 @@ export const SchedulingSequenceCard: React.FC<SchedulingSequenceCardProps> = ({
   // Feature 184: Run next. Only an editor that passes the support shows it.
   const runNextView = runNext ? describeRunNext(runNext, card.entryId, enabled) : null;
   const isScheduled = areaId === 'scheduled';
-  const timerMode: TimerMode = schedule.timerMode ?? (schedule.timerRelativeOffset ? 'relative' : 'timeOfDay');
-  const isRelative = isScheduled && timerMode === 'relative';
-  const offsetParts = parseOffset(schedule.timerRelativeOffset);
-
-  const emitOffset = (h: number, m: number, s: number) => {
-    // Client-side non-negative validation: never emit a negative component (FR-021).
-    if (h < 0 || m < 0 || s < 0) return;
-    onTimerRelativeOffsetChange?.(card.entryId, composeOffset(h, m, s));
-  };
+  const isRelative = isScheduled && timerModeOf(schedule) === 'relative';
+  // Feature 185: the closed row shows one line of schedule text. The timer mode decides which Timer field it reads.
+  const summary = scheduleSummary({ ...schedule, timerMode: isScheduled ? timerModeOf(schedule) : undefined });
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`scheduling-card${enabled ? '' : ' scheduling-card--disabled'}`}
+      className={`scheduling-card${enabled ? '' : ' scheduling-card--disabled'}${open ? ' scheduling-card--open' : ''}`}
       data-testid="queue-entry"
       data-enabled={enabled}
     >
-      <span
-        className="scheduling-card__handle"
-        aria-label="Drag to reorder"
-        title="Drag to reorder"
-        {...attributes}
-        {...listeners}
-        style={{ cursor: disabled ? 'not-allowed' : 'grab', userSelect: 'none', padding: '0 6px', color: '#888' }}
-      >
-        ⠿
-      </span>
-
-      <label
-        className="scheduling-card__toggle"
-        title={enabled ? 'Enabled — click to disable' : 'Disabled — click to enable'}
-      >
-        <input
-          type="checkbox"
-          role="switch"
-          checked={enabled}
-          disabled={disabled || !onToggleEnabled}
-          aria-label={`${enabled ? 'Disable' : 'Enable'} ${label}`}
-          onChange={(e) => onToggleEnabled?.(card.entryId, e.target.checked)}
-        />
-      </label>
-
-      <span className="scheduling-card__name">
-        {label}
-        {!enabled && <span className="badge badge-muted" role="status" aria-label="Disabled"> Off</span>}
-        {card.stale && <span className="badge badge-warning" role="status"> (stale)</span>}
-        {areaId === 'startOfExecution' && <span className="badge badge-info" role="status" aria-label="At Queue Start"> At Queue Start</span>}
-        {areaId === 'beforeEachRun' && <span className="badge badge-info" role="status" aria-label="Before Each Run"> Before Each Run</span>}
-        {areaId === 'afterEveryStep' &&<span className="badge badge-info" role="status" aria-label="After Every Step"> After Every Step</span>}
-        {isScheduled && !isRelative && <span className="badge badge-info" role="status" aria-label="Timer"> Timer</span>}
-        {(schedule.parameterValues?.length ?? 0) > 0 && (
-          <span className="badge badge-param" role="status" aria-label="Has parameter overrides"> Parameters</span>
-        )}
-        {isRelative && <span className="badge badge-info" role="status" aria-label="Relative timer"> Timer · relative</span>}
-      </span>
-
-      <select
-        aria-label={`Schedule type for ${label}`}
-        value={schedule.scheduleType}
-        disabled={disabled}
-        onChange={(e) => onReassign(card.entryId, e.target.value as ScheduleType)}
-      >
-        {(Object.keys(SCHEDULE_LABELS) as ScheduleType[]).map((t) => (
-          <option key={t} value={t}>{SCHEDULE_LABELS[t]}</option>
-        ))}
-      </select>
-
-      {isScheduled && onTimerModeChange && (
-        <select
-          aria-label={`Timer mode for ${label}`}
-          value={timerMode}
-          disabled={disabled}
-          onChange={(e) => onTimerModeChange(card.entryId, e.target.value as TimerMode)}
+      <div className="scheduling-card__row">
+        <span
+          className="scheduling-card__handle"
+          aria-label="Drag to reorder"
+          title="Drag to reorder"
+          {...attributes}
+          {...listeners}
+          style={{ cursor: disabled ? 'not-allowed' : 'grab', userSelect: 'none', padding: '0 6px', color: '#888' }}
         >
-          <option value="timeOfDay">Time of day</option>
-          <option value="relative">Relative</option>
-        </select>
-      )}
-
-      {isScheduled && !isRelative && onTimerTimeChange && (
-        <input
-          type="time"
-          aria-label={`Timer time for ${label}`}
-          value={schedule.timerTimeOfDay}
-          disabled={disabled}
-          onChange={(e) => onTimerTimeChange(card.entryId, e.target.value)}
-        />
-      )}
-
-      {isRelative && onTimerRelativeOffsetChange && (
-        <span className="timer-relative-offset" aria-label={`Relative offset for ${label}`}>
-          <input
-            type="number"
-            min={0}
-            aria-label={`Offset hours for ${label}`}
-            value={offsetParts.h}
-            disabled={disabled}
-            onChange={(e) => emitOffset(parseInt(e.target.value, 10) || 0, offsetParts.m, offsetParts.s)}
-          />
-          <span aria-hidden="true">h</span>
-          <input
-            type="number"
-            min={0}
-            max={59}
-            aria-label={`Offset minutes for ${label}`}
-            value={offsetParts.m}
-            disabled={disabled}
-            onChange={(e) => emitOffset(offsetParts.h, parseInt(e.target.value, 10) || 0, offsetParts.s)}
-          />
-          <span aria-hidden="true">m</span>
-          <input
-            type="number"
-            min={0}
-            max={59}
-            aria-label={`Offset seconds for ${label}`}
-            value={offsetParts.s}
-            disabled={disabled}
-            onChange={(e) => emitOffset(offsetParts.h, offsetParts.m, parseInt(e.target.value, 10) || 0)}
-          />
-          <span aria-hidden="true">s</span>
+          ⠿
         </span>
-      )}
 
-      {runNextView && (
-        <>
-          {runNextView.note && (
-            <span className="scheduling-card__run-next-note" role="status">{runNextView.note}</span>
+        <label
+          className="scheduling-card__toggle"
+          title={enabled ? 'Enabled — click to disable' : 'Disabled — click to enable'}
+        >
+          <input
+            type="checkbox"
+            role="switch"
+            checked={enabled}
+            disabled={disabled || !onToggleEnabled}
+            aria-label={`${enabled ? 'Disable' : 'Enable'} ${label}`}
+            onChange={(e) => onToggleEnabled?.(card.entryId, e.target.checked)}
+          />
+        </label>
+
+        <span className="scheduling-card__name">
+          {label}
+          {!enabled && <span className="badge badge-muted" role="status" aria-label="Disabled"> Off</span>}
+          {card.stale && <span className="badge badge-warning" role="status"> (stale)</span>}
+          {areaId === 'startOfExecution' && <span className="badge badge-info" role="status" aria-label="At Queue Start"> At Queue Start</span>}
+          {areaId === 'beforeEachRun' && <span className="badge badge-info" role="status" aria-label="Before Each Run"> Before Each Run</span>}
+          {areaId === 'afterEveryStep' &&<span className="badge badge-info" role="status" aria-label="After Every Step"> After Every Step</span>}
+          {isScheduled && !isRelative && <span className="badge badge-info" role="status" aria-label="Timer"> Timer</span>}
+          {(schedule.parameterValues?.length ?? 0) > 0 && (
+            <span className="badge badge-param" role="status" aria-label="Has parameter overrides"> Parameters</span>
           )}
-          <IconButton
-            icon="runNext"
-            label={`Run next ${label}`}
-            title={runNextView.tooltip}
-            disabled={disabled || !runNextView.enabled}
-            onClick={() => runNext?.onRunNext?.(card.entryId)}
-          />
-        </>
-      )}
+          {isRelative && <span className="badge badge-info" role="status" aria-label="Relative timer"> Timer · relative</span>}
+        </span>
 
-      {onParameterValuesChange && (
+        <span className="scheduling-card__summary" data-testid="schedule-summary" title={summary}>{summary}</span>
+
+        {runNextView && (
+          <>
+            {runNextView.note && (
+              <span className="scheduling-card__run-next-note" role="status">{runNextView.note}</span>
+            )}
+            <IconButton
+              icon="runNext"
+              label={`Run next ${label}`}
+              title={runNextView.tooltip}
+              disabled={disabled || !runNextView.enabled}
+              onClick={() => runNext?.onRunNext?.(card.entryId)}
+            />
+          </>
+        )}
+
         <IconButton
-          icon="parameters"
-          label={`Parameters for ${label}`}
-          title="Parameters"
-          ariaExpanded={parametersOpen}
-          disabled={disabled}
-          onClick={() => setParametersOpen((open) => !open)}
+          icon="settings"
+          label={`Entry settings for ${label}`}
+          title="Entry settings"
+          ariaExpanded={open}
+          onClick={() => onToggleOpen?.(card.entryId)}
         />
-      )}
 
-      <IconButton
-        icon="remove"
-        label={`Remove ${label}`}
-        title="Remove"
-        tone="destructive"
-        disabled={disabled}
-        onClick={() => onRemove(card.entryId)}
-      />
+        <IconButton
+          icon="remove"
+          label={`Remove ${label}`}
+          title="Remove"
+          tone="destructive"
+          disabled={disabled}
+          onClick={() => onRemove(card.entryId)}
+        />
+      </div>
 
-      {parametersOpen && onParameterValuesChange && (
-        <div className="scheduling-card__parameters">
-          <ParameterBindingForm
-            declarations={sequenceParameters ?? []}
-            bindings={schedule.parameterValues ?? []}
-            effective={schedule.effectiveParameters}
-            // A queue-template entry is the outermost call site, so an ad-hoc name here reaches any
-            // command underneath at any depth (FR-012a).
-            allowAdHoc
-            disabled={disabled}
-            onChange={(values) => onParameterValuesChange(card.entryId, values)}
-          />
-        </div>
+      {open && (
+        <EntrySettingsPanel
+          entryId={card.entryId}
+          label={label}
+          areaId={areaId}
+          schedule={schedule}
+          disabled={disabled}
+          onReassign={onReassign}
+          onTimerTimeChange={onTimerTimeChange}
+          onTimerModeChange={onTimerModeChange}
+          onTimerRelativeOffsetChange={onTimerRelativeOffsetChange}
+          sequenceParameters={sequenceParameters}
+          onParameterValuesChange={onParameterValuesChange}
+        />
       )}
     </div>
   );

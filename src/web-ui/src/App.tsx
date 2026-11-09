@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { setRememberToken, setToken, token$ } from './lib/token';
 import { setBaseUrl } from './lib/config';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -21,6 +21,7 @@ import { DesktopOnlyNotice } from './components/phone/DesktopOnlyNotice';
 import { PhoneQueuesView } from './components/queues/PhoneQueuesView';
 import { NavigationAreaId, navigationAreas, isPhoneVisible } from './types/navigation';
 import { initFirstEntry, parseAddress, pushScreen, replaceScreen } from './lib/phoneHistory';
+import { shouldBlockLeave } from './lib/phoneLeaveGuard';
 import { CONFIGURATION_AREA_PATH, ConfigurationPage } from './pages/Configuration';
 import { EXECUTION_AREA_PATH, EXECUTION_LOGS_AREA_PATH, ExecutionPage } from './pages/Execution';
 import { ExecutionLogsPage } from './pages/ExecutionLogs';
@@ -78,6 +79,12 @@ const getInitialQueueId = (): string | null => {
   return (requested === null || requested === 'queues') && queue ? queue : null;
 };
 
+/** The entry of the address (feature 185). It counts only when the address names a queue of the Queues area. */
+const getInitialEntryId = (): string | null => {
+  const params = new URLSearchParams(window.location.search);
+  return getInitialQueueId() ? params.get('entry') : null;
+};
+
 export const App: React.FC = () => {
   const [token, setTokenState] = useState<string>(token$.get() ?? '');
   const layoutMode = useLayoutMode();
@@ -110,6 +117,13 @@ export const App: React.FC = () => {
   const [selectedQueueId, setSelectedQueueId] = useState<string | null>(() => (
     getInitialArea(phone) === 'queues' ? getInitialQueueId() : null
   ));
+  // The open entry page of the open queue (feature 185). Phone only. The desktop UI has no entry address.
+  const [selectedEntryId, setSelectedEntryId] = useState<string | null>(() => (
+    phone && getInitialArea(phone) === 'queues' ? getInitialEntryId() : null
+  ));
+  // Raised when the phone back step or a tab bar move met the leave guard of the entry page (feature 185).
+  const [leaveRequest, setLeaveRequest] = useState(0);
+  const ignoreNextPopState = useRef(false);
   const [tab, setTab] = useState<AuthoringTab>(initialLocation.tab);
   // Bumped when the user re-clicks the already-active tab/area, signalling the
   // mounted page to return to its list view (honoring unsaved changes).
@@ -122,20 +136,35 @@ export const App: React.FC = () => {
   };
 
   const handleAreaChange = (next: NavigationAreaId) => {
+    // The entry page has unsaved edits: it asks the operator first.
+    if (phone && shouldBlockLeave()) {
+      setLeaveRequest((count) => count + 1);
+      return;
+    }
     if (phone) pushScreen({ area: next, queueId: null });
     if (next === activeArea) {
       if (next === 'authoring') setAuthoringResetSignal((s) => s + 1);
       else if (next === 'queues') setQueuesResetSignal((s) => s + 1);
       setSelectedQueueId(null);
+      setSelectedEntryId(null);
       return;
     }
     setActiveArea(next);
     setSelectedQueueId(null);
+    setSelectedEntryId(null);
   };
 
   const handleOpenQueue = (id: string | null) => {
     if (id !== null) pushScreen({ area: 'queues', queueId: id });
     setSelectedQueueId(id);
+    setSelectedEntryId(null);
+  };
+
+  // Feature 185: the entry page is one step in the history. A null entry shows the queue detail again.
+  const handleOpenEntry = (queueId: string, entryId: string | null) => {
+    if (entryId !== null) pushScreen({ area: 'queues', queueId, entryId });
+    setSelectedQueueId(queueId);
+    setSelectedEntryId(entryId);
   };
   const creationTarget = initialLocation.creationTarget;
   const requestedTab = initialLocation.tab;
@@ -155,10 +184,23 @@ export const App: React.FC = () => {
     if (!phone) return;
     initFirstEntry();
     const onPopState = () => {
+      // The step forward that undoes a blocked back step also raises popstate. Ignore it (no loop).
+      if (ignoreNextPopState.current) {
+        ignoreNextPopState.current = false;
+        return;
+      }
+      // A browser cannot cancel a back step. Go forward one step again and let the page ask the operator.
+      if (shouldBlockLeave()) {
+        ignoreNextPopState.current = true;
+        window.history.go(1);
+        setLeaveRequest((count) => count + 1);
+        return;
+      }
       const position = parseAddress(window.location, 'queues');
       const area = phoneAreaOrQueues(position.area);
       setActiveArea(area);
       setSelectedQueueId(area === position.area ? position.queueId : null);
+      setSelectedEntryId(area === position.area ? position.entryId ?? null : null);
     };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
@@ -171,6 +213,7 @@ export const App: React.FC = () => {
     if (target !== activeArea) {
       setActiveArea(target);
       setSelectedQueueId(null);
+      setSelectedEntryId(null);
       replaceScreen({ area: target, queueId: null });
     }
   }, [phone, activeArea]);
@@ -181,12 +224,15 @@ export const App: React.FC = () => {
     params.set('area', activeArea);
     if (activeArea === 'queues' && selectedQueueId) params.set('queue', selectedQueueId);
     else params.delete('queue');
+    // The entry is part of the address only on the phone entry page.
+    if (phone && activeArea === 'queues' && selectedQueueId && selectedEntryId) params.set('entry', selectedEntryId);
+    else params.delete('entry');
     if (params.has('create')) params.delete('create');
     if (params.has('id')) params.delete('id');
     const next = `${window.location.pathname}?${params.toString()}`;
     // Keep the current state, so the entry index stays after a sync (contract H-06). The desktop state is null.
     window.history.replaceState(window.history.state, '', next);
-  }, [tab, activeArea, selectedQueueId]);
+  }, [tab, activeArea, selectedQueueId, selectedEntryId, phone]);
 
   const Navbar = useMemo(() => (
     <nav className="navbar">
@@ -213,7 +259,7 @@ export const App: React.FC = () => {
       {!phone && <h1>Queues</h1>}
       <ErrorBoundary>
         {phone
-          ? <PhoneQueuesView connectionState={connectionState} reloadSignal={reloadSignal} queueId={selectedQueueId} onOpenQueue={handleOpenQueue} />
+          ? <PhoneQueuesView connectionState={connectionState} reloadSignal={reloadSignal} queueId={selectedQueueId} onOpenQueue={handleOpenQueue} entryId={selectedEntryId} onOpenEntry={handleOpenEntry} leaveRequest={leaveRequest} />
           : <QueuesPage navResetSignal={queuesResetSignal} />}
       </ErrorBoundary>
     </section>

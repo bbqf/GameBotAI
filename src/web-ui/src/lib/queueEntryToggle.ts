@@ -1,6 +1,7 @@
 import type { QueueTemplateDetail, SaveQueueTemplate, TemplateEntrySaveDto } from '../services/queueTemplates';
 
-const toSaveEntry = (entry: QueueTemplateDetail['entries'][number], enabled: boolean): TemplateEntrySaveDto => {
+/** Maps a template entry to its save form. A binding with a null value is not sent. Feature 185 also uses it. */
+export const toSaveEntry = (entry: QueueTemplateDetail['entries'][number], enabled: boolean): TemplateEntrySaveDto => {
   const scheduleType = entry.scheduleType ?? 'OncePerRun';
   const isRelative = scheduleType === 'Timer' && !!entry.timerRelativeOffset;
   const bound = (entry.parameterValues ?? []).filter((v) => v.value !== null && v.value !== undefined);

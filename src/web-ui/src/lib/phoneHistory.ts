@@ -4,17 +4,22 @@ import { NavigationAreaId } from '../types/navigation';
 export type NavigationPosition = {
   area: NavigationAreaId;
   queueId: string | null;
+  /** The entry page of a queue (feature 185). Left out or null for any other screen. */
+  entryId?: string | null;
 };
 
 const KNOWN_AREAS: NavigationAreaId[] = [
   'authoring', 'queues', 'monitoring', 'configuration', 'execution', 'execution-logs', 'notifications', 'update', 'gamepacks'
 ];
 
-/** Build the address query for a position: `?area=<area>[&queue=<id>]`. */
+/** Build the address query for a position: `?area=<area>[&queue=<id>[&entry=<id>]]`. An entry needs a queue. */
 export const buildAddress = (position: NavigationPosition): string => {
   const params = new URLSearchParams();
   params.set('area', position.area);
-  if (position.queueId) params.set('queue', position.queueId);
+  if (position.queueId) {
+    params.set('queue', position.queueId);
+    if (position.entryId) params.set('entry', position.entryId);
+  }
   return `?${params.toString()}`;
 };
 
@@ -31,10 +36,12 @@ export const parseAddress = (
   const area = KNOWN_AREAS.find((a) => a === requested) ?? fallbackArea;
   const queue = params.get('queue');
   const keepQueue = area === 'queues' && (requested === null || requested === 'queues');
-  return { area, queueId: keepQueue && queue ? queue : null };
+  const queueId = keepQueue && queue ? queue : null;
+  const entry = params.get('entry');
+  return { area, queueId, ...(queueId && entry ? { entryId: entry } : {}) };
 };
 
-type HistoryState = { idx?: number; area?: NavigationAreaId; queueId?: string | null } | null;
+type HistoryState = { idx?: number; area?: NavigationAreaId; queueId?: string | null; entryId?: string | null } | null;
 
 const readState = (): HistoryState => (window.history.state ?? null) as HistoryState;
 
@@ -46,13 +53,15 @@ const readIdx = (): number => {
 const currentPosition = (): NavigationPosition => parseAddress(window.location);
 
 const samePosition = (a: NavigationPosition, b: NavigationPosition): boolean =>
-  a.area === b.area && a.queueId === b.queueId;
+  a.area === b.area && a.queueId === b.queueId && (a.entryId ?? null) === (b.entryId ?? null);
 
 const withQuery = (position: NavigationPosition): string => {
   const params = new URLSearchParams(window.location.search);
   params.set('area', position.area);
   if (position.queueId) params.set('queue', position.queueId);
   else params.delete('queue');
+  if (position.queueId && position.entryId) params.set('entry', position.entryId);
+  else params.delete('entry');
   return `${window.location.pathname}?${params.toString()}`;
 };
 

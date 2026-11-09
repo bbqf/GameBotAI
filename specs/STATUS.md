@@ -200,7 +200,7 @@ Status vocabulary:
 | 170 | End a Run at Its Time Limit Without a Failure Status | Implemented |
 | 171 | Apply Template Changes to a Running Queue | Implemented (iterated by 173) |
 | 172 | Split the Largest CI Test Shard | Implemented |
-| 173 | Clean Up the Queues Page on the Big Screen | Implemented |
+| 173 | Clean Up the Queues Page on the Big Screen | Implemented (iterated by 185) |
 | 174 | Wait for Still Step | Implemented |
 | 175 | Wait Until an Image Is Gone | Implemented |
 | 176 | Use Default Label | Implemented |
@@ -211,7 +211,8 @@ Status vocabulary:
 | 181 | Report Which Image of a List Matched | Implemented |
 | 182 | Revalidate an Image After an Overwrite | Implemented |
 | 183 | Show the Queue Name in Notify Messages | Implemented |
-| 184 | Run Next for Unscheduled Tasks | Implemented |
+| 184 | Run Next for Unscheduled Tasks | Implemented (iterated by 185) |
+| 185 | Sleeker Queue Entries and Parameters on the Phone | Implemented |
 
 ## Numbering notes
 

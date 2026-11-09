@@ -40,12 +40,12 @@ describe('Parameters and Remove of a sequence row (feature 184, US3)', () => {
     return { props, row: screen.getByTestId('queue-entry') };
   };
 
-  it('are icon buttons with the names "Parameters for <label>" and "Remove <label>" and the tooltips "Parameters" and "Remove"', () => {
+  it('are icon buttons with the names "Entry settings for <label>" and "Remove <label>" and the tooltips "Entry settings" and "Remove"', () => {
     const { row } = renderRow();
 
-    const parameters = within(row).getByRole('button', { name: 'Parameters for A' });
+    const parameters = within(row).getByRole('button', { name: 'Entry settings for A' });
     const remove = within(row).getByRole('button', { name: 'Remove A' });
-    expect(parameters).toHaveAttribute('title', 'Parameters');
+    expect(parameters).toHaveAttribute('title', 'Entry settings');
     expect(remove).toHaveAttribute('title', 'Remove');
     expect(parameters.querySelector('svg')).not.toBeNull();
     expect(remove.querySelector('svg')).not.toBeNull();
@@ -61,12 +61,12 @@ describe('Parameters and Remove of a sequence row (feature 184, US3)', () => {
     const { row } = renderRow();
 
     expect(within(row).getByRole('button', { name: 'Remove A' })).toHaveClass('icon-button--destructive');
-    expect(within(row).getByRole('button', { name: 'Parameters for A' })).not.toHaveClass('icon-button--destructive');
+    expect(within(row).getByRole('button', { name: 'Entry settings for A' })).not.toHaveClass('icon-button--destructive');
   });
 
-  it('keeps aria-expanded on Parameters and opens the form on a press', () => {
+  it('keeps aria-expanded on Entry settings and opens the panel on a press', () => {
     const { row } = renderRow();
-    const parameters = within(row).getByRole('button', { name: 'Parameters for A' });
+    const parameters = within(row).getByRole('button', { name: 'Entry settings for A' });
     expect(parameters).toHaveAttribute('aria-expanded', 'false');
 
     fireEvent.click(parameters);
@@ -84,6 +84,7 @@ describe('Parameters and Remove of a sequence row (feature 184, US3)', () => {
 
   it('keeps the form fields and the enable switch (no function is lost)', () => {
     const { row } = renderRow({ scheduleType: 'Timer', timerTimeOfDay: '15:30', timerMode: 'timeOfDay', enabled: true });
+    fireEvent.click(within(row).getByRole('button', { name: 'Entry settings for A' }));
 
     expect(within(row).getByRole('switch', { name: 'Disable A' })).toBeInTheDocument();
     expect(within(row).getByLabelText('Schedule type for A')).toBeInTheDocument();

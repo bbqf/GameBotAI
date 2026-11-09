@@ -26,6 +26,9 @@ type SchedulingAreaProps = {
   onParameterValuesChange?: (entryId: string, values: ParameterBinding[]) => void;
   /** Run next of each row (feature 184). Left out, the rows show no Run next button. */
   runNext?: RunNextSupport;
+  /** The entry IDs whose Entry settings panel is open (feature 185). The editor holds the set. */
+  openEntryIds?: ReadonlySet<string>;
+  onToggleOpen?: (entryId: string) => void;
 };
 
 const EMPTY_HINT = 'Drop sequences here.';
@@ -45,6 +48,8 @@ export const SchedulingArea: React.FC<SchedulingAreaProps> = ({
   parametersBySequenceId,
   onParameterValuesChange,
   runNext,
+  openEntryIds,
+  onToggleOpen,
 }) => {
   const label = AREA_LABELS[areaId];
   // The area itself is a droppable so empty areas can receive a dragged card.
@@ -82,6 +87,8 @@ export const SchedulingArea: React.FC<SchedulingAreaProps> = ({
                     sequenceParameters={parametersBySequenceId?.get(card.sequenceId)}
                     onParameterValuesChange={onParameterValuesChange}
                     runNext={runNext}
+                    open={openEntryIds?.has(card.entryId) ?? false}
+                    onToggleOpen={onToggleOpen}
                   />
                 </div>
               </React.Fragment>

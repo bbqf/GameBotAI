@@ -58,14 +58,83 @@
 }
 
 .scheduling-card {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--gb-space-2);
+  display: block;
   padding: var(--gb-space-2);
   border: 1px solid var(--gb-color-border);
   border-radius: var(--gb-radius-md);
   background: var(--gb-color-surface-alt, #fafafa);
+}
+
+/* Feature 185: the main row is one line. The schedule controls are in the Entry settings panel. */
+.scheduling-card__row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--gb-space-2);
+}
+
+/* Feature 185: one line of schedule text on the closed row. It is muted and ends with an ellipsis. */
+.scheduling-card__summary {
+  flex: 0 1 auto;
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.85rem;
+  color: var(--gb-color-text-muted, #666);
+}
+
+/* Feature 185: the open panel sits under the row, indented, with a separator line. */
+.entry-settings-panel {
+  margin: var(--gb-space-2) 0 0 var(--gb-space-4, 1rem);
+  padding-top: var(--gb-space-2);
+  border-top: 1px solid var(--gb-color-border);
+  display: grid;
+  gap: var(--gb-space-2);
+}
+
+/* The shared parameter form has little own style. In the panel it has no bullets and one block for each row. */
+.entry-settings-panel .parameter-bindings h4 {
+  margin: 0 0 var(--gb-space-1, 4px);
+}
+
+.entry-settings-panel .parameter-bindings-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--gb-space-2);
+}
+
+.entry-settings-panel .parameter-binding-row {
+  padding: var(--gb-space-2);
+  border: 1px solid var(--gb-color-border);
+  border-radius: var(--gb-radius-md);
+  background: var(--gb-color-surface);
+}
+
+.entry-settings-panel .parameter-binding-head,
+.entry-settings-panel .parameter-binding-inherit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gb-space-2);
+}
+
+.entry-settings-panel__heading {
+  margin: 0 0 var(--gb-space-1, 4px);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--gb-color-text-muted, #888);
+}
+
+.entry-settings-panel__controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--gb-space-2);
 }
 
 /* Disabled entry: retained in place but visibly "off" at a glance (FR-010). The toggle
@@ -93,9 +162,12 @@
 }
 
 .scheduling-card__name {
-  flex: 1 1 auto;
-  min-width: 8rem;
+  flex: 1 1 8rem;
+  min-width: 0;
   font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Feature 184: the controls of a row are icon buttons, so a row fits on one line on a big screen. */
