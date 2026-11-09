@@ -75,6 +75,12 @@ public static class ParameterValidationCodes {
   /// </summary>
   public const string TextParameterInNumericField = "text_parameter_in_numeric_field";
 
+  /// <summary>
+  /// A multi-value parameter is a whole placeholder in a field that needs one value (feature 180). Only the
+  /// image field of an <c>imageVisible</c> condition and of a WaitForImage step accept a list.
+  /// </summary>
+  public const string ListInSingleField = "list_in_single_field";
+
   /// <summary>A required multi-value parameter has an empty list (feature 179).</summary>
   public const string EmptyList = "empty_parameter_list";
 
@@ -174,8 +180,9 @@ public static class ParameterValidationService {
     }
 
     var declared = NamesOf(command.Parameters);
+    var commandDeclarations = command.Parameters.ToList();
     foreach (var reference in ParameterReferenceScanner.Scan(command)) {
-      AddReferenceIssues(reference, declared, errors, warnings);
+      AddReferenceIssues(reference, declared, errors, warnings, commandDeclarations);
     }
 
     return new ParameterValidationResult(errors, warnings);
@@ -202,8 +209,9 @@ public static class ParameterValidationService {
 
     var declared = NamesOf(sequence.Parameters);
     var references = ParameterReferenceScanner.Scan(sequence);
+    var sequenceDeclarations = sequence.Parameters.ToList();
     foreach (var reference in references) {
-      AddReferenceIssues(reference, declared, errors, warnings);
+      AddReferenceIssues(reference, declared, errors, warnings, sequenceDeclarations);
     }
 
     AddResolvedPatternIssues(references, sequence.Parameters, errors);
@@ -760,7 +768,10 @@ public static class ParameterValidationService {
       ParameterReference reference,
       HashSet<string> declared,
       List<ParameterValidationIssue> errors,
-      List<ParameterValidationIssue> warnings) {
+      List<ParameterValidationIssue> warnings,
+      IReadOnlyCollection<ParameterDeclaration>? declarations = null) {
+    AddListInSingleFieldError(reference, declarations, errors);
+
     if (reference.DefeatsStaticCheck) {
       warnings.Add(new ParameterValidationIssue(
           ParameterValidationCodes.StaticCheckSkipped,
@@ -788,6 +799,29 @@ public static class ParameterValidationService {
         $"Step '{reference.StepLabel}': '{reference.ParameterName}' is not declared here and is not a queue built-in.",
         reference.FieldPath,
         reference.ParameterName));
+  }
+
+  /// <summary>
+  /// Feature 180: a whole placeholder of a multi-value parameter is refused in a field that needs one value.
+  /// The fields that allow a list are marked with <see cref="ParameterReference.AllowsList"/>. A binding
+  /// value passes the list on to the called entity, so it is not a one-value field.
+  /// </summary>
+  private static void AddListInSingleFieldError(
+      ParameterReference reference,
+      IReadOnlyCollection<ParameterDeclaration>? declarations,
+      List<ParameterValidationIssue> errors) {
+    if (declarations is null || reference.AllowsList) return;
+    if (reference.FieldPath.StartsWith("parameterBindings.", StringComparison.Ordinal)) return;
+    if (!TemplateSubstitutor.IsWholePlaceholder(reference.SourceText, out var name)) return;
+    var declaration = declarations.FirstOrDefault(d => d is not null
+        && string.Equals(d.Name, name, StringComparison.Ordinal));
+    if (declaration is not { Multiple: true }) return;
+
+    errors.Add(new ParameterValidationIssue(
+        ParameterValidationCodes.ListInSingleField,
+        $"Step '{reference.StepLabel}': parameter '{name}' holds a list, but '{reference.FieldPath}' needs one value. Use a parameter with one value, or use the list in an image condition or in WaitForImage.",
+        reference.FieldPath,
+        name));
   }
 
   /// <summary>

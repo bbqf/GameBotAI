@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using GameBot.Domain.Commands;
 using GameBot.Domain.Utils;
 
@@ -64,7 +65,8 @@ public static class SequenceStepConditionResolver {
   }
 
   private static bool HasPlaceholder(SequenceStepCondition? condition) => condition switch {
-    ImageVisibleStepCondition image => TemplateSubstitutor.ContainsPlaceholder(image.ImageId),
+    ImageVisibleStepCondition image => TemplateSubstitutor.ContainsPlaceholder(image.ImageId)
+        || (image.ImageIds is not null && image.ImageIds.Any(TemplateSubstitutor.ContainsPlaceholder)),
     OcrTextStepCondition ocr => TemplateSubstitutor.ContainsPlaceholder(ocr.Pattern)
         || TemplateSubstitutor.ContainsPlaceholder(ocr.Expected),
     CompositeStepCondition composite => composite.Children is not null && AnyChildHasPlaceholder(composite.Children),
@@ -123,15 +125,56 @@ public static class SequenceStepConditionResolver {
       ref ParameterResolutionError? error,
       out SequenceStepCondition resolved) {
     resolved = image;
-    if (!TemplateSubstitutor.ContainsPlaceholder(image.ImageId)) return true;
+    if (!HasPlaceholder(image)) return true;
 
-    // An empty id cannot name an image. This is the same rule as the empty-id check of a command step.
-    if (!TryResolveText(image.ImageId, fieldPath, scope, context, used, ref error, out var substituted)) {
+    // Feature 180: a whole placeholder of a multi-value parameter expands to a list. The match mode is any.
+    if (TemplateSubstitutor.IsWholePlaceholder(image.ImageId, out var listName)
+        && scope.TryFindDeclaration(listName, out var declaration) && declaration.Multiple) {
+      if (!scope.TryResolve(listName, out var listValue)) {
+        error = new ParameterResolutionError(listName, fieldPath, ParameterResolutionReasons.Unresolved);
+        return false;
+      }
+
+      used.Add(new ResolvedParameter(listName, listValue.Text, listValue.OriginLayer, listValue.Label));
+      resolved = new ImageVisibleStepCondition {
+        ImageId = string.Empty,
+        ImageIds = ImageListRules.Normalize(ParameterListRules.Split(listValue.Text)),
+        Match = ImageListRules.MatchAny,
+        MinSimilarity = image.MinSimilarity,
+        Negate = image.Negate,
+        Region = image.Region
+      };
+      return true;
+    }
+
+    var imageId = image.ImageId;
+    if (TemplateSubstitutor.ContainsPlaceholder(imageId)
+        // An empty id cannot name an image. This is the same rule as the empty-id check of a command step.
+        && !TryResolveText(imageId, fieldPath, scope, context, used, ref error, out imageId)) {
       return false;
     }
 
+    var imageIds = image.ImageIds;
+    if (imageIds is not null) {
+      var items = new List<string>(imageIds.Count);
+      for (var index = 0; index < imageIds.Count; index++) {
+        var item = imageIds[index];
+        if (TemplateSubstitutor.ContainsPlaceholder(item)
+            && !TryResolveText(item, string.Create(CultureInfo.InvariantCulture, $"{fieldPath}s[{index}]"),
+                scope, context, used, ref error, out item)) {
+          return false;
+        }
+
+        items.Add(item);
+      }
+
+      imageIds = ImageListRules.Normalize(items);
+    }
+
     resolved = new ImageVisibleStepCondition {
-      ImageId = substituted,
+      ImageId = imageId,
+      ImageIds = imageIds,
+      Match = image.Match,
       MinSimilarity = image.MinSimilarity,
       Negate = image.Negate,
       Region = image.Region

@@ -252,6 +252,11 @@ internal sealed class StepExecutionOutcomeDto {
   public int? TimeoutMs { get; init; }
   public int? EffectiveTimeoutMs { get; init; }
   public string? ReferenceImageId { get; init; }
+
+  /// <summary>The image of a WaitForImage list that matched (feature 180). Omitted when null.</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public string? MatchedImageId { get; init; }
+
   public string? ImageLoadStatus { get; init; }
   public ResolvedPointDto? ExecutedPoint { get; init; }
   public SwipePointsDto? TargetSwipe { get; init; }
@@ -268,7 +273,20 @@ internal enum DetectionSelectionStrategyDto {
 }
 
 internal sealed class DetectionTargetDto {
-  public required string ReferenceImageId { get; init; }
+  /// <summary>
+  /// One image id, or a whole <c>{{name}}</c> placeholder. In a WaitForImage step with a list, this holds the
+  /// first image of the list and may be left out when <see cref="ReferenceImageIds"/> is set (feature 180).
+  /// </summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public string? ReferenceImageId { get; init; }
+
+  /// <summary>
+  /// Optional written list of image ids, for a WaitForImage step only (feature 180). Not allowed together with
+  /// <see cref="ReferenceImageId"/>. The step ends when any image of the list is visible.
+  /// </summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public Collection<string>? ReferenceImageIds { get; init; }
+
   public double? Confidence { get; init; }
   public int? OffsetX { get; init; }
   public int? OffsetY { get; init; }

@@ -1102,7 +1102,7 @@ internal sealed class ExecutionLogService : IExecutionLogService {
   }
 
   private static Dictionary<string, object?> BuildWaitForImageDetailAttributeMap(PrimitiveTapStepOutcome outcome) {
-    return new Dictionary<string, object?> {
+    var map = new Dictionary<string, object?> {
       ["stepOrder"] = outcome.StepOrder,
       ["stepType"] = outcome.StepType,
       ["status"] = outcome.Status,
@@ -1115,6 +1115,9 @@ internal sealed class ExecutionLogService : IExecutionLogService {
       ["exitCondition"] = outcome.Reason,
       ["imageLoadStatus"] = outcome.ImageLoadStatus
     };
+    // Feature 180: the image of a list that matched. Null is not written.
+    if (outcome.MatchedImageId is not null) map["matchedImageId"] = outcome.MatchedImageId;
+    return map;
   }
 
   private static string TrimSummary(string summary) {

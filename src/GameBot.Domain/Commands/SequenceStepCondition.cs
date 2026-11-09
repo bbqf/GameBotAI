@@ -30,6 +30,17 @@ public sealed class ImageVisibleStepCondition : SequenceStepCondition {
   public string ImageId { get; set; } = string.Empty;
   public double? MinSimilarity { get; set; }
 
+  /// <summary>
+  /// Optional written list of image ids (feature 180). Not allowed together with <see cref="ImageId"/>.
+  /// The condition is true when any image of the list is visible.
+  /// </summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public IReadOnlyList<string>? ImageIds { get; set; }
+
+  /// <summary>Optional match mode (feature 180). The only value is <c>any</c>. Null means <c>any</c>.</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public string? Match { get; set; }
+
   /// <summary>Optional search area in capture pixels (feature 130). Null means the whole capture.</summary>
   [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
   public PixelRegion? Region { get; set; }

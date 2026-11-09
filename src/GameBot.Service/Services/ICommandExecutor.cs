@@ -90,7 +90,8 @@ internal sealed record PrimitiveTapStepOutcome(
   PrimitiveSwipePoints? ExecutedSwipe = null,
   IReadOnlyList<ResolvedParameter>? ResolvedParameters = null,
   int? HoldMs = null,
-  int Depth = 0);
+  int Depth = 0,
+  string? MatchedImageId = null);
 
 /// <summary>
 /// The options of one command run (feature 127).

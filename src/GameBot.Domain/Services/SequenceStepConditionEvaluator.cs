@@ -235,13 +235,17 @@ public static class SequenceStepConditionEvaluator {
             "Image-visible condition evaluator is unavailable.");
         }
 
-        return await imageEvaluator(new Condition {
-          Source = "image",
-          TargetId = image.ImageId,
-          Mode = "Present",
-          ConfidenceThreshold = image.MinSimilarity,
-          PixelRegion = image.Region
-        }, ct).ConfigureAwait(false);
+        if (image.ImageIds is not null) {
+          // Feature 180: any-of. The first visible image ends the check. An empty list is false.
+          foreach (var imageId in image.ImageIds) {
+            ct.ThrowIfCancellationRequested();
+            if (await imageEvaluator(NewImageCondition(imageId, image), ct).ConfigureAwait(false)) return true;
+          }
+
+          return false;
+        }
+
+        return await imageEvaluator(NewImageCondition(image.ImageId, image), ct).ConfigureAwait(false);
 
       case CommandStepOutcomeStepCondition stepOutcome:
         return EvaluateCommandStepOutcome(stepOutcome, evaluators);
@@ -264,6 +268,14 @@ public static class SequenceStepConditionEvaluator {
           $"Unsupported condition type '{condition.Type}'.");
     }
   }
+
+  private static Condition NewImageCondition(string imageId, ImageVisibleStepCondition image) => new() {
+    Source = "image",
+    TargetId = imageId,
+    Mode = "Present",
+    ConfidenceThreshold = image.MinSimilarity,
+    PixelRegion = image.Region
+  };
 
   /// <summary>
   /// Issue #338: reads the region through the ambient <see cref="OcrTextEvaluationScope"/> and compares
@@ -367,7 +379,9 @@ public static class SequenceStepConditionEvaluator {
         var similarity = image.MinSimilarity?.ToString(CultureInfo.InvariantCulture) ?? "default";
         // Feature 130: the region shows in the text only when it is set, so old text does not change.
         var regionText = image.Region is null ? string.Empty : $", region={image.Region.Describe()}";
-        return $"{negatePrefix}imageVisible(imageId={image.ImageId}, minSimilarity={similarity}{regionText})";
+        // Feature 180: a list shows as imageIds=[...]. The text of a one-image condition does not change.
+        var idsText = image.ImageIds is null ? $"imageId={image.ImageId}" : $"imageIds=[{string.Join(", ", image.ImageIds)}]";
+        return $"{negatePrefix}imageVisible({idsText}, minSimilarity={similarity}{regionText})";
 
       case CommandOutcomeStepCondition outcome:
         return $"{negatePrefix}commandOutcome(stepRef={outcome.StepRef}, expected={outcome.ExpectedState})";

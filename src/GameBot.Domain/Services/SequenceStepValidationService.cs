@@ -205,7 +205,7 @@ public sealed class SequenceStepValidationService {
 
       if (bodyStep.StepType == SequenceStepType.Break) {
         if (bodyStep.BreakCondition is ImageVisibleStepCondition brkImgVis
-            && string.IsNullOrWhiteSpace(brkImgVis.ImageId)) {
+            && !ImageListRules.HasImage(brkImgVis)) {
           errors.Add($"Break step '{bodyLabel}' imageVisible breakCondition requires imageId.");
         }
         AddRegionErrors(bodyStep.BreakCondition as ImageVisibleStepCondition, bodyLabel, errors);
@@ -267,7 +267,7 @@ public sealed class SequenceStepValidationService {
     CompositeConditionValidator.Validate(condition, stepLabel, errors,
         positionByStepId: positionByStepId, referencingStepPosition: referencingStepPosition);
 
-    if (condition is ImageVisibleStepCondition imageVisible && string.IsNullOrWhiteSpace(imageVisible.ImageId)) {
+    if (condition is ImageVisibleStepCondition imageVisible && !ImageListRules.HasImage(imageVisible)) {
       errors.Add($"Step '{stepLabel}' imageVisible condition requires imageId.");
     }
 
@@ -337,7 +337,7 @@ public sealed class SequenceStepValidationService {
           errors.Add($"Branch step '{branchLabel}' inside if '{stepLabel}' has stepType 'Break' which is only valid inside a loop body.");
         }
         else if (branchStep.BreakCondition is ImageVisibleStepCondition brkImgVis
-            && string.IsNullOrWhiteSpace(brkImgVis.ImageId)) {
+            && !ImageListRules.HasImage(brkImgVis)) {
           errors.Add($"Break step '{branchLabel}' imageVisible breakCondition requires imageId.");
         }
         AddRegionErrors(branchStep.BreakCondition as ImageVisibleStepCondition, branchLabel, errors);
@@ -361,6 +361,9 @@ public sealed class SequenceStepValidationService {
     if (image?.Region is { } region) {
       errors.AddRange(region.Validate($"Step '{stepLabel}' imageVisible region"));
     }
+
+    // Feature 180: the rules of a written image list.
+    if (image is not null) ImageListRules.AddConditionErrors(image, $"Step '{stepLabel}' imageVisible", errors);
   }
 
   private static void ValidateStepCondition(
@@ -450,7 +453,7 @@ public sealed class SequenceStepValidationService {
     }
 
     if (step.Condition is ImageVisibleStepCondition imageVisible
-        && string.IsNullOrWhiteSpace(imageVisible.ImageId)) {
+        && !ImageListRules.HasImage(imageVisible)) {
       errors.Add($"Step '{stepLabel}' imageVisible condition requires imageId.");
     }
 

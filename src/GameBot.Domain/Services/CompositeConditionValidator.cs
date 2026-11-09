@@ -99,9 +99,11 @@ public static class CompositeConditionValidator {
         break;
 
       case ImageVisibleStepCondition imageVisible:
-        if (string.IsNullOrWhiteSpace(imageVisible.ImageId)) {
+        if (!ImageListRules.HasImage(imageVisible)) {
           errors.Add($"Step '{stepLabel}' condition at {path}: imageVisible condition requires imageId.");
         }
+
+        ImageListRules.AddConditionErrors(imageVisible, $"Step '{stepLabel}' condition at {path}: imageVisible", errors);
 
         if (imageVisible.MinSimilarity is < 0 or > 1) {
           errors.Add($"Step '{stepLabel}' condition at {path}: imageVisible minSimilarity must be within 0..1.");

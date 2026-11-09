@@ -60,4 +60,24 @@ public sealed class ParametrizedReferenceImageOpenApiTests {
 
     Description(schemas, "TemplateEntrySaveRequest", "parameterValues").Should().Contain("unknown_image_reference");
   }
+
+  // Feature 180: the list members are in the published schema.
+  [Theory]
+  [InlineData("ImageVisibleConditionContract")]
+  [InlineData("ImageVisibleCondition")]
+  public async Task ImageVisibleConditionDescribesTheListMembers(string schema) {
+    var schemas = await ReadSchemasAsync().ConfigureAwait(false);
+
+    Description(schemas, schema, "imageIds").Should().Contain("any image").And.Contain("quest_a");
+    Description(schemas, schema, "match").Should().Contain("any");
+    Description(schemas, schema, "imageId").Should().Contain("list_in_single_field");
+  }
+
+  [Fact]
+  public async Task WaitForImageDescribesTheListAndTheMatchedImage() {
+    var schemas = await ReadSchemasAsync().ConfigureAwait(false);
+
+    Description(schemas, "DetectionTargetDto", "referenceImageIds").Should().Contain("WaitForImage").And.Contain("quest_a");
+    Description(schemas, "StepExecutionOutcomeDto", "matchedImageId").Should().Contain("referenceImageId");
+  }
 }
