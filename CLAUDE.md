@@ -1,4 +1,4 @@
-﻿When running PowerShell commands, always use absolute paths. Never prepend `cd <dir>;` before a script — use the full absolute path to the script directly, e.g. `& "c:\src\GameBot\.specify\scripts\powershell\setup-tasks.ps1"` not `cd c:\src\GameBot; & ".specify\scripts\powershell\setup-tasks.ps1"`.
+When running PowerShell commands, always use absolute paths. Never prepend `cd <dir>;` before a script — use the full absolute path to the script directly, e.g. `& "c:\src\GameBot\.specify\scripts\powershell\setup-tasks.ps1"` not `cd c:\src\GameBot; & ".specify\scripts\powershell\setup-tasks.ps1"`.
 
 For multi-line text passed to a native command — a commit message, a PR body — never use a PowerShell here-string (`git commit -m @'...'@`). Windows PowerShell 5.1 re-splits native-command arguments, so git receives the message body as a pathspec and fails with `error: pathspec '<rest of the message>' did not match any file(s) known to git`. Nothing is committed. Write the text to a file outside the repo (the session scratchpad directory) and pass it by path instead: `git commit -F "<absolute\path\to\msg.txt>"`, `gh pr create --body-file "<path>"`.
 
