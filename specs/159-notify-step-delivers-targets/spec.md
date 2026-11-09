@@ -2,7 +2,7 @@
 
 **Feature Branch**: `159-notify-step-delivers-targets`
 **Created**: 2026-10-22
-**Status**: Implemented
+**Status**: Implemented (iterated by 183)
 **Input**: GitHub issue #335 "FR-032: the notify step should deliver to the configured notification targets". Closes #335.
 
 ## Clarifications

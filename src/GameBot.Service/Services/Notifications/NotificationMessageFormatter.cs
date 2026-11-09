@@ -51,6 +51,20 @@ internal static class NotificationMessageFormatter {
     };
   }
 
+  /// <summary>
+  /// Makes the text of a <c>notify</c> step message (feature 183). The text is the queue label, then
+  /// " : ", then the author text. An absent or blank name is replaced by the ID. The author text is not
+  /// changed, so a text with many lines keeps its lines and the label is on the first line only.
+  /// </summary>
+  /// <param name="queueName">The queue name, or null.</param>
+  /// <param name="queueId">The queue ID. Used when the name is blank.</param>
+  /// <param name="text">The author text of the step.</param>
+  /// <returns>The text to send. This method does not throw.</returns>
+  public static string FormatNotifyText(string? queueName, string queueId, string text) {
+    var queue = string.IsNullOrWhiteSpace(queueName) ? queueId : queueName;
+    return $"{queue} : {text}";
+  }
+
   public static string Circle(NotificationMessageStatus status) => status switch {
     NotificationMessageStatus.Success => Green,
     NotificationMessageStatus.Recovered => Green,

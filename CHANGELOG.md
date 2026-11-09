@@ -13,6 +13,12 @@ All notable changes to this project will be documented in this file.
   - **Version**: the patch version is now 1.12.12.
 
 ### Added
+- Show the queue name in notify messages (183-notify-queue-name, #387)
+  - **Change**: the text that a `notify` step with no `url` sends to the notification targets starts with the queue name and " : ". For example, `Farm A : Daily reward ready`.
+  - **Rules**: a run outside a queue sends the plain text with no label. A blank name, a missing queue, or a failed queue read gives the queue ID as the label.
+  - **Docs**: `docs/architecture.md` states the label rule.
+  - **Not changed**: the webhook payload (`sequence.notify`), the step schema, and the step outcome.
+  - **Version**: the patch version is now 1.12.13.
 - Report which image of a list matched (181-report-matched-image, #380)
   - **Result**: the `WaitForImage` step result has `matchedImageId` (the id of the image that matched) when the exit condition is `image_detected`. It is omitted when no image matched. `referenceImageId` and `confidence` do not change.
   - **Condition**: the new condition `matchedImage` with `stepRef` and `imageId` is true when the latest matched image of that earlier step is `imageId`. A step with no matched image gives false, with a reason in the run log. The save rejects an empty field, an unknown step, and a step that is not prior.

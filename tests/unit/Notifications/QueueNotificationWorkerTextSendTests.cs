@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using GameBot.Domain.Notifications;
 using GameBot.Service.Services.Notifications;
+using GameBot.Domain.Commands.Notify;
 using Xunit;
 
 #pragma warning disable CA2007, CA1861, CA1859, CA1707, CA2000
@@ -105,12 +106,84 @@ public sealed class QueueNotificationWorkerTextSendTests {
   }
 
   [Fact]
-  public async Task Text_HasNoPrefix() {
+  public async Task Text_HasTheQueueNameAsLabel() {
     await using var h = new NotificationHarness(targetCount: 1);
 
     await SendAsync(h, "Plain text 1");
 
-    h.Channel.Sent.Single().Text.Should().Be("Plain text 1");
+    h.Channel.Sent.Single().Text.Should().Be("Farm-1 : Plain text 1");
+  }
+
+  [Fact]
+  public async Task TwoQueues_GiveTwoDifferentLabels() {
+    await using var h = new NotificationHarness(targetCount: 1);
+    h.Queues.Add(new GameBot.Domain.Queues.ExecutionQueue { Id = "q2", Name = "Farm-2", EmulatorSerial = "emu-2" });
+    await h.Worker.StartAsync(CancellationToken.None);
+
+    await h.Dispatcher.SendText("Hello", "q1", "s1", CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
+    await h.Dispatcher.SendText("Hello", "q2", "s1", CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
+
+    h.Channel.Sent.Select(s => s.Text).Should().BeEquivalentTo(new[] { "Farm-1 : Hello", "Farm-2 : Hello" });
+  }
+
+  [Fact]
+  public async Task BlankQueueName_UsesTheQueueIdAsLabel() {
+    await using var h = new NotificationHarness(targetCount: 1);
+    h.Queues.Add(new GameBot.Domain.Queues.ExecutionQueue { Id = "q-7", Name = "  ", EmulatorSerial = "emu-7" });
+    await h.Worker.StartAsync(CancellationToken.None);
+
+    await h.Dispatcher.SendText("Hello", "q-7", "s1", CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
+
+    h.Channel.Sent.Single().Text.Should().Be("q-7 : Hello");
+  }
+
+  [Fact]
+  public async Task RenamedQueue_GivesTheNewNameInTheNextMessage() {
+    await using var h = new NotificationHarness(targetCount: 1);
+    await h.Worker.StartAsync(CancellationToken.None);
+    await h.Dispatcher.SendText("Hello", "q1", "s1", CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
+
+    h.Queues.Add(new GameBot.Domain.Queues.ExecutionQueue { Id = "q1", Name = "Farm-C", EmulatorSerial = "emu-1" });
+    await h.Dispatcher.SendText("Hello", "q1", "s1", CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
+
+    h.Channel.Sent.Select(s => s.Text).Should().Equal("Farm-1 : Hello", "Farm-C : Hello");
+  }
+
+  [Fact]
+  public async Task AdhocScope_SendsThePlainTextAndReadsNoQueue() {
+    await using var h = new NotificationHarness(targetCount: 1);
+    h.Queues.GetThrows = true;
+    await h.Worker.StartAsync(CancellationToken.None);
+
+    var outcome = await h.Dispatcher.SendText("Hello", NotifyPayload.AdhocScope, "s1", CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
+
+    outcome.State.Should().Be(TextSendState.Delivered);
+    h.Channel.Sent.Single().Text.Should().Be("Hello");
+    h.WorkerLog.Lines.Should().NotContain(l => l.Contains("could not be read", StringComparison.Ordinal));
+  }
+
+  [Fact]
+  public async Task MissingQueue_UsesTheQueueIdAsLabel() {
+    await using var h = new NotificationHarness(targetCount: 1);
+    await h.Worker.StartAsync(CancellationToken.None);
+
+    var outcome = await h.Dispatcher.SendText("Hello", "gone", "s1", CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
+
+    outcome.State.Should().Be(TextSendState.Delivered);
+    h.Channel.Sent.Single().Text.Should().Be("gone : Hello");
+  }
+
+  [Fact]
+  public async Task QueueReadThatThrows_UsesTheQueueIdAndTheMessageIsDelivered() {
+    await using var h = new NotificationHarness(targetCount: 1);
+    h.Queues.GetThrows = true;
+    await h.Worker.StartAsync(CancellationToken.None);
+
+    var outcome = await h.Dispatcher.SendText("Hello", "q1", "s1", CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
+
+    outcome.State.Should().Be(TextSendState.Delivered);
+    h.Channel.Sent.Single().Text.Should().Be("q1 : Hello");
+    h.WorkerLog.Lines.Should().Contain(l => l.Contains("could not be read", StringComparison.Ordinal));
   }
 
   [Fact]
@@ -135,7 +208,7 @@ public sealed class QueueNotificationWorkerTextSendTests {
 
     var texts = h.Channel.Sent.Select(s => s.Text).ToList();
     texts.Should().HaveCount(2);
-    texts[0].Should().Be("Free text");
+    texts[0].Should().Be("Farm-1 : Free text");
     texts[1].Should().Contain("Farm-1").And.NotBe("Free text");
   }
 

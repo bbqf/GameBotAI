@@ -186,7 +186,7 @@ Status vocabulary:
 | 151 | Fix Gamepack Action Step Command | Implemented |
 | 157 | Fix Gamepack Install File Replace Failure | Implemented (quickstart walk pending) |
 | 158 | OCR Text Condition for Sequences | Implemented (quickstart walk pending) |
-| 159 | Notify Step Delivers to the Notification Targets | Implemented |
+| 159 | Notify Step Delivers to the Notification Targets | Implemented (iterated by 183) |
 | 160 | Gamepacks Page Take-Over Option | Implemented (phone check pending) |
 | 161 | Gamepack Install Failure Explanation | Implemented (phone check pending) |
 | 162 | Installer Bind Address and Port Control | Implemented (production upgrade check pending) |
@@ -210,6 +210,7 @@ Status vocabulary:
 | 180 | Any-of Image List Condition and WaitForImage | Implemented (iterated by 181) |
 | 181 | Report Which Image of a List Matched | Implemented |
 | 182 | Revalidate an Image After an Overwrite | Implemented |
+| 183 | Show the Queue Name in Notify Messages | Implemented |
 
 ## Numbering notes
 

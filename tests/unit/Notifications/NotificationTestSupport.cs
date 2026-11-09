@@ -22,7 +22,11 @@ internal sealed class MemoryQueueRepository : IQueueRepository {
 
   public void Remove(string id) { lock (_items) _items.Remove(id); }
 
+  /// <summary>When true, <see cref="GetAsync"/> throws. A test uses this to simulate a failed read.</summary>
+  public bool GetThrows { get; set; }
+
   public Task<ExecutionQueue?> GetAsync(string id) {
+    if (GetThrows) throw new InvalidOperationException("read failed");
     lock (_items) return Task.FromResult(_items.TryGetValue(id, out var q) ? q : null);
   }
 
