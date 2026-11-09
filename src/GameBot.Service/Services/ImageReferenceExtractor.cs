@@ -17,6 +17,10 @@ internal static class ImageReferenceExtractor {
       else if (step.Type == CommandStepType.WaitForImage) {
         var id = step.WaitForImage?.DetectionTarget?.ReferenceImageId;
         if (!string.IsNullOrWhiteSpace(id)) yield return id;
+        // Feature 180: each item of a written list is an image reference.
+        foreach (var item in step.WaitForImage?.DetectionTarget?.ReferenceImageIds ?? Array.Empty<string>()) {
+          if (!string.IsNullOrWhiteSpace(item)) yield return item;
+        }
       }
     }
   }

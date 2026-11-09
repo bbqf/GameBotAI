@@ -132,13 +132,16 @@ public static class WaitForImageConfigMapper {
       return null;
     }
 
-    if (!target.TryGetProperty("referenceImageId", out var idElement) || idElement.ValueKind != JsonValueKind.String) {
-      return null;
+    // Feature 180: a written list. ReferenceImageId then holds the first item.
+    var list = ReadImageList(target);
+    string? referenceImageId = null;
+    if (target.TryGetProperty("referenceImageId", out var idElement) && idElement.ValueKind == JsonValueKind.String) {
+      referenceImageId = idElement.GetString();
     }
 
-    var referenceImageId = idElement.GetString();
     if (string.IsNullOrWhiteSpace(referenceImageId)) {
-      return null;
+      if (list is not { Count: > 0 }) return null;
+      referenceImageId = list[0];
     }
 
     var confidence = target.TryGetProperty("confidence", out var confidenceElement)
@@ -146,7 +149,25 @@ public static class WaitForImageConfigMapper {
                      && confidenceElement.TryGetDouble(out var parsedConfidence)
       ? parsedConfidence
       : DefaultConfidence;
-    return new DetectionTarget(referenceImageId, confidence, ReadOffset(target, "offsetX"), ReadOffset(target, "offsetY"), ReadStrategy(target), ReadRegion(target));
+    return new DetectionTarget(referenceImageId, confidence, ReadOffset(target, "offsetX"), ReadOffset(target, "offsetY"), ReadStrategy(target), ReadRegion(target), list);
+  }
+
+  /// <summary>
+  /// Reads the optional <c>referenceImageIds</c> list of a raw detection target (feature 180). The result is
+  /// normalized. It is null when the field is missing or is not a list of text.
+  /// </summary>
+  private static IReadOnlyList<string>? ReadImageList(JsonElement target) {
+    if (!target.TryGetProperty("referenceImageIds", out var element) || element.ValueKind != JsonValueKind.Array) {
+      return null;
+    }
+
+    var items = new List<string>();
+    foreach (var item in element.EnumerateArray()) {
+      if (item.ValueKind == JsonValueKind.String && item.GetString() is { } text) items.Add(text);
+    }
+
+    var normalized = ImageListRules.Normalize(items);
+    return normalized.Count == 0 ? null : normalized;
   }
 
   private static int ReadOffset(JsonElement target, string name) =>

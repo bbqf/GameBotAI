@@ -148,7 +148,18 @@ internal abstract record SequenceStepConditionContract {
 }
 
 internal sealed record ImageVisibleConditionContract : SequenceStepConditionContract {
-  public required string ImageId { get; init; }
+  /// <summary>One image id, or a whole <c>{{name}}</c> placeholder. A list placeholder expands to a list. Not allowed together with <see cref="ImageIds"/>.</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public string? ImageId { get; init; }
+
+  /// <summary>Optional written list of image ids (feature 180). The condition is true when any image is visible.</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public IReadOnlyList<string>? ImageIds { get; init; }
+
+  /// <summary>Optional match mode (feature 180). The only value is <c>any</c>.</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public string? Match { get; init; }
+
   public double? MinSimilarity { get; init; }
 
   /// <summary>Optional search area in capture pixels (feature 130). Absent means the whole capture.</summary>

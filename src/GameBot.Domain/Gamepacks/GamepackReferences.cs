@@ -50,6 +50,7 @@ public static class GamepackReferences {
     foreach (var step in command.Steps) {
       AddIfSet(ids, step.PrimitiveTap?.DetectionTarget?.ReferenceImageId);
       AddIfSet(ids, step.WaitForImage?.DetectionTarget?.ReferenceImageId);
+      foreach (var item in step.WaitForImage?.DetectionTarget?.ReferenceImageIds ?? Array.Empty<string>()) AddIfSet(ids, item);
       AddIfSet(ids, step.EnsureGameRunning?.ReadinessImage?.ReferenceImageId);
     }
 
@@ -181,6 +182,7 @@ public static class GamepackReferences {
     var ids = new List<string>();
     AddIfSet(ids, step.Gate?.TargetId);
     AddIfSet(ids, step.WaitForImage?.DetectionTarget?.ReferenceImageId);
+    foreach (var item in step.WaitForImage?.DetectionTarget?.ReferenceImageIds ?? Array.Empty<string>()) AddIfSet(ids, item);
     AddIfSet(ids, step.ConditionExpression?.ImageId);
     AddConditionImages(ids, step.Condition);
     AddConditionImages(ids, step.BreakCondition);
@@ -201,6 +203,7 @@ public static class GamepackReferences {
     switch (condition) {
       case ImageVisibleStepCondition leaf:
         AddIfSet(ids, leaf.ImageId);
+        foreach (var item in leaf.ImageIds ?? Array.Empty<string>()) AddIfSet(ids, item);
         break;
       case CompositeStepCondition composite:
         foreach (var child in composite.Children) {

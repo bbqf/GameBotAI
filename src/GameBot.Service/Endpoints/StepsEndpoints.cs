@@ -68,9 +68,11 @@ internal static class StepsEndpoints {
   private static string? ValidateStep(CommandStepDto step) {
     if (step.Type == CommandStepTypeDto.PrimitiveTap) {
       if (step.PrimitiveTap is null || step.PrimitiveTap.DetectionTarget is null || string.IsNullOrWhiteSpace(step.PrimitiveTap.DetectionTarget.ReferenceImageId)) {
-        return "primitiveTap.detectionTarget.referenceImageId is required for PrimitiveTap steps";
+        return DetectionTargetListRules.RejectList(step.PrimitiveTap?.DetectionTarget, "primitiveTap.detectionTarget")
+          ?? "primitiveTap.detectionTarget.referenceImageId is required for PrimitiveTap steps";
       }
-      return PixelRegionDto.ValidateTarget(step.PrimitiveTap.DetectionTarget, "primitiveTap.detectionTarget")
+      return DetectionTargetListRules.RejectList(step.PrimitiveTap.DetectionTarget, "primitiveTap.detectionTarget")
+        ?? PixelRegionDto.ValidateTarget(step.PrimitiveTap.DetectionTarget, "primitiveTap.detectionTarget")
         ?? CommandsEndpoints.ValidateHoldMs(step.PrimitiveTap.HoldMs);
     }
 
@@ -81,14 +83,15 @@ internal static class StepsEndpoints {
       if (step.WaitForImage.TimeoutMs is < 0) {
         return "waitForImage.timeoutMs must be greater than or equal to zero";
       }
-      if (step.WaitForImage.DetectionTarget is not null && string.IsNullOrWhiteSpace(step.WaitForImage.DetectionTarget.ReferenceImageId)) {
+      if (step.WaitForImage.DetectionTarget is not null && !DetectionTargetListRules.HasImage(step.WaitForImage.DetectionTarget)) {
         return "waitForImage.detectionTarget.referenceImageId must not be empty when detectionTarget is provided";
       }
-      return PixelRegionDto.ValidateTarget(step.WaitForImage.DetectionTarget, "waitForImage.detectionTarget");
+      return DetectionTargetListRules.ValidateWaitTarget(step.WaitForImage.DetectionTarget, "waitForImage.detectionTarget")
+        ?? PixelRegionDto.ValidateTarget(step.WaitForImage.DetectionTarget, "waitForImage.detectionTarget");
     }
 
     if (step.Type == CommandStepTypeDto.EnsureGameRunning) {
-      return null;
+      return DetectionTargetListRules.RejectList(step.EnsureGameRunning?.ReadinessImage, "ensureGameRunning.readinessImage");
     }
 
     if (step.Type == CommandStepTypeDto.KeyInput) {
@@ -127,7 +130,7 @@ internal static class StepsEndpoints {
       PrimitiveTap = type == CommandStepType.PrimitiveTap && s.PrimitiveTap?.DetectionTarget is not null
         ? new PrimitiveTapConfig {
           DetectionTarget = new DetectionTarget(
-            s.PrimitiveTap.DetectionTarget.ReferenceImageId,
+            s.PrimitiveTap.DetectionTarget.ReferenceImageId!,
             s.PrimitiveTap.DetectionTarget.Confidence ?? 0.8,
             s.PrimitiveTap.DetectionTarget.OffsetX ?? 0,
             s.PrimitiveTap.DetectionTarget.OffsetY ?? 0,
@@ -139,14 +142,13 @@ internal static class StepsEndpoints {
       WaitForImage = type == CommandStepType.WaitForImage && s.WaitForImage is not null
         ? new WaitForImageConfig {
           TimeoutMs = s.WaitForImage.TimeoutMs ?? 1000,
-          DetectionTarget = s.WaitForImage.DetectionTarget is not null && !string.IsNullOrWhiteSpace(s.WaitForImage.DetectionTarget.ReferenceImageId)
-            ? new DetectionTarget(
-              s.WaitForImage.DetectionTarget.ReferenceImageId,
+          DetectionTarget = s.WaitForImage.DetectionTarget is not null && DetectionTargetListRules.HasImage(s.WaitForImage.DetectionTarget)
+            ? DetectionTargetListRules.ToDomainWait(
+              s.WaitForImage.DetectionTarget,
               s.WaitForImage.DetectionTarget.Confidence ?? 0.8,
               s.WaitForImage.DetectionTarget.OffsetX ?? 0,
               s.WaitForImage.DetectionTarget.OffsetY ?? 0,
-              DetectionSelectionStrategy.HighestConfidence,
-              PixelRegionDto.ToDomain(s.WaitForImage.DetectionTarget.Region))
+              DetectionSelectionStrategy.HighestConfidence)
             : null
         }
         : null,

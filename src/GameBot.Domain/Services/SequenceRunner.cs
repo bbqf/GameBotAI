@@ -1115,6 +1115,25 @@ namespace GameBot.Domain.Services {
         PixelRegion = detectionTarget.Region
       };
 
+      // Feature 180: a written list. The wait ends when any image is visible. For "absent", no image is visible.
+      if (detectionTarget.ReferenceImageIds is { Count: > 1 } listIds) {
+        var singleEvaluator = conditionEvaluator;
+        conditionEvaluator = async (item, token) => {
+          foreach (var listId in listIds) {
+            var listCondition = new Condition {
+              Source = item.Source,
+              TargetId = listId,
+              Mode = item.Mode,
+              ConfidenceThreshold = item.ConfidenceThreshold,
+              PixelRegion = item.PixelRegion
+            };
+            if (await singleEvaluator(listCondition, token).ConfigureAwait(false)) return true;
+          }
+
+          return false;
+        };
+      }
+
       // Feature 166 (FR-012): the image evaluator writes each pass into this scope, for the timeout log line.
       using var passScope = ImageDetectionPassScope.Push();
       // Feature 175: an unknown value is a save error, so a bad value here counts as present.

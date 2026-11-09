@@ -66,7 +66,7 @@ internal static class CommandsEndpoints {
     }
 
     return new WaitForImageConfig {
-      DetectionTarget = ToDomainDetection(dto.DetectionTarget),
+      DetectionTarget = ToDomainDetection(dto.DetectionTarget, allowList: true),
       TimeoutMs = timeoutMs
     };
   }
@@ -111,9 +111,11 @@ internal static class CommandsEndpoints {
   private static string? ValidateStep(CommandStepDto step) {
     if (step.Type == CommandStepTypeDto.PrimitiveTap) {
       if (step.PrimitiveTap is null || step.PrimitiveTap.DetectionTarget is null || string.IsNullOrWhiteSpace(step.PrimitiveTap.DetectionTarget.ReferenceImageId)) {
-        return "primitiveTap.detectionTarget.referenceImageId is required for PrimitiveTap steps";
+        return DetectionTargetListRules.RejectList(step.PrimitiveTap?.DetectionTarget, "primitiveTap.detectionTarget")
+          ?? "primitiveTap.detectionTarget.referenceImageId is required for PrimitiveTap steps";
       }
-      return PixelRegionDto.ValidateTarget(step.PrimitiveTap.DetectionTarget, "primitiveTap.detectionTarget")
+      return DetectionTargetListRules.RejectList(step.PrimitiveTap.DetectionTarget, "primitiveTap.detectionTarget")
+        ?? PixelRegionDto.ValidateTarget(step.PrimitiveTap.DetectionTarget, "primitiveTap.detectionTarget")
         ?? ValidateHoldMs(step.PrimitiveTap.HoldMs);
     }
 
@@ -127,15 +129,18 @@ internal static class CommandsEndpoints {
       }
 
       if (step.WaitForImage.DetectionTarget is not null
-          && string.IsNullOrWhiteSpace(step.WaitForImage.DetectionTarget.ReferenceImageId)) {
+          && !DetectionTargetListRules.HasImage(step.WaitForImage.DetectionTarget)) {
         return "waitForImage.detectionTarget.referenceImageId must not be empty when detectionTarget is provided";
       }
 
-      return PixelRegionDto.ValidateTarget(step.WaitForImage.DetectionTarget, "waitForImage.detectionTarget");
+      return DetectionTargetListRules.ValidateWaitTarget(step.WaitForImage.DetectionTarget, "waitForImage.detectionTarget")
+        ?? PixelRegionDto.ValidateTarget(step.WaitForImage.DetectionTarget, "waitForImage.detectionTarget");
     }
 
     if (step.Type == CommandStepTypeDto.EnsureGameRunning) {
       var cfg = step.EnsureGameRunning;
+      var listError = DetectionTargetListRules.RejectList(cfg?.ReadinessImage, "ensureGameRunning.readinessImage");
+      if (listError is not null) return listError;
       if (cfg?.ReadinessImage is not null && string.IsNullOrWhiteSpace(cfg.ReadinessImage.ReferenceImageId)) {
         return "ensureGameRunning.readinessImage.referenceImageId must not be empty when readinessImage is provided";
       }
@@ -266,6 +271,7 @@ internal static class CommandsEndpoints {
     TimeoutMs = outcome.TimeoutMs,
     EffectiveTimeoutMs = outcome.EffectiveTimeoutMs,
     ReferenceImageId = outcome.ReferenceImageId,
+    MatchedImageId = outcome.MatchedImageId,
     ImageLoadStatus = outcome.ImageLoadStatus,
     ResolvedPoint = ToResolvedPointDto(outcome.ResolvedPoint),
     ExecutedPoint = ToResolvedPointDto(outcome.ExecutedPoint),
@@ -283,21 +289,28 @@ internal static class CommandsEndpoints {
       End = new ResolvedPointDto { X = points.End.X, Y = points.End.Y }
     };
 
-  private static DetectionTarget? ToDomainDetection(DetectionTargetDto? dto) {
+  private static DetectionTarget? ToDomainDetection(DetectionTargetDto? dto, bool allowList = false) {
     if (dto is null) return null;
-    if (string.IsNullOrWhiteSpace(dto.ReferenceImageId)) return null;
+    if (!allowList && string.IsNullOrWhiteSpace(dto.ReferenceImageId)) return null;
+    if (allowList && !DetectionTargetListRules.HasImage(dto)) return null;
     var confidence = dto.Confidence ?? 0.8;
     var offsetX = dto.OffsetX ?? 0;
     var offsetY = dto.OffsetY ?? 0;
     var selection = MapSelectionFromDto(dto.SelectionStrategy);
+    if (allowList) {
+      return DetectionTargetListRules.ToDomainWait(dto, confidence, offsetX, offsetY, selection);
+    }
+
     // The save paths validate the region before this call, so a region here is complete and valid.
-    return new DetectionTarget(dto.ReferenceImageId, confidence, offsetX, offsetY, selection, PixelRegionDto.ToDomain(dto.Region));
+    return new DetectionTarget(dto.ReferenceImageId!, confidence, offsetX, offsetY, selection, PixelRegionDto.ToDomain(dto.Region));
   }
 
   private static DetectionTargetDto? ToResponseDetection(DetectionTarget? detection) {
     if (detection is null) return null;
+    var (responseId, responseIds) = DetectionTargetListRules.ToResponse(detection);
     return new DetectionTargetDto {
-      ReferenceImageId = detection.ReferenceImageId,
+      ReferenceImageId = responseId,
+      ReferenceImageIds = responseIds,
       Confidence = detection.Confidence,
       OffsetX = detection.OffsetX,
       OffsetY = detection.OffsetY,

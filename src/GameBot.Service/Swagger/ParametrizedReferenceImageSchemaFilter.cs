@@ -34,7 +34,29 @@ internal sealed class ParametrizedReferenceImageSchemaFilter : ISchemaFilter {
     "Id of the reference image. It can hold a parameter placeholder, for example {{name}} or nova-{{option}}, "
     + "in each condition position: condition, if.condition, loop.condition, breakCondition, and each child of "
     + "all, any and none. For a placeholder, the save does not check that the image exists and gives the warning "
-    + "static_check_skipped. The run resolves the id against the scope of the step before the evaluation.";
+    + "static_check_skipped. The run resolves the id against the scope of the step before the evaluation. "
+    + "A placeholder that is the whole value and names a multi-value parameter expands to the list of the parameter "
+    + "(feature 180), and the condition is true when any image of the list is visible. A multi-value parameter is "
+    + "allowed only here and in the WaitForImage image field. In a field that needs one value, the save gives 400 "
+    + "list_in_single_field.";
+
+  internal const string ImageIdsDescription =
+    "Optional. A written list of image ids, 1 to 50 items. The condition is true when any image of the list is visible, "
+    + "and false when none is visible. The service removes duplicates and keeps the first occurrence. An item can be a "
+    + "placeholder of a single-value parameter. Not allowed together with imageId. Example: [\"quest_a\", \"quest_b\"].";
+
+  internal const string MatchDescription =
+    "Optional. The match mode. The only value is any. For a list, the default is any.";
+
+  internal const string ReferenceImageIdsDescription =
+    "Optional. A written list of image ids for a WaitForImage step, 1 to 50 items. The step ends when any image of the "
+    + "list is visible. Not allowed together with referenceImageId. Not accepted for PrimitiveTap and EnsureGameRunning. "
+    + "The image field referenceImageId (inline or in fieldTemplates) can hold a placeholder of a multi-value parameter "
+    + "for the same effect. Example: [\"quest_a\", \"quest_b\"].";
+
+  internal const string MatchedImageIdDescription =
+    "The image of the list that matched, for a WaitForImage step that used a list. Omitted for one image and when no image matched. "
+    + "referenceImageId holds the first image of the list.";
 
   internal const string ParameterValuesDescription =
     "Optional. Parameter values of this entry. When a value, or a declared default, goes to an image field of the "
@@ -59,10 +81,16 @@ internal sealed class ParametrizedReferenceImageSchemaFilter : ISchemaFilter {
     }
     else if (context.Type == typeof(ImageVisibleConditionContract)) {
       Describe(schema, "imageId", ImageIdDescription);
+      Describe(schema, "imageIds", ImageIdsDescription);
+      Describe(schema, "match", MatchDescription);
       Describe(schema, "region", RegionDescription);
     }
     else if (context.Type == typeof(DetectionTargetDto)) {
       Describe(schema, "region", RegionDescription);
+      Describe(schema, "referenceImageIds", ReferenceImageIdsDescription);
+    }
+    else if (context.Type == typeof(StepExecutionOutcomeDto)) {
+      Describe(schema, "matchedImageId", MatchedImageIdDescription);
     }
     else if (context.Type == typeof(PixelRegionDto)) {
       schema.Description = PixelRegionTypeDescription;

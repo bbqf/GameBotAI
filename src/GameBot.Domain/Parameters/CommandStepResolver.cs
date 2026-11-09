@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.Linq;
 using GameBot.Domain.Commands;
 using GameBot.Domain.Utils;
 
@@ -111,7 +112,7 @@ public static class CommandStepResolver {
     WaitForImageConfig? waitForImage = step.WaitForImage;
     if (step.WaitForImage is not null) {
       if (!TryDetection(step, step.WaitForImage.DetectionTarget, "waitForImage.detectionTarget",
-              context, scope, used, ref error, out var target)) return false;
+              context, scope, used, ref error, out var target, allowList: true)) return false;
       if (!TryInt(step, "waitForImage.timeoutMs", step.WaitForImage.TimeoutMs, scope, used, ref error, out var timeout))
         return false;
       waitForImage = new WaitForImageConfig {
@@ -158,6 +159,7 @@ public static class CommandStepResolver {
       || TemplateSubstitutor.ContainsPlaceholder(step.EnsureEmulatorRunning?.InstanceName)
       || TemplateSubstitutor.ContainsPlaceholder(step.PrimitiveTap?.DetectionTarget?.ReferenceImageId)
       || TemplateSubstitutor.ContainsPlaceholder(step.WaitForImage?.DetectionTarget?.ReferenceImageId)
+      || (step.WaitForImage?.DetectionTarget?.ReferenceImageIds?.Any(TemplateSubstitutor.ContainsPlaceholder) ?? false)
       || TemplateSubstitutor.ContainsPlaceholder(step.EnsureGameRunning?.ReadinessImage?.ReferenceImageId);
 
   private static bool TryText(
@@ -199,7 +201,8 @@ public static class CommandStepResolver {
       ParameterScope scope,
       List<ResolvedParameter> used,
       ref ParameterResolutionError? error,
-      out DetectionTarget? resolved) {
+      out DetectionTarget? resolved,
+      bool allowList = false) {
     resolved = target;
     if (target is null) return true;
 
@@ -208,7 +211,16 @@ public static class CommandStepResolver {
     // fail a step that does not use it.
     var imageIdPath = $"{fieldPathPrefix}.referenceImageId";
     string? imageId;
-    if (step.FieldTemplates is not null && step.FieldTemplates.ContainsKey(imageIdPath)) {
+    IReadOnlyList<string>? imageList = null;
+    var imageTemplate = step.FieldTemplates is not null && step.FieldTemplates.TryGetValue(imageIdPath, out var overlayTemplate)
+        ? overlayTemplate
+        : target.ReferenceImageId;
+    if (allowList && TryExpandList(imageTemplate, scope, used, out var expanded)) {
+      // Feature 180: a whole placeholder of a multi-value parameter gives the list of the image field.
+      imageList = expanded;
+      imageId = expanded.Count > 0 ? expanded[0] : null;
+    }
+    else if (step.FieldTemplates is not null && step.FieldTemplates.ContainsKey(imageIdPath)) {
       if (!TryOverlayValue(step, imageIdPath, scope, used, ref error, out imageId, isTextField: true)) return false;
     }
     else if (!TryText(target.ReferenceImageId, imageIdPath, context, scope, used, ref error, out imageId, singleValueField: true)) {
@@ -228,6 +240,17 @@ public static class CommandStepResolver {
       return false;
     }
 
+    if (allowList && imageList is null && target.ReferenceImageIds is not null) {
+      var items = new List<string>(target.ReferenceImageIds.Count);
+      for (var index = 0; index < target.ReferenceImageIds.Count; index++) {
+        if (!TryText(target.ReferenceImageIds[index], $"{fieldPathPrefix}.referenceImageIds[{index}]",
+                context, scope, used, ref error, out var item, singleValueField: true)) return false;
+        if (!string.IsNullOrWhiteSpace(item)) items.Add(item);
+      }
+
+      imageList = ImageListRules.Normalize(items);
+    }
+
     var effectiveConfidence = confidence ?? target.Confidence;
     if (effectiveConfidence < 0.0 || effectiveConfidence > 1.0) {
       error = new ParameterResolutionError(
@@ -244,7 +267,29 @@ public static class CommandStepResolver {
         offsetX ?? target.OffsetX,
         offsetY ?? target.OffsetY,
         target.SelectionStrategy,
-        target.Region);
+        target.Region,
+        imageList);
+    return true;
+  }
+
+  /// <summary>
+  /// Feature 180: expands a whole placeholder that names a multi-value parameter to its list. Returns false
+  /// for any other text, so the one-value rules apply.
+  /// </summary>
+  private static bool TryExpandList(
+      string? template,
+      ParameterScope scope,
+      List<ResolvedParameter> used,
+      out IReadOnlyList<string> items) {
+    items = Array.Empty<string>();
+    if (!TemplateSubstitutor.IsWholePlaceholder(template, out var name)
+        || !scope.TryFindDeclaration(name, out var declaration) || !declaration.Multiple
+        || !scope.TryResolve(name, out var value)) {
+      return false;
+    }
+
+    AddUsage(name, value, used);
+    items = ImageListRules.Normalize(ParameterListRules.Split(value.Text));
     return true;
   }
 

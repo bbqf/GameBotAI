@@ -12,7 +12,14 @@ namespace GameBot.Domain.Commands {
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public PixelRegion? Region { get; }
 
-    public DetectionTarget(string referenceImageId, double confidence = 0.8, int offsetX = 0, int offsetY = 0, DetectionSelectionStrategy selectionStrategy = DetectionSelectionStrategy.HighestConfidence, PixelRegion? region = null) {
+    /// <summary>
+    /// Optional list of image ids (feature 180), for a WaitForImage step only. When set,
+    /// <see cref="ReferenceImageId"/> holds the first item. Null means one image.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public System.Collections.Generic.IReadOnlyList<string>? ReferenceImageIds { get; }
+
+    public DetectionTarget(string referenceImageId, double confidence = 0.8, int offsetX = 0, int offsetY = 0, DetectionSelectionStrategy selectionStrategy = DetectionSelectionStrategy.HighestConfidence, PixelRegion? region = null, System.Collections.Generic.IReadOnlyList<string>? referenceImageIds = null) {
       if (string.IsNullOrWhiteSpace(referenceImageId))
         throw new ArgumentException("referenceImageId is required", nameof(referenceImageId));
 
@@ -25,6 +32,7 @@ namespace GameBot.Domain.Commands {
       OffsetY = offsetY;
       SelectionStrategy = selectionStrategy;
       Region = region;
+      ReferenceImageIds = referenceImageIds;
     }
   }
 }

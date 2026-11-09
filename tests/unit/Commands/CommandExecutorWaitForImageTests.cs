@@ -123,6 +123,80 @@ public sealed class CommandExecutorWaitForImageTests {
     stopwatch.ElapsedMilliseconds.Should().BeGreaterThanOrEqualTo(25);
   }
 
+  // Feature 180: a list of images. The step ends when any image of the list is visible.
+  private static CommandExecutor ListExecutor(Command command, Bitmap bmp, TemplateMatcherStub matcher, params (string Id, Bitmap Bmp)[] images) =>
+    new(
+      new CommandRepoStub(command),
+      new SessionManagerStub(),
+      new TriggerRepoStub(),
+      new TriggerEvaluationService(Array.Empty<ITriggerEvaluator>()),
+      NullLogger<CommandExecutor>.Instance,
+      new ReferenceImageStoreStub(images),
+      new ScreenSourceStub(bmp),
+      matcher,
+      new SessionContextCache(),
+      new AppConfig { CaptureIntervalMs = 10 });
+
+  private static DetectionTarget ListTarget(params string[] ids) =>
+    new(ids[0], 0.9, 0, 0, DetectionSelectionStrategy.HighestConfidence, null, ids);
+
+  [Fact]
+  public async Task WaitForImageWithAListEndsWhenAnItemShowsAndNamesTheMatchedImage() {
+    using var bmp = CreateOneByOneBitmap();
+    var command = CreateWaitCommand(config: new WaitForImageConfig { TimeoutMs = 5000, DetectionTarget = ListTarget("missing-1", "img-2") });
+    var matcher = new TemplateMatcherStub(new[] { new TemplateMatch(new BoundingBox(0, 0, 1, 1), 0.95) });
+    var executor = ListExecutor(command, bmp, matcher, ("img-2", bmp));
+
+    var result = await executor.ForceExecuteDetailedAsync("sess-1", command.Id, CancellationToken.None).ConfigureAwait(false);
+
+    result.StepOutcomes[0].Status.Should().Be("executed");
+    result.StepOutcomes[0].Reason.Should().Be("image_detected");
+    result.StepOutcomes[0].MatchedImageId.Should().Be("img-2");
+    result.StepOutcomes[0].ReferenceImageId.Should().Be("missing-1");
+  }
+
+  [Fact]
+  public async Task WaitForImageWithAListAndNoVisibleItemEndsWithTheTimeoutOutcome() {
+    using var bmp = CreateOneByOneBitmap();
+    var command = CreateWaitCommand(config: new WaitForImageConfig { TimeoutMs = 60, DetectionTarget = ListTarget("img-1", "img-2") });
+    var executor = ListExecutor(command, bmp, new TemplateMatcherStub(Array.Empty<TemplateMatch>()), ("img-1", bmp), ("img-2", bmp));
+
+    var result = await executor.ForceExecuteDetailedAsync("sess-1", command.Id, CancellationToken.None).ConfigureAwait(false);
+
+    result.StepOutcomes[0].Status.Should().Be("completed_timeout");
+    result.StepOutcomes[0].Reason.Should().Be("timeout_elapsed");
+    result.StepOutcomes[0].MatchedImageId.Should().BeNull();
+  }
+
+  [Fact]
+  public async Task WaitForImageWithAListOfMissingImagesReportsImageUnavailable() {
+    using var bmp = CreateOneByOneBitmap();
+    var command = CreateWaitCommand(config: new WaitForImageConfig { TimeoutMs = 40, DetectionTarget = ListTarget("m-1", "m-2") });
+    var executor = ListExecutor(command, bmp, new TemplateMatcherStub(Array.Empty<TemplateMatch>()));
+
+    var result = await executor.ForceExecuteDetailedAsync("sess-1", command.Id, CancellationToken.None).ConfigureAwait(false);
+
+    result.StepOutcomes[0].Status.Should().Be("completed_image_unavailable");
+    result.StepOutcomes[0].Reason.Should().Be("image_unavailable");
+    result.StepOutcomes[0].ImageLoadStatus.Should().Be("missing");
+  }
+
+  [Fact]
+  public async Task WaitForImageWithOneImageHasNoMatchedImageId() {
+    using var bmp = CreateOneByOneBitmap();
+    var command = CreateWaitCommand(config: new WaitForImageConfig {
+      TimeoutMs = 5000,
+      DetectionTarget = new DetectionTarget("img-1", 0.9, 0, 0, DetectionSelectionStrategy.HighestConfidence)
+    });
+    var matcher = new TemplateMatcherStub(new[] { new TemplateMatch(new BoundingBox(0, 0, 1, 1), 0.95) });
+    var executor = ListExecutor(command, bmp, matcher, ("img-1", bmp));
+
+    var result = await executor.ForceExecuteDetailedAsync("sess-1", command.Id, CancellationToken.None).ConfigureAwait(false);
+
+    result.StepOutcomes[0].Reason.Should().Be("image_detected");
+    result.StepOutcomes[0].MatchedImageId.Should().BeNull();
+  }
+
   [Fact]
   public async Task WaitForImageStartsNoPassAtOrAfterTheDeadline() {
     // Feature 166 (FR-010): each pass takes 150 ms and finds nothing. With timeoutMs 300 and a poll

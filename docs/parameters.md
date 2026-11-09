@@ -70,7 +70,20 @@ items joined by `|`.
 - **Wrong item:** an item that is not allowed gives the warning `invalid_parameter_value`.
 - **Text field:** `{{quests}}` gives the items joined by `|`, in order.
 - **Image id field or numeric field:** one item works. Two or more items fail the step with a message that
-  names the parameter, the field, and the item count.
+  names the parameter, the field, and the item count. The save refuses a whole placeholder of a
+  multi-value parameter in such a field with the error `list_in_single_field` (the message names the
+  parameter and the field path).
+- **Image list (feature 180):** the placeholder expands to the list in two fields only: `imageVisible.imageId`
+  and the WaitForImage image field (`waitForImage.detectionTarget.referenceImageId`, inline or in
+  `fieldTemplates`). The condition is true, and the wait ends, when any image of the list is visible.
+  The WaitForImage result has `matchedImageId`. The save keeps the warning `static_check_skipped`.
+  You can also write the list: `imageIds` (condition) or `referenceImageIds` (WaitForImage), 1 to 50
+  items. Use `imageId` or `imageIds`, not both. The only `match` value is `any`.
+
+  ```json
+  { "type": "imageVisible", "imageId": "{{quests}}" }
+  { "type": "imageVisible", "imageIds": ["quest-a", "quest-b"], "match": "any" }
+  ```
 - **Pass-through:** a binding to another multi-value parameter keeps the full list.
 
 ## Use a parameter in a step

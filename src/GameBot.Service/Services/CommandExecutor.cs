@@ -668,7 +668,17 @@ internal sealed class CommandExecutor : ICommandExecutor {
         ConfiguredConfidence: detectionTarget.Confidence);
     }
 
-    if (!GameBot.Domain.Images.ReferenceImageSetLoader.TryLoad(images, _alternates, detectionTarget.ReferenceImageId, out var templateSet) || templateSet is null) {
+    // Feature 180: with a list, load one template set for each item. An item that does not load is skipped.
+    var isList = detectionTarget.ReferenceImageIds is { Count: > 0 };
+    var itemIds = isList ? detectionTarget.ReferenceImageIds! : new[] { detectionTarget.ReferenceImageId };
+    var templateSets = new List<(string Id, GameBot.Domain.Images.ReferenceImageSet Set)>(itemIds.Count);
+    foreach (var itemId in itemIds) {
+      if (GameBot.Domain.Images.ReferenceImageSetLoader.TryLoad(images, _alternates, itemId, out var loadedSet) && loadedSet is not null) {
+        templateSets.Add((itemId, loadedSet));
+      }
+    }
+
+    if (templateSets.Count == 0) {
       await WaitForTimeoutAsync(deadline, ct).ConfigureAwait(false);
       return new PrimitiveTapStepOutcome(
         step.Order,
@@ -684,8 +694,8 @@ internal sealed class CommandExecutor : ICommandExecutor {
         ConfiguredConfidence: detectionTarget.Confidence);
     }
 
-    templateSet.LogMissingAlternates(_logger);
-    var (lastPass, passCount) = await PollForImageAsync(screenSrc, templateSet, detectionTarget, matcher, deadline, ct).ConfigureAwait(false);
+    foreach (var (_, loadedSet) in templateSets) loadedSet.LogMissingAlternates(_logger);
+    var (lastPass, passCount, matchedId) = await PollForImageAsync(screenSrc, templateSets, detectionTarget, matcher, deadline, ct).ConfigureAwait(false);
     if (lastPass.Found) {
       return new PrimitiveTapStepOutcome(
         step.Order,
@@ -698,7 +708,8 @@ internal sealed class CommandExecutor : ICommandExecutor {
         EffectiveTimeoutMs: timeoutMs,
         ReferenceImageId: detectionTarget.ReferenceImageId,
         ImageLoadStatus: "loaded",
-        ConfiguredConfidence: detectionTarget.Confidence);
+        ConfiguredConfidence: detectionTarget.Confidence,
+        MatchedImageId: isList ? matchedId : null);
     }
 
     LogWaitForImageTimeout(step.Order, sessionId, detectionTarget, lastPass, passCount);
@@ -729,15 +740,15 @@ internal sealed class CommandExecutor : ICommandExecutor {
   /// and the last wait ends 50 ms before the deadline (<see cref="WaitForImageSchedule"/>).
   /// Returns the last pass and the number of passes.
   /// </summary>
-  private async Task<(DetectionPassResult LastPass, int PassCount)> PollForImageAsync(
+  private async Task<(DetectionPassResult LastPass, int PassCount, string? MatchedImageId)> PollForImageAsync(
     GameBot.Domain.Triggers.Evaluators.IScreenSource screenSrc,
-    GameBot.Domain.Images.ReferenceImageSet templateSet,
+    IReadOnlyList<(string Id, GameBot.Domain.Images.ReferenceImageSet Set)> templateSets,
     DetectionTarget detectionTarget,
     GameBot.Domain.Vision.ITemplateMatcher matcher,
     DateTimeOffset deadline,
     CancellationToken ct) {
     var pollInterval = TimeSpan.FromMilliseconds(Math.Max(1, _appConfig.CaptureIntervalMs));
-    var lastPass = ImageDetectionHelper.DetectPass(screenSrc, templateSet, detectionTarget, matcher, _logger);
+    var (lastPass, matchedId) = DetectAny(screenSrc, templateSets, detectionTarget, matcher);
     var passCount = 1;
     while (!lastPass.Found) {
       var next = WaitForImageSchedule.NextWait(deadline - DateTimeOffset.UtcNow, pollInterval);
@@ -745,12 +756,36 @@ internal sealed class CommandExecutor : ICommandExecutor {
       if (next.Wait > TimeSpan.Zero) await Task.Delay(next.Wait, ct).ConfigureAwait(false);
       // Read the clock again: a pass starts only before the deadline.
       if (DateTimeOffset.UtcNow >= deadline) break;
-      lastPass = ImageDetectionHelper.DetectPass(screenSrc, templateSet, detectionTarget, matcher, _logger);
+      (lastPass, matchedId) = DetectAny(screenSrc, templateSets, detectionTarget, matcher);
       passCount++;
       if (next.IsLastWait) break;
     }
-    return (lastPass, passCount);
+    return (lastPass, passCount, matchedId);
   }
+
+  /// <summary>
+  /// Runs one detection pass for each image in list order and stops at the first image that is found
+  /// (feature 180). When no image is found, the result holds the frame state and the best score of all items.
+  /// </summary>
+  private (DetectionPassResult Pass, string? MatchedImageId) DetectAny(
+    GameBot.Domain.Triggers.Evaluators.IScreenSource screenSrc,
+    IReadOnlyList<(string Id, GameBot.Domain.Images.ReferenceImageSet Set)> templateSets,
+    DetectionTarget detectionTarget,
+    GameBot.Domain.Vision.ITemplateMatcher matcher) {
+    DetectionPassResult? combined = null;
+    foreach (var (id, set) in templateSets) {
+      var pass = ImageDetectionHelper.DetectPass(screenSrc, set, detectionTarget, matcher, _logger);
+      if (pass.Found) return (pass, id);
+      combined = combined is null
+        ? pass
+        : new DetectionPassResult(false, combined.FrameAvailable || pass.FrameAvailable, MaxScore(combined.BestScore, pass.BestScore), null, null);
+    }
+
+    return (combined ?? DetectionPassResult.NoFrame, null);
+  }
+
+  private static double? MaxScore(double? left, double? right) =>
+    left is null ? right : right is null ? left : Math.Max(left.Value, right.Value);
 
   /// <summary>
   /// Writes one debug line when a <c>WaitForImage</c> step times out (feature 166, FR-012). The line has

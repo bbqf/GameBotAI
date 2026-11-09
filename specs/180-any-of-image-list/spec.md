@@ -2,7 +2,7 @@
 
 **Feature Branch**: `180-any-of-image-list`  
 **Created**: 2026-11-09  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: User description: "Any-of image condition and WaitForImage for a list parameter (GitHub issue #379, FR-043). Source: https://github.com/bbqf/GameBotAI/issues/379. Closes #379. Builds on the list-valued sequence parameters feature (specs/179-list-valued-parameters)."
 
 ## Clarifications

@@ -29,7 +29,8 @@ public sealed record ParameterReference(
     bool InsideLoop = false,
     bool DefeatsStaticCheck = false,
     string? SourceText = null,
-    bool IsRegexPattern = false);
+    bool IsRegexPattern = false,
+    bool AllowsList = false);
 
 /// <summary>
 /// Finds every parameter reference in a command or a sequence (feature 078), so validation can decide
@@ -84,7 +85,10 @@ public static class ParameterReferenceScanner {
     AddFrom(found, step.PrimitiveTap?.DetectionTarget?.ReferenceImageId,
         "primitiveTap.detectionTarget.referenceImageId", label, defeatsStaticCheck: true);
     AddFrom(found, step.WaitForImage?.DetectionTarget?.ReferenceImageId,
-        "waitForImage.detectionTarget.referenceImageId", label, defeatsStaticCheck: true);
+        WaitForImageImagePath, label, defeatsStaticCheck: true, allowsList: true);
+    // Feature 180: each item of a written list is a single-value position.
+    AddItems(found, step.WaitForImage?.DetectionTarget?.ReferenceImageIds,
+        "waitForImage.detectionTarget.referenceImageIds", label, false);
     AddFrom(found, step.EnsureGameRunning?.ReadinessImage?.ReferenceImageId,
         "ensureGameRunning.readinessImage.referenceImageId", label, defeatsStaticCheck: true);
 
@@ -92,7 +96,8 @@ public static class ParameterReferenceScanner {
     // Feature 114: an image key moves the image existence check to run time, the same as an inline
     // image placeholder.
     foreach (var (path, template) in step.FieldTemplates) {
-      AddFrom(found, template, path, label, defeatsStaticCheck: CommandStepFieldPaths.IsImagePath(path));
+      AddFrom(found, template, path, label, defeatsStaticCheck: CommandStepFieldPaths.IsImagePath(path),
+          allowsList: string.Equals(path, WaitForImageImagePath, System.StringComparison.Ordinal));
     }
   }
 
@@ -150,7 +155,9 @@ public static class ParameterReferenceScanner {
       bool insideLoop) {
     switch (condition) {
       case ImageVisibleStepCondition image:
-        AddFrom(found, image.ImageId, $"{fieldPath}.imageId", stepLabel, insideLoop, defeatsStaticCheck: true);
+        AddFrom(found, image.ImageId, $"{fieldPath}.imageId", stepLabel, insideLoop, defeatsStaticCheck: true,
+            allowsList: true);
+        AddItems(found, image.ImageIds, $"{fieldPath}.imageIds", stepLabel, insideLoop);
         break;
       case OcrTextStepCondition ocr:
         // These fields name no image, so the static check is not skipped.
@@ -175,10 +182,28 @@ public static class ParameterReferenceScanner {
       string stepLabel,
       bool insideLoop = false,
       bool defeatsStaticCheck = false,
-      bool isRegexPattern = false) {
+      bool isRegexPattern = false,
+      bool allowsList = false) {
     if (!TemplateSubstitutor.ContainsPlaceholder(text)) return;
     foreach (var key in TemplateSubstitutor.ExtractKeys(text)) {
-      found.Add(new ParameterReference(key, fieldPath, stepLabel, insideLoop, defeatsStaticCheck, text, isRegexPattern));
+      found.Add(new ParameterReference(key, fieldPath, stepLabel, insideLoop, defeatsStaticCheck, text, isRegexPattern, allowsList));
+    }
+  }
+
+  private const string WaitForImageImagePath = "waitForImage.detectionTarget.referenceImageId";
+
+  /// <summary>Scans each item of a written image list (feature 180). An item is a single-value position.</summary>
+  private static void AddItems(
+      ICollection<ParameterReference> found,
+      IReadOnlyList<string>? items,
+      string fieldPath,
+      string stepLabel,
+      bool insideLoop) {
+    if (items is null) return;
+    for (var index = 0; index < items.Count; index++) {
+      AddFrom(found, items[index],
+          string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{fieldPath}[{index}]"),
+          stepLabel, insideLoop, defeatsStaticCheck: true);
     }
   }
 

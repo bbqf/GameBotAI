@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Any-of image list for a condition and WaitForImage (180-any-of-image-list, #379)
+  - **Condition**: `imageVisible` has `imageIds` (a written list, 1 to 50 items) and `match` (only `any`). The condition is true when any image of the list is visible. `imageId` and `imageIds` cannot be set together.
+  - **WaitForImage**: the detection target has `referenceImageIds`. The step ends when any image of the list is visible. The result has `matchedImageId`, and `referenceImageId` holds the first image of the list.
+  - **Parameter**: a `{{name}}` placeholder of a multi-value parameter, as the whole value of `imageVisible.imageId` or of the WaitForImage image field (inline and in `fieldTemplates`), expands to the list at run time. The save keeps the `static_check_skipped` warning.
+  - **Check**: a multi-value parameter as a whole placeholder in a field that needs one value gives 400 `list_in_single_field` with the parameter name and the field path.
+  - **Not changed**: conditions and steps with one image id, other match modes, and other condition types.
+  - **Version**: the patch version is now 1.12.10.
 - List-valued sequence parameters (179-list-valued-parameters, #378)
   - **Declaration**: a parameter of kind `image` or `choice` can have `multiple`, `minItems`, and `maxItems`. No allowed image ID and no option value may contain `|`.
   - **Value**: a binding can have `values`, an ordered list of unique items. `value` holds the same items joined by `|`. A plain `value` reads as a list of one item.

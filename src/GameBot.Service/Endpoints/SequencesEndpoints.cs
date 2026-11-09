@@ -693,9 +693,23 @@ internal static class SequencesEndpoints {
     };
   }
 
+  private static Dictionary<string, object?> MapImageListConditionToDto(ImageVisibleStepCondition condition) {
+    var map = new Dictionary<string, object?> {
+      ["type"] = "imageVisible",
+      ["imageIds"] = condition.ImageIds,
+      ["minSimilarity"] = condition.MinSimilarity,
+      ["negate"] = condition.Negate
+    };
+    if (condition.Match is not null) map["match"] = condition.Match;
+    if (condition.Region is not null) map["region"] = PixelRegionDto.FromDomain(condition.Region);
+    return map;
+  }
+
   private static object? MapPerStepConditionToDto(SequenceStepCondition? condition) {
     return condition switch {
       // Feature 130: the response has the region field only when a region is set, so old reads do not change.
+      // Feature 180: a condition with a written list shows imageIds and match instead of imageId.
+      ImageVisibleStepCondition { ImageIds: not null } imageList => MapImageListConditionToDto(imageList),
       ImageVisibleStepCondition imageVisible => imageVisible.Region is null
         ? (object)new {
           type = "imageVisible",
@@ -1544,7 +1558,10 @@ internal static class SequencesEndpoints {
   private static SequenceStepCondition? MapPerStepCondition(SequenceStepConditionContract? condition) {
     return condition switch {
       ImageVisibleConditionContract imageVisible => new ImageVisibleStepCondition {
-        ImageId = imageVisible.ImageId,
+        ImageId = imageVisible.ImageId ?? string.Empty,
+        // Feature 180: a written list is normalized on every write.
+        ImageIds = imageVisible.ImageIds?.Select(item => item?.Trim() ?? string.Empty).Distinct(StringComparer.Ordinal).ToList(),
+        Match = imageVisible.Match,
         MinSimilarity = imageVisible.MinSimilarity,
         Negate = imageVisible.Negate,
         // The request check in TryReadPerStepRequest has already rejected an invalid region.
@@ -1742,28 +1759,34 @@ internal static class SequencesEndpoints {
       ct.ThrowIfCancellationRequested();
 
       foreach (var imageCondition in CollectImageConditions(step.Condition)) {
-        var imageId = imageCondition.ImageId?.Trim();
-        // Feature 114: a parametrized image id is checked at run time. The parameter check gives
-        // static_check_skipped or unresolvable_parameter_reference for it.
-        if (string.IsNullOrWhiteSpace(imageId) || GameBot.Domain.Utils.TemplateSubstitutor.ContainsPlaceholder(imageId)) {
-          continue;
-        }
+        // Feature 180: each item of a written list is checked like one image id.
+        var ids = imageCondition.ImageIds is not null
+          ? (IReadOnlyList<string>)imageCondition.ImageIds
+          : new[] { imageCondition.ImageId };
+        foreach (var rawId in ids) {
+          var imageId = rawId?.Trim();
+          // Feature 114: a parametrized image id is checked at run time. The parameter check gives
+          // static_check_skipped or unresolvable_parameter_reference for it.
+          if (string.IsNullOrWhiteSpace(imageId) || GameBot.Domain.Utils.TemplateSubstitutor.ContainsPlaceholder(imageId)) {
+            continue;
+          }
 
-        if (!cache.TryGetValue(imageId, out var exists)) {
-          exists = await imageRepository.ExistsAsync(imageId, ct).ConfigureAwait(false);
-          cache[imageId] = exists;
-        }
+          if (!cache.TryGetValue(imageId, out var exists)) {
+            exists = await imageRepository.ExistsAsync(imageId, ct).ConfigureAwait(false);
+            cache[imageId] = exists;
+          }
 
-        if (exists) {
-          continue;
-        }
+          if (exists) {
+            continue;
+          }
 
-        if (!missingByImageId.TryGetValue(imageId, out var stepsForImage)) {
-          stepsForImage = new List<string>();
-          missingByImageId[imageId] = stepsForImage;
-        }
+          if (!missingByImageId.TryGetValue(imageId, out var stepsForImage)) {
+            stepsForImage = new List<string>();
+            missingByImageId[imageId] = stepsForImage;
+          }
 
-        stepsForImage.Add(string.IsNullOrWhiteSpace(step.StepId) ? $"index:{step.Order}" : step.StepId);
+          stepsForImage.Add(string.IsNullOrWhiteSpace(step.StepId) ? $"index:{step.Order}" : step.StepId);
+        }
       }
     }
 

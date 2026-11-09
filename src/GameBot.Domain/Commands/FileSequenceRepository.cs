@@ -380,8 +380,15 @@ namespace GameBot.Domain.Commands {
           return;
 
         case ImageVisibleStepCondition imageCondition:
-          if (string.IsNullOrWhiteSpace(imageCondition.ImageId)) {
+          if (!ImageListRules.HasImage(imageCondition)) {
             throw new InvalidOperationException($"Step '{stepId}' imageVisible condition requires imageId.");
+          }
+
+          // Feature 180: a stored write refuses a bad written list too.
+          var listErrors = new List<string>();
+          ImageListRules.AddConditionErrors(imageCondition, $"Step '{stepId}' imageVisible", listErrors);
+          if (listErrors.Count > 0) {
+            throw new InvalidOperationException(string.Join("; ", listErrors));
           }
 
           if (imageCondition.MinSimilarity is < 0 or > 1) {
