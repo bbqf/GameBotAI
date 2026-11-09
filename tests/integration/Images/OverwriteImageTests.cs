@@ -1,5 +1,6 @@
 using System;
 using System.Net;
+using System.Net.Http;
 using System.Net.Http.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -36,5 +37,35 @@ public sealed class OverwriteImageTests {
 
     var after = await client.GetByteArrayAsync(new Uri("/api/images/overwrite-me", UriKind.Relative));
     Convert.ToBase64String(after).Should().Be(BlackPng);
+  }
+
+  // Two valid 8x8 PNG images of the same size (129 bytes) that differ in the pixel color.
+  private const string RedPng = "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAAWSURBVChTYzjBxfUfH2ZAF0DHw0MBACr7dsGwdpqlAAAAAElFTkSuQmCC";
+  private const string BluePng = "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAAWSURBVChTY+DiOvEfH2ZAF0DHw0MBAMvsdsFxbQRhAAAAAElFTkSuQmCC";
+
+  [Fact]
+  public async Task OverwriteWithSameSizeGivesNewEtagAndBodyForOldEtag() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = app.CreateClient();
+    client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
+
+    var create = await client.PostAsJsonAsync(new Uri("/api/images", UriKind.Relative), new { id = "etag-overwrite", data = RedPng });
+    create.StatusCode.Should().Be(HttpStatusCode.Created);
+
+    var first = await client.GetAsync(new Uri("/api/images/etag-overwrite", UriKind.Relative));
+    first.StatusCode.Should().Be(HttpStatusCode.OK);
+    var oldEtag = first.Headers.ETag;
+    oldEtag.Should().NotBeNull();
+
+    var put = await client.PutAsJsonAsync(new Uri("/api/images/etag-overwrite", UriKind.Relative), new { data = BluePng });
+    put.StatusCode.Should().Be(HttpStatusCode.OK);
+
+    using var req = new HttpRequestMessage(HttpMethod.Get, new Uri("/api/images/etag-overwrite", UriKind.Relative));
+    req.Headers.IfNoneMatch.Add(oldEtag!);
+    var second = await client.SendAsync(req);
+    second.StatusCode.Should().Be(HttpStatusCode.OK);
+    Convert.ToBase64String(await second.Content.ReadAsByteArrayAsync()).Should().Be(BluePng);
+    second.Headers.ETag.Should().NotBeNull();
+    second.Headers.ETag!.Tag.Should().NotBe(oldEtag!.Tag);
   }
 }

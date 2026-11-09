@@ -56,5 +56,7 @@ public sealed class GetImageNotFoundTests : IDisposable {
     resp.StatusCode.Should().Be(HttpStatusCode.NotFound);
     var body = await resp.Content.ReadFromJsonAsync<Dictionary<string, object>>();
     body!.Should().ContainKey("error");
+    resp.Headers.ETag.Should().BeNull();
+    resp.Headers.CacheControl.Should().BeNull();
   }
 }

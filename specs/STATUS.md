@@ -209,6 +209,7 @@ Status vocabulary:
 | 179 | List-Valued Sequence Parameters | Implemented |
 | 180 | Any-of Image List Condition and WaitForImage | Implemented (iterated by 181) |
 | 181 | Report Which Image of a List Matched | Implemented |
+| 182 | Revalidate an Image After an Overwrite | Implemented |
 
 ## Numbering notes
 

@@ -3,6 +3,7 @@ using System.ComponentModel.DataAnnotations;
 using System.IO;
 using System.Linq;
 using System.Runtime.Versioning;
+using System.Security.Cryptography;
 using GameBot.Domain.Images;
 using GameBot.Domain.Triggers.Evaluators;
 using GameBot.Service;
@@ -10,6 +11,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Net.Http.Headers;
 
 namespace GameBot.Service.Endpoints;
 
@@ -159,7 +161,7 @@ internal static class ImageReferencesEndpoints {
     }
   }
 
-  private static async Task<IResult> GetImageAsync(string id, IImageRepository repo, Microsoft.Extensions.Logging.ILogger<ImageReferenceEndpointComponent> logger) {
+  private static async Task<IResult> GetImageAsync(string id, HttpContext http, IImageRepository repo, Microsoft.Extensions.Logging.ILogger<ImageReferenceEndpointComponent> logger) {
     ArgumentNullException.ThrowIfNull(id);
     var safeId = SanitizeForLog(id);
     var meta = await repo.GetAsync(id).ConfigureAwait(false);
@@ -176,9 +178,27 @@ internal static class ImageReferencesEndpoints {
       return Results.NotFound(new { error = new { code = "not_found", message = "Image not found" } });
     }
 
+    byte[] bytes;
+    using (stream) {
+      using var ms = new MemoryStream();
+      await stream.CopyToAsync(ms, http.RequestAborted).ConfigureAwait(false);
+      bytes = ms.ToArray();
+    }
+
     logger.LogImageResolvedFromStore(safeId);
     ImageReferencesMetrics.RecordGet(found: true, sizeBytes: (long)meta.SizeBytes);
-    return Results.Stream(stream, contentType: meta.ContentType, lastModified: meta.UpdatedAtUtc, enableRangeProcessing: true);
+    // Feature 182: the client asks the service before each use, so an overwritten image shows at once.
+    http.Response.Headers.CacheControl = "no-cache";
+    return Results.File(bytes, contentType: meta.ContentType, lastModified: meta.UpdatedAtUtc, entityTag: ComputeEntityTag(bytes), enableRangeProcessing: true);
+  }
+
+  /// <summary>
+  /// Builds a strong ETag from the image bytes: the first 16 bytes of the SHA-256 hash, as 32 lowercase hex characters.
+  /// The value changes when the bytes change, also when the size and the time stay the same.
+  /// </summary>
+  private static EntityTagHeaderValue ComputeEntityTag(byte[] bytes) {
+    var hash = SHA256.HashData(bytes);
+    return new EntityTagHeaderValue("\"" + Convert.ToHexString(hash.AsSpan(0, 16)).ToLowerInvariant() + "\"");
   }
 
   private static async Task<IResult> GetImageMetadataAsync(string id, IImageRepository repo, IImageAlternatesRepository alternates, GameBot.Domain.Gamepacks.GamepackService gamepacks) {
