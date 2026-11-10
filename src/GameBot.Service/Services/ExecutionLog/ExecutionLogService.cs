@@ -1081,7 +1081,8 @@ internal sealed class ExecutionLogService : IExecutionLogService {
       outcome.ReferenceImageId,
       outcome.ConfiguredConfidence,
       outcome.Reason,
-      outcome.ImageLoadStatus);
+      outcome.ImageLoadStatus,
+      outcome.MatchedImageId);
   }
 
   private static WaitForImageDetailAttributes? BuildWaitForImageDetailAttributes(
@@ -1098,7 +1099,8 @@ internal sealed class ExecutionLogService : IExecutionLogService {
       TryGetString(attributes, "referenceImageId"),
       TryGetDouble(attributes, "confidence"),
       TryGetString(attributes, "exitCondition") ?? reasonCode,
-      TryGetString(attributes, "imageLoadStatus"));
+      TryGetString(attributes, "imageLoadStatus"),
+      TryGetString(attributes, "matchedImageId"));
   }
 
   private static Dictionary<string, object?> BuildWaitForImageDetailAttributeMap(PrimitiveTapStepOutcome outcome) {

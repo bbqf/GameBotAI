@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- Resolve parameter placeholders in an inline WaitForImage step (186-fix-waitforimage-placeholder, #386)
+  - **Cause**: `SequenceRunner` did not resolve `{{name}}` in the image field of an inline WaitForImage step. The step kept the text and ended with `image_unavailable`. The step log also had no `matchedImageId`.
+  - **Fix**: the step now resolves the placeholder against the scope of the step before the wait. A multi-value placeholder works as `referenceImageIds`. An unknown name fails the step with the unresolved-parameter message, also in a dry run. `detailAttributes` of the step log now has `matchedImageId`.
+  - **Not changed**: the `imageVisible` condition, steps with a literal image id, and the web UI.
+  - **Version**: the patch version is now 1.12.16.
 - Show the new picture after an image overwrite (182-revalidate-overwritten-image, #377)
   - **Cause**: `GET /api/images/{id}` had no `Cache-Control` and no `ETag`. The browser kept the old picture after `PUT /api/images/{id}`.
   - **Fix**: `GET /api/images/{id}` now sends `Cache-Control: no-cache` and a strong `ETag` that depends on the image bytes. A matching `If-None-Match` or `If-Modified-Since` gives 304 with no body. After an overwrite, the old ETag gives 200 with the new bytes.

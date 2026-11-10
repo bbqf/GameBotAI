@@ -479,6 +479,146 @@ public sealed class SequenceRunnerWaitForImageTests {
     return sequence;
   }
 
+  // ---- Feature 186: parameter placeholders in the image field ----
+
+  private static readonly string[] QuestValues = { "pns-showdown-tile", "pns-city-anchor" };
+
+  private static readonly GameBot.Domain.Parameters.ParameterDeclaration QuestImages = new() {
+    Name = "q",
+    Kind = GameBot.Domain.Parameters.ParameterInputKind.Image,
+    AllowedImages = QuestValues,
+    Multiple = true
+  };
+
+  private static GameBot.Domain.Parameters.ParameterScope PlaceholderScope() {
+    var bindings = new System.Collections.ObjectModel.Collection<GameBot.Domain.Parameters.ParameterBinding> {
+      new() { Name = "s", Value = "pns-city-anchor" },
+      new() {
+        Name = "q",
+        Value = GameBot.Domain.Parameters.ParameterListRules.Join(QuestValues),
+        Values = QuestValues
+      }
+    };
+    return GameBot.Domain.Parameters.ParameterScope.Empty.Child(
+      GameBot.Domain.Parameters.ParameterScopeLayers.Entry, bindings, new[] { QuestImages });
+  }
+
+  private static WaitForImageConfig PlaceholderConfig(string imageId) =>
+    new() { TimeoutMs = 120, DetectionTarget = new DetectionTarget(imageId, 0.85) };
+
+  private static Task<GameBot.Domain.Services.SequenceExecutionResult> RunWithScopeAsync(
+      SequenceRunner runner,
+      Func<GameBot.Domain.Commands.Blocks.Condition, CancellationToken, Task<bool>>? evaluator,
+      bool dryRun = false) =>
+    runner.ExecuteAsync(
+      "wait-sequence",
+      (_, _) => Task.CompletedTask,
+      conditionEvaluator: evaluator,
+      scope: PlaceholderScope(),
+      dryRun: dryRun,
+      ct: CancellationToken.None);
+
+  [Fact]
+  public async Task SinglePlaceholderResolvesAndDetectsTheImage() {
+    var asked = new List<string>();
+    var runner = CreateRunner(PlaceholderConfig("{{s}}"));
+
+    var result = await RunWithScopeAsync(runner, (c, _) => {
+      asked.Add(c.TargetId);
+      return Task.FromResult(c.TargetId == "pns-city-anchor");
+    }).ConfigureAwait(false);
+
+    result.Steps[0].ActionOutcome.Should().Be("image_detected");
+    result.Steps[0].WaitForImageDetails!.ReferenceImageId.Should().Be("pns-city-anchor");
+    asked.Should().OnlyContain(id => id == "pns-city-anchor");
+  }
+
+  [Fact]
+  public async Task UnknownPlaceholderFailsTheStepAndStopsTheSequence() {
+    var executed = new List<string>();
+    var runner = CreateRunner(PlaceholderConfig("{{missing}}"));
+    var evaluated = false;
+
+    var result = await runner.ExecuteAsync(
+      "wait-sequence",
+      (commandId, _) => {
+        executed.Add(commandId);
+        return Task.CompletedTask;
+      },
+      conditionEvaluator: (_, _) => {
+        evaluated = true;
+        return Task.FromResult(true);
+      },
+      scope: PlaceholderScope(),
+      ct: CancellationToken.None).ConfigureAwait(false);
+
+    result.Status.Should().Be("Failed");
+    result.Steps.Should().ContainSingle();
+    result.Steps[0].Status.Should().Be("Failed");
+    result.Steps[0].ActionOutcome.Should().Be("failed");
+    result.Steps[0].Message.Should().Contain("missing");
+    executed.Should().BeEmpty();
+    evaluated.Should().BeFalse();
+  }
+
+  [Fact]
+  public async Task DryRunWithUnknownPlaceholderGivesTheSameError() {
+    var runner = CreateRunner(PlaceholderConfig("{{missing}}"));
+
+    var result = await RunWithScopeAsync(runner, (_, _) => Task.FromResult(true), dryRun: true).ConfigureAwait(false);
+
+    result.Status.Should().Be("Failed");
+    result.Steps[0].Message.Should().Contain("missing");
+  }
+
+  [Fact]
+  public async Task DryRunWithValidPlaceholderIsSkipped() {
+    var runner = CreateRunner(PlaceholderConfig("{{s}}"));
+
+    var result = await RunWithScopeAsync(runner, (_, _) => Task.FromResult(true), dryRun: true).ConfigureAwait(false);
+
+    result.Status.Should().Be("Succeeded");
+    result.Steps[0].ActionOutcome.Should().Be(DryRunOutcomes.SkippedDryRun);
+  }
+
+  [Fact]
+  public async Task MultiValuePlaceholderDetectsAnyListedImage() {
+    var runner = CreateRunner(PlaceholderConfig("{{q}}"));
+
+    var result = await RunWithScopeAsync(runner, (c, _) => Task.FromResult(c.TargetId == "pns-city-anchor")).ConfigureAwait(false);
+
+    result.Steps[0].ActionOutcome.Should().Be("image_detected");
+    result.Steps[0].WaitForImageDetails!.ReferenceImageId.Should().Be("pns-showdown-tile");
+    result.Steps[0].WaitForImageDetails!.MatchedImageId.Should().Be("pns-city-anchor");
+  }
+
+  [Fact]
+  public async Task PlaceholderImageNotOnTheScreenGivesTimeout() {
+    var runner = CreateRunner(PlaceholderConfig("{{s}}"));
+
+    var result = await RunWithScopeAsync(runner, (_, _) => Task.FromResult(false)).ConfigureAwait(false);
+
+    result.Steps[0].ActionOutcome.Should().Be("timeout_elapsed");
+  }
+
+  [Fact]
+  public async Task PlaceholderImageThatCannotBeLoadedGivesImageUnavailable() {
+    var runner = CreateRunner(PlaceholderConfig("{{s}}"));
+
+    var result = await RunWithScopeAsync(runner, (_, _) => throw new InvalidOperationException("image unavailable")).ConfigureAwait(false);
+
+    result.Steps[0].ActionOutcome.Should().Be("image_unavailable");
+  }
+
+  [Fact]
+  public async Task SingleImageDetectedSetsMatchedImageIdToTheResolvedId() {
+    var runner = CreateRunner(PlaceholderConfig("{{s}}"));
+
+    var result = await RunWithScopeAsync(runner, (_, _) => Task.FromResult(true)).ConfigureAwait(false);
+
+    result.Steps[0].WaitForImageDetails!.MatchedImageId.Should().Be("pns-city-anchor");
+  }
+
   private static SequenceRunner CreateRunner(WaitForImageConfig waitConfig) {
     return new SequenceRunner(
       new StubRepo(BuildSequence(waitConfig)),

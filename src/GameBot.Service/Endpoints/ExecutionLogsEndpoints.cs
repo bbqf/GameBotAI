@@ -171,7 +171,8 @@ internal static class ExecutionLogsEndpoints {
           ReferenceImageId = node.DetailAttributes.ReferenceImageId,
           Confidence = node.DetailAttributes.Confidence,
           ExitCondition = node.DetailAttributes.ExitCondition,
-          ImageLoadStatus = node.DetailAttributes.ImageLoadStatus
+          ImageLoadStatus = node.DetailAttributes.ImageLoadStatus,
+          MatchedImageId = node.DetailAttributes.MatchedImageId
         },
       ConditionTrace = node.ConditionTrace is null
         ? null
@@ -239,7 +240,8 @@ internal static class ExecutionLogsEndpoints {
             ReferenceImageId = step.DetailAttributes.ReferenceImageId,
             Confidence = step.DetailAttributes.Confidence,
             ExitCondition = step.DetailAttributes.ExitCondition,
-            ImageLoadStatus = step.DetailAttributes.ImageLoadStatus
+            ImageLoadStatus = step.DetailAttributes.ImageLoadStatus,
+            MatchedImageId = step.DetailAttributes.MatchedImageId
           },
         DeepLink = new AuthoringDeepLinkDto {
           SequenceId = step.DeepLink.SequenceId,

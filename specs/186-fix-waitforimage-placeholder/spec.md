@@ -2,7 +2,7 @@
 
 **Feature Branch**: `186-fix-waitforimage-placeholder`
 **Created**: 2026-11-10
-**Status**: Draft
+**Status**: Implemented
 **Input**: User description: "Fix GitHub issue #386: B-041: Inline WaitForImage does not resolve a parameter placeholder in referenceImageId (image_unavailable). Closes #386."
 
 ## Background
