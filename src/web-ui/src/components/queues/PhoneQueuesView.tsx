@@ -21,6 +21,7 @@ import { buildQueueActivity, buildScheduleRows, describeNow } from './queueActiv
 import { IconButton } from './IconButton';
 import { QueuePauseControls } from './QueuePauseControls';
 import { TemplateChangesNotice } from './TemplateChangesNotice';
+import { PhoneEntryPage } from './PhoneEntryPage';
 import '../../features/execution/StatusChip.css';
 
 export const PHONE_QUEUES_POLL_MS = 5000;
@@ -33,7 +34,16 @@ export type PhoneQueuesViewProps = {
   queueId?: string | null;
   /** Called with a queue id to open it, or with null to show the list. */
   onOpenQueue?: (id: string | null) => void;
+  /** The open entry of the open queue (feature 185). Set, the view shows the entry page. */
+  entryId?: string | null;
+  /** Called with a queue id and an entry ID to open the entry page, or with a null entry ID to show the queue detail. */
+  onOpenEntry?: (queueId: string, entryId: string | null) => void;
+  /** The app raises this counter when the phone back step met the leave guard. The entry page then asks the operator. */
+  leaveRequest?: number;
 };
+
+/** The text of a row of a template that needs an upgrade. Such an entry has no ID, so it cannot open (rule P-03). */
+export const UPGRADE_HINT = 'Upgrade the template to open the entry settings.';
 
 const errorText = (err: unknown): string =>
   err instanceof ApiError || err instanceof Error ? err.message : 'The request failed.';
@@ -60,7 +70,10 @@ export const PhoneQueuesView: React.FC<PhoneQueuesViewProps> = ({
   connectionState = 'online',
   reloadSignal = 0,
   queueId = null,
-  onOpenQueue
+  onOpenQueue,
+  entryId = null,
+  onOpenEntry,
+  leaveRequest = 0
 }) => {
   const [queues, setQueues] = useState<QueueDto[] | null>(null);
   const [monitors, setMonitors] = useState<Record<string, QueueMonitorDto>>({});
@@ -69,6 +82,8 @@ export const PhoneQueuesView: React.FC<PhoneQueuesViewProps> = ({
   const [template, setTemplate] = useState<QueueTemplateDetail | null>(null);
   const [monitor, setMonitor] = useState<QueueMonitorDto | null>(null);
   const [detailStale, setDetailStale] = useState(false);
+  // True after the first full read of the detail, the template, and the monitor. The entry page waits for it.
+  const [detailLoaded, setDetailLoaded] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const [busy, setBusy] = useState(false);
   const [templateSaves, setTemplateSaves] = useState(0);
@@ -151,6 +166,7 @@ export const PhoneQueuesView: React.FC<PhoneQueuesViewProps> = ({
     if (!failed || t) setTemplate(t);
     if (m) setMonitor(m);
     setDetailStale(failed);
+    setDetailLoaded(true);
     if (!failed) setMessage(null);
   }, []);
 
@@ -182,9 +198,30 @@ export const PhoneQueuesView: React.FC<PhoneQueuesViewProps> = ({
     setTemplate(null);
     setMonitor(null);
     setDetailStale(false);
+    setDetailLoaded(false);
     setNotFound(false);
     setMessage(null);
   }, [queueId]);
+
+  // Back from the entry page: the list shows again at the place where the operator left it (quickstart, phone step 5).
+  const scrollBeforeEntry = useRef<number | null>(null);
+  const wasOnEntry = useRef(false);
+  useEffect(() => {
+    if (entryId) {
+      wasOnEntry.current = true;
+      return;
+    }
+    if (wasOnEntry.current && scrollBeforeEntry.current !== null) {
+      const top = scrollBeforeEntry.current;
+      window.requestAnimationFrame(() => window.scrollTo(0, top));
+    }
+    wasOnEntry.current = false;
+  }, [entryId]);
+
+  const openEntry = (id: string, entry: string) => {
+    scrollBeforeEntry.current = window.scrollY;
+    onOpenEntry?.(id, entry);
+  };
 
   const open = (id: string) => onOpenQueue?.(id);
 
@@ -196,6 +233,18 @@ export const PhoneQueuesView: React.FC<PhoneQueuesViewProps> = ({
     }
     replaceScreen({ area: 'queues', queueId: null });
     onOpenQueue?.(null);
+  };
+
+  /** On-screen back of the entry page: back in the history, or the queue detail when this is the first entry. */
+  const closeEntry = () => {
+    if (!isFirstEntry()) {
+      window.history.back();
+      return;
+    }
+    if (queueId) {
+      replaceScreen({ area: 'queues', queueId, entryId: null });
+      onOpenEntry?.(queueId, null);
+    }
   };
 
   const goToList = () => {
@@ -266,6 +315,32 @@ export const PhoneQueuesView: React.FC<PhoneQueuesViewProps> = ({
       );
     }
     const rows = detail ? buildScheduleRows(monitor, template, detail) : [];
+    if (entryId) {
+      // The entry page waits for the first full read, so a reload does not flash "Entry not found".
+      if (!detailLoaded || !detail) {
+        return (
+          <section className="phone-queue-detail" data-testid="phone-queue-detail">
+            <button type="button" className="phone-queue-detail__back" onClick={closeEntry}>← Back</button>
+            {message ? <p className="form-hint" role="alert">{message}</p> : <p role="status">Loading…</p>}
+          </section>
+        );
+      }
+      return (
+        <PhoneEntryPage
+          detail={detail}
+          template={template}
+          entryId={entryId}
+          connectionState={connectionState}
+          leaveRequest={leaveRequest}
+          onBack={closeEntry}
+          onSaved={(saved) => {
+            setTemplate(saved);
+            // A save on a running queue changes the template only. The notice reads the waiting changes again.
+            setTemplateSaves((count) => count + 1);
+          }}
+        />
+      );
+    }
     return (
       <section className="phone-queue-detail" data-testid="phone-queue-detail">
         <button type="button" className="phone-queue-detail__back" onClick={close}>← Back</button>
@@ -321,12 +396,28 @@ export const PhoneQueuesView: React.FC<PhoneQueuesViewProps> = ({
                 <ul className="phone-card-list" aria-label="Queue schedule">
                   {rows.map((row) => (
                     <li key={row.key} className={row.enabled ? 'phone-card phone-schedule-row' : 'phone-card phone-schedule-row phone-schedule-row--disabled'}>
-                      <div className="phone-card__body">
-                        <span className="phone-card__title" title={row.name}>{row.name}</span>
-                        <span className="phone-card__summary" title={row.timingText}>
-                          {row.enabled ? row.timingText : 'disabled'}
-                        </span>
-                      </div>
+                      {row.entryId ? (
+                        <button
+                          type="button"
+                          className="phone-card__body phone-schedule-row__open"
+                          aria-label={`Entry settings for ${row.name}`}
+                          onClick={() => openEntry(detail.id, row.entryId as string)}
+                        >
+                          <span className="phone-card__title" title={row.name}>{row.name}</span>
+                          <span className="phone-card__summary" title={row.timingText}>
+                            {row.enabled ? row.timingText : 'disabled'}
+                          </span>
+                          <span className="phone-schedule-row__chevron" aria-hidden="true">›</span>
+                        </button>
+                      ) : (
+                        <div className="phone-card__body">
+                          <span className="phone-card__title" title={row.name}>{row.name}</span>
+                          <span className="phone-card__summary" title={row.timingText}>
+                            {row.enabled ? row.timingText : 'disabled'}
+                          </span>
+                          {template?.needsUpgrade && <span className="phone-schedule-row__hint">{UPGRADE_HINT}</span>}
+                        </div>
+                      )}
                       {detail.status === 'Running' && row.enabled && row.entryId && (
                         <IconButton
                           icon="runNext"

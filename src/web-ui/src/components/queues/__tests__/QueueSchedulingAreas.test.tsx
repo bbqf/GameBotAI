@@ -146,6 +146,8 @@ describe('QueueSchedulingAreas', () => {
       b: { scheduleType: 'OncePerRun', timerTimeOfDay: '' },
     };
     render(<QueueSchedulingAreas entries={entries} entrySchedule={entrySchedule} {...baseProps()} />);
+    fireEvent.click(screen.getByLabelText('Entry settings for C'));
+    fireEvent.click(screen.getByLabelText('Entry settings for B'));
 
     expect(screen.getByLabelText('Timer mode for C')).toBeInTheDocument();
     expect(screen.getByLabelText('Timer time for C')).toBeInTheDocument();
@@ -162,6 +164,8 @@ describe('QueueSchedulingAreas', () => {
     render(<QueueSchedulingAreas entries={entries} entrySchedule={entrySchedule} disabled {...baseProps()} />);
 
     expect(within(screen.getByRole('region', { name: 'Once per run' })).getByText('B')).toBeInTheDocument();
+    // The settings button stays on, so the operator can read the values (rule D-10).
+    fireEvent.click(screen.getByLabelText('Entry settings for B'));
     expect(screen.getByLabelText('Schedule type for B')).toBeDisabled();
     expect(screen.getByLabelText('Remove B')).toBeDisabled();
   });
@@ -174,6 +178,7 @@ describe('QueueSchedulingAreas', () => {
     };
     render(<QueueSchedulingAreas entries={entries} entrySchedule={entrySchedule} {...props} />);
 
+    fireEvent.click(screen.getByLabelText('Entry settings for B'));
     fireEvent.change(screen.getByLabelText('Schedule type for B'), { target: { value: 'EveryStep' } });
     expect(props.onReorderAndReassign).toHaveBeenCalledTimes(1);
     const next = props.onReorderAndReassign.mock.calls[0][0];

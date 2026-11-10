@@ -248,6 +248,35 @@
     min-height: 44px;
   }
 
+  /* Feature 185: a row with an entry ID opens the entry page. The whole text area is the tap target (44 px or more). */
+  .phone-schedule-row__open {
+    position: relative;
+    padding-right: 24px;
+    cursor: pointer;
+  }
+
+  /* The mark is not the only signal: the button has a name, and the chevron shows that the row opens. */
+  .phone-schedule-row__chevron {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--gb-color-muted);
+    font-size: 1.25rem;
+    line-height: 1;
+  }
+
+  .phone-schedule-row__open:focus-visible {
+    outline: 2px solid var(--gb-color-primary, #2563eb);
+    outline-offset: 2px;
+  }
+
+  .phone-schedule-row__hint {
+    color: var(--gb-color-muted);
+    font-size: 0.8125rem;
+    white-space: normal;
+  }
+
   .phone-queue-detail button {
     min-height: 44px;
     min-width: 44px;

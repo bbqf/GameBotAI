@@ -1,6 +1,6 @@
 # Mobile UI Principles
 
-Last reviewed: 2026-11-09 (features 139, 140, 171, 173, and 184)
+Last reviewed: 2026-11-09 (features 139, 140, 171, 173, 184, and 185)
 
 Each UI feature must state its **phone support level** and follow these rules. Reviewers use the checklist at the end.
 
@@ -54,7 +54,24 @@ The queue detail shows what the queue does now and what it will do next.
 - The data refreshes every 5 s while the page is visible and the connection is up (`usePolling`). The refresh stops when
   the page is hidden or the connection is lost. When it starts again, one refresh runs at once.
 - When a refresh fails, the last data stays on the screen with an "Old data" mark.
-- The phone shows no control to create, reorder, or edit a schedule.
+- The phone shows no control to create, reorder, or change the type or time of a schedule. The schedule editor stays
+  `desktop-only`. The row text "Use a larger screen to edit schedules." stays.
+- **Entry page** (feature 185). The parameter values of an entry have the phone support level `full`. A tap on a schedule row
+  that has an entry ID opens the entry page. The row is a button of at least 44 px. A row with no entry ID is not tappable. A
+  template that needs an upgrade shows the hint "Upgrade the template to open the entry settings." on each such row.
+  - The page shows **Back**, the entry name, the queue name, the schedule as text with no control, and the shared parameter
+    form (`ParameterBindingForm` with ad-hoc values). **Save** is the one primary action.
+  - **Save** writes the values to the linked template with the call of the enable switch (`saveQueueTemplate`). A save on a
+    running queue changes the template only. The notice "N changes wait in the template." shows it. One press sends one
+    call. A failed save keeps the typed values and does not send the call again.
+  - **Save** is off when nothing changed, while a save runs, when the connection is lost, and when the sequence did not
+    load. When the sequence does not load, the page shows "The parameters did not load." and the stored values as text.
+  - The page has its own history entry. The address is `?area=queues&queue=<id>&entry=<entryId>`. A reload shows the page.
+    An entry that is not in the template shows "Entry not found" and a way back.
+  - **Unsaved values**: **Back** and the phone back step open a dialog with **Keep editing** and **Discard changes**. A
+    browser cannot cancel a back step. The app (`lib/phoneLeaveGuard.ts`) goes forward one step again and raises a counter, and
+    the page opens the dialog. A tab bar move asks the same question.
+  - The big screen has no entry page. The Entry settings panel of the card holds the same parameter form.
 - A running queue has the controls of feature 171 (phone support level: full). The controls are **Pause**,
   **Cancel pause**, **Resume**, **Review changes** (with **Apply**), and **Upgrade template**. They work in one column, each
   control is at least 44 px high, and the text wraps with no sideways scroll. The state shows as "Pausing (waiting for the
@@ -73,7 +90,7 @@ The queue detail shows what the queue does now and what it will do next.
 
 ## Back navigation on a phone
 
-- Each screen has its own history entry (`pushState`). The address holds `area` and, for a queue detail, `queue`.
+- Each screen has its own history entry (`pushState`). The address holds `area`, for a queue detail `queue`, and for an entry page `entry`.
 - Back and forward restore the screen of the entry. They add no entry.
 - The first screen of the session has `history.state.idx` = 0. Back from it leaves the application.
 - The on-screen back control of the queue detail calls `history.back()`. On the first entry it replaces the entry with the queue list.

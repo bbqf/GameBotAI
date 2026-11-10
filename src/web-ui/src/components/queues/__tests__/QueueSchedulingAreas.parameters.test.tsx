@@ -54,20 +54,23 @@ const renderAreas = (over: Record<string, unknown> = {}) =>
   );
 
 describe('QueueSchedulingAreas per-entry parameters', () => {
-  it('offers a Parameters panel on each entry once a change handler is supplied', () => {
+  it('offers an Entry settings panel on each entry, with the Parameters part, once a change handler is supplied', () => {
     renderAreas();
-    expect(screen.getByLabelText('Parameters for PNS Pit Ensure Mining')).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('Entry settings for PNS Pit Ensure Mining'));
+    expect(screen.getByLabelText('Parameter values')).toBeInTheDocument();
   });
 
-  it('omits the panel entirely when no handler is supplied', () => {
+  it('omits the Parameters part entirely when no handler is supplied', () => {
     // Guards the opposite direction: a caller that does not persist values must not offer the UI.
     renderAreas({ onParameterValuesChange: undefined });
-    expect(screen.queryByLabelText('Parameters for PNS Pit Ensure Mining')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('Entry settings for PNS Pit Ensure Mining'));
+    expect(screen.queryByLabelText('Parameter values')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add a value' })).not.toBeInTheDocument();
   });
 
   it("shows the referenced sequence's declarations, which is what used to never arrive", () => {
     renderAreas();
-    fireEvent.click(screen.getByLabelText('Parameters for PNS Pit Ensure Mining'));
+    fireEvent.click(screen.getByLabelText('Entry settings for PNS Pit Ensure Mining'));
     expect(screen.getByText('sectionRowY')).toBeInTheDocument();
   });
 
@@ -75,8 +78,8 @@ describe('QueueSchedulingAreas per-entry parameters', () => {
     const onParameterValuesChange = jest.fn();
     renderAreas({ onParameterValuesChange });
 
-    fireEvent.click(screen.getByLabelText('Parameters for PNS Pit Ensure Mining'));
-    const panel = screen.getByLabelText('Parameters for PNS Pit Ensure Mining').closest('.scheduling-card');
+    fireEvent.click(screen.getByLabelText('Entry settings for PNS Pit Ensure Mining'));
+    const panel = screen.getByLabelText('Entry settings for PNS Pit Ensure Mining').closest('.scheduling-card');
     const scope = within(panel as HTMLElement);
 
     // Every row starts on "inherit" with its value disabled, so the common case is zero clicks;
@@ -91,10 +94,13 @@ describe('QueueSchedulingAreas per-entry parameters', () => {
     );
   });
 
-  it('still offers the panel for a sequence that declares nothing, so ad-hoc values are reachable', () => {
+  it('still offers ad-hoc values for a sequence that declares nothing, through Add a value', () => {
     // FR-012a: an ad-hoc name on an entry reaches a command at any depth, so an undeclared
-    // sequence must not hide the panel.
+    // sequence must not lose this function (feature 185, rule D-05).
     renderAreas();
-    expect(screen.getByLabelText('Parameters for Plain')).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('Entry settings for Plain'));
+    expect(screen.queryByLabelText('Parameter values')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Add a value' }));
+    expect(screen.getByLabelText('New parameter value name')).toBeInTheDocument();
   });
 });

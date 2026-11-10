@@ -331,7 +331,8 @@ describe('QueuesPage AtQueueStart round-trip (feature 060, T013)', () => {
     fireEvent.click(screen.getByText('Daily'));
     await screen.findByText('Edit Queue');
 
-    // Mark the first entry as "At Queue Start" via the schedule dropdown.
+    // Mark the first entry as "At Queue Start" via the schedule dropdown. It is in the Entry settings panel (feature 185).
+    fireEvent.click(screen.getByLabelText('Entry settings for A'));
     fireEvent.change(screen.getByLabelText('Schedule type for A'), { target: { value: 'AtQueueStart' } });
 
     // Save the template and confirm the schedule type is carried on the wire (SC-004).
@@ -377,7 +378,8 @@ describe('QueuesPage scheduling areas round-trip (feature 061)', () => {
     saveTemplateMock.mockResolvedValue({ id: 't1' } as any);
     await openEditor();
 
-    // Move A to "After every step" via the non-drag schedule selector.
+    // Move A to "After every step" via the non-drag schedule selector (in the Entry settings panel).
+    fireEvent.click(screen.getByLabelText('Entry settings for A'));
     fireEvent.change(screen.getByLabelText('Schedule type for A'), { target: { value: 'EveryStep' } });
 
     // Canonical order now puts OncePerRun (B) before EveryStep (A).
@@ -525,7 +527,8 @@ describe('QueuesPage scheduling areas round-trip (feature 061)', () => {
     saveTemplateMock.mockResolvedValue({ id: 't1' } as any);
     await openEditor();
 
-    // The Timer card renders in "Scheduled" with its time-of-day restored.
+    // The Timer card renders in "Scheduled" with its time-of-day restored. The summary shows it on the closed row.
+    fireEvent.click(await screen.findByLabelText('Entry settings for A'));
     expect(await screen.findByLabelText('Timer time for A')).toHaveValue('15:30');
 
     // Move it out to "Once per run"; its timer detail is retained in state but must not be emitted.

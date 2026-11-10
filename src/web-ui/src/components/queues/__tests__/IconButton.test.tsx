@@ -73,7 +73,7 @@ describe('IconButton (feature 173, US3)', () => {
   });
 
   it('has the icons of the template editor and Run next (feature 184)', () => {
-    ['runNext', 'parameters', 'remove', 'cancel', 'add', 'save', 'reload', 'link', 'unlink'].forEach((name) => {
+    ['runNext', 'parameters', 'settings', 'remove', 'cancel', 'add', 'save', 'reload', 'link', 'unlink'].forEach((name) => {
       expect(ICON_NAMES).toContain(name);
     });
   });

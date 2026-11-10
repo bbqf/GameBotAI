@@ -13,6 +13,13 @@ All notable changes to this project will be documented in this file.
   - **Version**: the patch version is now 1.12.12.
 
 ### Added
+- Sleeker queue entries on the big screen, and entry parameters on the phone (185-queues-params-mobile)
+  - **Big screen**: the main row of a queue entry is short. It shows the drag handle, the enable switch, the name, and one line of schedule text (for example "Daily at 14:30"). It also shows Run next, **Entry settings**, and Remove. The schedule controls and the parameter values are in the Entry settings panel. The panel opens under the row. It stays open when the operator changes the schedule type or drags the card. A closed row is 50 px high at 1024 px.
+  - **Phone**: a tap on a schedule row of the queue detail opens the entry page (phone support: full for the parameter values, desktop-only for the schedule editor). The page shows the schedule as text and the parameter form. **Save** writes the values to the linked template. A running queue keeps its run, and the notice "N changes wait in the template." shows the change. The page has its own history entry and the address `?area=queues&queue=<id>&entry=<entryId>`.
+  - **Unsaved values**: **Back** and the phone back step ask "Keep editing" or "Discard changes" when the page has unsaved values.
+  - **Not changed**: the service, the API, and the stored template data.
+  - **Docs**: `docs/architecture.md` and `docs/mobile-ui-principles.md` describe the panel and the entry page.
+  - **Version**: the patch version is now 1.12.15.
 - Run next for idle entries, and icon buttons in the template editor (184-showdown-run-next)
   - **Run next**: an operator can queue one run of any enabled template entry that has no pending run, while the queue runs or is paused. No queue restart is needed. The entry runs once, right after the running sequence, with its own parameter values. A repeat request adds no second run. A stop ends a waiting request.
   - **API**: `POST /api/queues/{id}/run-next` with `{ entryId }`. The codes of a refusal are `not_running`, `entry_not_available`, `entry_running`, and `entry_scheduled`. `GET /api/queues/{id}/monitor` has the new field `entryStates` (`running`, `queued`, `scheduled`, `idle`) and the new `scheduleKind` value `RunNext`.

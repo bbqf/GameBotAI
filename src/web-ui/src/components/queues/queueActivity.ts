@@ -1,5 +1,6 @@
 import type { EntryState, QueueDetailDto, QueueDto, QueueMonitorDto, QueueMonitorItemDto } from '../../services/queues';
-import type { QueueTemplateDetail, QueueTemplateEntryDto } from '../../services/queueTemplates';
+import type { QueueTemplateDetail } from '../../services/queueTemplates';
+import { scheduleSummary } from './scheduleSummary';
 
 /** One scheduled entry of a queue, ready to show (data-model.md, ScheduleRow). */
 export type ScheduleRow = {
@@ -40,20 +41,6 @@ const timeText = (iso: string, now: Date): string => {
   return `${formatClock(date)} (${formatRelative(date, now)})`;
 };
 
-const scheduleText = (entry: QueueTemplateEntryDto): string => {
-  switch (entry.scheduleType) {
-    case 'Timer':
-      if (entry.timerTimeOfDay) return `Daily at ${entry.timerTimeOfDay.slice(0, 5)}`;
-      if (entry.timerRelativeOffset) return `Every ${entry.timerRelativeOffset}`;
-      return 'not scheduled';
-    case 'OncePerRun': return 'Once each run';
-    case 'EveryStep': return 'Every step';
-    case 'AtQueueStart': return 'At queue start';
-    case 'BeforeEachRun': return 'Before each run';
-    default: return 'not scheduled';
-  }
-};
-
 const monitorItems = (monitor: QueueMonitorDto | null | undefined): QueueMonitorItemDto[] => {
   if (!monitor || !monitor.running) return [];
   const items = [...(monitor.current ? [monitor.current] : []), ...(monitor.upcoming ?? [])];
@@ -69,7 +56,7 @@ const baseEntries = (template: QueueTemplateDetail | null | undefined, detail: Q
       entryId: e.entryId ? e.entryId : null,
       name: e.sequenceName ?? e.sequenceId ?? 'Unknown sequence',
       enabled: e.enabled ?? true,
-      schedule: scheduleText(e)
+      schedule: scheduleSummary(e)
     }));
   }
   return (detail?.entries ?? []).map((e) => ({

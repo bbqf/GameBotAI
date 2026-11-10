@@ -1,0 +1,139 @@
+/* Feature 185: the entry page of the phone. It follows docs/mobile-ui-principles.md. */
+.phone-entry-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gb-space-3);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The global button rule sets a fixed height. A page button needs a touch target of at least 44 px. */
+.phone-entry-page button {
+  height: auto;
+  min-height: 44px;
+  min-width: 44px;
+}
+
+.phone-entry-page__back {
+  align-self: flex-start;
+}
+
+.phone-entry-page__name {
+  margin: 0;
+}
+
+.phone-entry-page__queue {
+  margin: 0;
+  color: var(--gb-color-muted);
+  font-size: 0.8125rem;
+}
+
+.phone-entry-page__schedule {
+  padding: var(--gb-space-3);
+  border: 1px solid var(--gb-color-border);
+  border-radius: var(--gb-radius-md);
+  background: var(--gb-color-surface);
+}
+
+.phone-entry-page__label,
+.phone-entry-page__off {
+  color: var(--gb-color-muted);
+}
+
+.phone-entry-page__stored {
+  margin: 0;
+  padding-left: var(--gb-space-4, 1rem);
+}
+
+/* Inputs use 16 px, so that a phone browser does not zoom the page when the field gets focus. */
+.phone-entry-page input[type="text"],
+.phone-entry-page input[type="number"],
+.phone-entry-page select,
+.phone-entry-page textarea {
+  font-size: 16px;
+  min-height: 44px;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* The shared parameter form has little own style. This gives it a clean phone layout: no bullets, one card for each row. */
+.phone-entry-page .parameter-bindings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gb-space-2);
+}
+
+.phone-entry-page .parameter-bindings h4 {
+  margin: 0;
+}
+
+.phone-entry-page .parameter-bindings-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gb-space-3);
+}
+
+.phone-entry-page .parameter-binding-row {
+  padding: var(--gb-space-3);
+  border: 1px solid var(--gb-color-border);
+  border-radius: var(--gb-radius-md);
+  background: var(--gb-color-surface);
+}
+
+.phone-entry-page .parameter-binding-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--gb-space-2);
+  font-weight: 600;
+}
+
+.phone-entry-page .parameter-binding-inherit {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--gb-space-2);
+}
+
+.phone-entry-page .parameter-bindings-adhoc-add {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gb-space-2);
+}
+
+.phone-entry-page .parameter-bindings-adhoc-add label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gb-space-1);
+}
+
+.phone-entry-page__error {
+  margin: 0;
+  color: var(--gb-color-danger, #b91c1c);
+}
+
+.phone-entry-page__saved {
+  margin: 0;
+}
+
+.phone-entry-page__save {
+  align-self: stretch;
+}
+
+/* The keep-or-discard dialog (rule E-08). */
+.phone-entry-page__dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gb-space-2);
+  padding: var(--gb-space-3);
+  border: 1px solid var(--gb-color-border-strong, var(--gb-color-border));
+  border-radius: var(--gb-radius-md);
+  background: var(--gb-color-surface);
+}
+
+.phone-entry-page__dialog p {
+  margin: 0;
+}

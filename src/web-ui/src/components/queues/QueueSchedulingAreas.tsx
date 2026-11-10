@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   CollisionDetection,
   DndContext,
@@ -98,6 +98,30 @@ export const QueueSchedulingAreas: React.FC<QueueSchedulingAreasProps> = ({
   const [selected, setSelected] = useState<string | undefined>(undefined);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
+  // Feature 185: the open Entry settings panels. A card moves to another area component when its schedule type
+  // changes, and React then creates it again. The open state therefore lives here, above the cards.
+  const [openEntryIds, setOpenEntryIds] = useState<ReadonlySet<string>>(() => new Set());
+
+  const handleToggleOpen = (entryId: string) => {
+    setOpenEntryIds((current) => {
+      const next = new Set(current);
+      if (next.has(entryId)) next.delete(entryId);
+      else next.add(entryId);
+      return next;
+    });
+  };
+
+  // An entry that is gone loses its open state (rule D-07).
+  const knownEntryIds = useMemo(() => new Set(entries.map((e) => e.entryId)), [entries]);
+  useEffect(() => {
+    setOpenEntryIds((current) => {
+      const stale = [...current].filter((id) => !knownEntryIds.has(id));
+      if (stale.length === 0) return current;
+      const next = new Set(current);
+      stale.forEach((id) => next.delete(id));
+      return next;
+    });
+  }, [knownEntryIds]);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -194,6 +218,8 @@ export const QueueSchedulingAreas: React.FC<QueueSchedulingAreasProps> = ({
               onTimerRelativeOffsetChange={onTimerRelativeOffsetChange}
               onToggleEnabled={onToggleEnabled}
               parametersBySequenceId={parametersBySequenceId}
+              openEntryIds={openEntryIds}
+              onToggleOpen={handleToggleOpen}
               onParameterValuesChange={onParameterValuesChange}
               runNext={runNext}
             />
@@ -213,6 +239,8 @@ export const QueueSchedulingAreas: React.FC<QueueSchedulingAreasProps> = ({
                 onTimerRelativeOffsetChange={onTimerRelativeOffsetChange}
                 onToggleEnabled={onToggleEnabled}
                 parametersBySequenceId={parametersBySequenceId}
+              openEntryIds={openEntryIds}
+              onToggleOpen={handleToggleOpen}
                 onParameterValuesChange={onParameterValuesChange}
                 runNext={runNext}
               />
@@ -229,6 +257,8 @@ export const QueueSchedulingAreas: React.FC<QueueSchedulingAreasProps> = ({
                 onTimerRelativeOffsetChange={onTimerRelativeOffsetChange}
                 onToggleEnabled={onToggleEnabled}
                 parametersBySequenceId={parametersBySequenceId}
+              openEntryIds={openEntryIds}
+              onToggleOpen={handleToggleOpen}
                 onParameterValuesChange={onParameterValuesChange}
                 runNext={runNext}
               />
@@ -247,6 +277,8 @@ export const QueueSchedulingAreas: React.FC<QueueSchedulingAreasProps> = ({
                 onTimerRelativeOffsetChange={onTimerRelativeOffsetChange}
                 onToggleEnabled={onToggleEnabled}
                 parametersBySequenceId={parametersBySequenceId}
+              openEntryIds={openEntryIds}
+              onToggleOpen={handleToggleOpen}
                 onParameterValuesChange={onParameterValuesChange}
                 runNext={runNext}
               />
@@ -263,6 +295,8 @@ export const QueueSchedulingAreas: React.FC<QueueSchedulingAreasProps> = ({
                 onTimerRelativeOffsetChange={onTimerRelativeOffsetChange}
                 onToggleEnabled={onToggleEnabled}
                 parametersBySequenceId={parametersBySequenceId}
+              openEntryIds={openEntryIds}
+              onToggleOpen={handleToggleOpen}
                 onParameterValuesChange={onParameterValuesChange}
                 runNext={runNext}
               />
