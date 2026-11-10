@@ -164,6 +164,10 @@ internal sealed class ExecutionLogWaitForImageDetailAttributesDto {
   public double? Confidence { get; init; }
   public string? ExitCondition { get; init; }
   public string? ImageLoadStatus { get; init; }
+
+  /// <summary>The id of the image that matched (issue 386). Omitted from the JSON when null.</summary>
+  [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+  public string? MatchedImageId { get; init; }
 }
 
 internal sealed class AuthoringDeepLinkDto {

@@ -43,7 +43,8 @@ describe('executionLogsApi', () => {
             referenceImageId: 'mail_icon',
             confidence: 0.92,
             exitCondition: 'timeout_elapsed',
-            imageLoadStatus: 'loaded'
+            imageLoadStatus: 'loaded',
+            matchedImageId: 'mail_icon_b'
           }
         }
       ]
@@ -55,5 +56,6 @@ describe('executionLogsApi', () => {
     expect(result.stepOutcomes[0]?.detailAttributes?.timeoutMs).toBe(1500);
     expect(result.stepOutcomes[0]?.detailAttributes?.referenceImageId).toBe('mail_icon');
     expect(result.stepOutcomes[0]?.detailAttributes?.exitCondition).toBe('timeout_elapsed');
+    expect(result.stepOutcomes[0]?.detailAttributes?.matchedImageId).toBe('mail_icon_b');
   });
 });

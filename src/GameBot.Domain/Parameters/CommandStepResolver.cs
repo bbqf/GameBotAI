@@ -152,6 +152,34 @@ public static class CommandStepResolver {
     return true;
   }
 
+  /// <summary>
+  /// Resolves the parameter placeholders of an inline WaitForImage configuration of a sequence step
+  /// (feature 186). It uses the same rules as a WaitForImage command step: a single-value placeholder
+  /// gives one image, and a whole placeholder of a multi-value parameter gives a list of images.
+  /// </summary>
+  /// <param name="config">The stored configuration, left unmodified.</param>
+  /// <param name="scope">The scope in effect where the step runs.</param>
+  /// <param name="resolved">The configuration with real values, when resolution succeeded.</param>
+  /// <param name="error">The first failure, when resolution did not succeed.</param>
+  /// <returns><c>true</c> when the configuration resolved fully; otherwise <c>false</c>.</returns>
+  public static bool TryResolveWaitForImage(
+      WaitForImageConfig config,
+      ParameterScope scope,
+      [NotNullWhen(true)] out WaitForImageConfig? resolved,
+      out ParameterResolutionError? error) {
+    ArgumentNullException.ThrowIfNull(config);
+    ArgumentNullException.ThrowIfNull(scope);
+
+    var step = new CommandStep { Type = CommandStepType.WaitForImage, WaitForImage = config };
+    if (!TryResolve(step, scope, out var resolvedStep, out error, out _)) {
+      resolved = null;
+      return false;
+    }
+
+    resolved = resolvedStep.WaitForImage ?? config;
+    return true;
+  }
+
   private static bool HasInlinePlaceholder(CommandStep step) =>
       (step.Type != CommandStepType.Command && TemplateSubstitutor.ContainsPlaceholder(step.TargetId))
       || TemplateSubstitutor.ContainsPlaceholder(step.KeyInput?.Key)

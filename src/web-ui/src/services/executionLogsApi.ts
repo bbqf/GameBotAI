@@ -118,6 +118,7 @@ export type ExecutionLogWaitForImageDetailAttributesDto = {
   confidence?: number;
   exitCondition?: 'image_detected' | 'image_absent' | 'timeout_elapsed' | 'image_unavailable';
   imageLoadStatus?: string;
+  matchedImageId?: string;
 };
 
 export type ExecutionLogStepDeepLinkDto = {

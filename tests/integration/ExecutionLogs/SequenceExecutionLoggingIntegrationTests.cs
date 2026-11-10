@@ -123,6 +123,62 @@ public sealed class SequenceExecutionLoggingIntegrationTests {
   }
 
   [Fact]
+  public async Task SequenceExecutionDetailIncludesMatchedImageIdOfWaitForImageStep() {
+    var previousAuthToken = Environment.GetEnvironmentVariable("GAMEBOT_AUTH_TOKEN");
+    Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");
+    TestEnvironment.PrepareCleanDataDir();
+    try {
+      using var app = new WebApplicationFactory<Program>();
+      var client = app.CreateClient();
+      client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
+      var logService = app.Services.GetRequiredService<IExecutionLogService>();
+
+      await logService.LogSequenceExecutionAsync(
+        "seq-wait-matched",
+        "Wait Matched Sequence",
+        "success",
+        "Wait step detected the second image.",
+        new ExecutionLogContext { Depth = 0, SequenceId = "seq-wait-matched", SequenceLabel = "Wait Matched Sequence" },
+        new[] {
+          new ExecutionDetailItem(
+            "step",
+            "Step 'Wait for list' image_detected.",
+            new Dictionary<string, object?> {
+              ["stepOrder"] = 1,
+              ["stepType"] = "waitForImage",
+              ["status"] = "Succeeded",
+              ["actionOutcome"] = "image_detected",
+              ["reasonCode"] = "image_detected",
+              ["referenceImageId"] = "pns-showdown-tile",
+              ["exitCondition"] = "image_detected",
+              ["matchedImageId"] = "pns-city-anchor",
+              ["sequenceId"] = "seq-wait-matched",
+              ["sequenceLabel"] = "Wait Matched Sequence",
+              ["stepId"] = "wait-step",
+              ["stepLabel"] = "Wait for list"
+            },
+            "normal")
+        }).ConfigureAwait(false);
+
+      var listResp = await client.GetAsync(new Uri("/api/execution-logs?objectType=sequence&objectId=seq-wait-matched&pageSize=1", UriKind.Relative)).ConfigureAwait(false);
+      listResp.EnsureSuccessStatusCode();
+      using var listDoc = JsonDocument.Parse(await listResp.Content.ReadAsStringAsync().ConfigureAwait(false));
+      var id = listDoc.RootElement.GetProperty("items")[0].GetProperty("id").GetString();
+
+      var detailResp = await client.GetAsync(new Uri($"/api/execution-logs/{id}", UriKind.Relative)).ConfigureAwait(false);
+      detailResp.EnsureSuccessStatusCode();
+      using var detailDoc = JsonDocument.Parse(await detailResp.Content.ReadAsStringAsync().ConfigureAwait(false));
+      var detailAttributes = detailDoc.RootElement.GetProperty("stepOutcomes")[0].GetProperty("detailAttributes");
+
+      detailAttributes.GetProperty("referenceImageId").GetString().Should().Be("pns-showdown-tile");
+      detailAttributes.GetProperty("matchedImageId").GetString().Should().Be("pns-city-anchor");
+    }
+    finally {
+      Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", previousAuthToken);
+    }
+  }
+
+  [Fact]
   public async Task SequenceExecutionDetailIncludesStepLabelAndCommandNameForCommandBackedSteps() {
     var previousAuthToken = Environment.GetEnvironmentVariable("GAMEBOT_AUTH_TOKEN");
     Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");

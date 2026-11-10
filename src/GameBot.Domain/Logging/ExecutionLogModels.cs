@@ -34,7 +34,8 @@ public sealed record WaitForImageDetailAttributes(
   string? ReferenceImageId,
   double? Confidence,
   string? ExitCondition,
-  string? ImageLoadStatus);
+  string? ImageLoadStatus,
+  string? MatchedImageId = null);
 
 public sealed record ExecutionStepOutcome(
   int StepOrder,

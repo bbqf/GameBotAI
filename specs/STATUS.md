@@ -207,12 +207,13 @@ Status vocabulary:
 | 177 | Fix Installed WaitForImage | Implemented |
 | 178 | Force Reinstall Gamepack | Implemented |
 | 179 | List-Valued Sequence Parameters | Implemented |
-| 180 | Any-of Image List Condition and WaitForImage | Implemented (iterated by 181) |
-| 181 | Report Which Image of a List Matched | Implemented |
+| 180 | Any-of Image List Condition and WaitForImage | Implemented (iterated by 181, 186) |
+| 181 | Report Which Image of a List Matched | Implemented (iterated by 186) |
 | 182 | Revalidate an Image After an Overwrite | Implemented |
 | 183 | Show the Queue Name in Notify Messages | Implemented |
 | 184 | Run Next for Unscheduled Tasks | Implemented (iterated by 185) |
 | 185 | Sleeker Queue Entries and Parameters on the Phone | Implemented |
+| 186 | Resolve Parameter Placeholders in Inline WaitForImage | Implemented |
 
 ## Numbering notes
 

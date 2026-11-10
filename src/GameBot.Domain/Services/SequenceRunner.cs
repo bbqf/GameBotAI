@@ -625,12 +625,32 @@ namespace GameBot.Domain.Services {
         return true; // early stop
       }
 
+      // Feature 186: a placeholder in the image field of an inline WaitForImage step resolves against the
+      // scope of the step. It resolves before the dry-run check, so a dry run finds an unknown name too.
+      var waitConfig = step.WaitForImage;
+      if (waitConfig is not null
+          && !CommandStepResolver.TryResolveWaitForImage(waitConfig, scope, out waitConfig, out var waitError)) {
+        var waitMessage = waitError!.ToMessage(stepKey);
+        result.AddStep(
+            stepKey,
+            appliedDelay,
+            "Failed",
+            conditionType: step.Condition is null ? null : step.Condition.Type,
+            conditionResult: step.Condition is null ? null : "true",
+            actionOutcome: "failed",
+            message: waitMessage,
+            stepId: step.StepId);
+        result.Fail(waitMessage);
+        if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "failed";
+        return true;
+      }
+
       if (TryRecordDryRunSkip(step, stepKey, appliedDelay, dryRun, result, stepOutcomes)) {
         return false;
       }
 
       if (IsWaitForImageStep(step)) {
-        await RecordWaitForImageStepAsync(step, stepKey, appliedDelay, conditionEvaluator, sequenceId, result, stepOutcomes, ct).ConfigureAwait(false);
+        await RecordWaitForImageStepAsync(step, waitConfig, stepKey, appliedDelay, conditionEvaluator, sequenceId, result, stepOutcomes, ct).ConfigureAwait(false);
         return false;
       }
 
@@ -742,6 +762,7 @@ namespace GameBot.Domain.Services {
 
     private async Task RecordWaitForImageStepAsync(
         SequenceStep step,
+        WaitForImageConfig? waitConfig,
         string stepKey,
         int appliedDelay,
         Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
@@ -749,7 +770,7 @@ namespace GameBot.Domain.Services {
         SequenceExecutionResult result,
         Dictionary<string, string> stepOutcomes,
         CancellationToken ct) {
-      var waitOutcome = await WaitForImageAsync(step.WaitForImage, conditionEvaluator, sequenceId, stepKey, ct).ConfigureAwait(false);
+      var waitOutcome = await WaitForImageAsync(waitConfig,conditionEvaluator, sequenceId, stepKey, ct).ConfigureAwait(false);
       // Feature 181: the wait result holds the matched image of this step, not the guard.
       result.SetPendingMatch(stepKey, null);
       result.AddStep(
