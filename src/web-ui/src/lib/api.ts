@@ -1,6 +1,6 @@
 import { getBaseUrl } from './config';
 import { token$ } from './token';
-import { noteResponseStatus } from './unauthorized';
+import { noteForbiddenResponse, noteResponseStatus } from './unauthorized';
 
 export type ApiValidationError = {
   field?: string;
@@ -41,6 +41,7 @@ const buildHeaders = () => buildAuthHeaders(true);
 const tracked = async (input: string, init: RequestInit): Promise<Response> => {
   const res = await fetch(input, init);
   noteResponseStatus(res?.status);
+  void noteForbiddenResponse(res);
   return res;
 };
 

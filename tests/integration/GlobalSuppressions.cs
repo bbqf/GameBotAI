@@ -5,3 +5,8 @@ using System.Diagnostics.CodeAnalysis;
 [assembly: SuppressMessage("Performance", "CA1852:Seal internal types", Justification = "Test classes need not be sealed; suppress to reduce noise.", Scope = "module")]
 [assembly: SuppressMessage("xUnit", "xUnit1030:Test methods should not call ConfigureAwait(false)", Justification = "ConfigureAwait(false) usage is acceptable in our tests; parallelism is managed elsewhere.", Scope = "module")]
 [assembly: SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "Public required for xUnit collection definition.", Scope = "type", Target = "~T:GameBot.IntegrationTests.ConfigIsolationDefinition")]
+[assembly: SuppressMessage("Performance", "CA1861:Avoid constant arrays as arguments", Justification = "Test code builds small argument arrays inline for readability.", Scope = "module")]
+[assembly: SuppressMessage("Design", "CA1062:Validate arguments of public methods", Justification = "xUnit supplies theory arguments; they are never null.", Scope = "module")]
+[assembly: SuppressMessage("Design", "CA1063:Implement IDisposable correctly", Justification = "Test base classes use the simple Dispose pattern and have no finalizer.", Scope = "module")]
+[assembly: SuppressMessage("Performance", "CA1849:Call async methods when in an async method", Justification = "Test code reads small temporary files synchronously.", Scope = "module")]
+[assembly: SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "Test helpers return disposable requests that the caller disposes.", Scope = "module")]

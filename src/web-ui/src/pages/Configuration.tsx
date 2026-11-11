@@ -7,6 +7,8 @@ import { getConfigSnapshot, updateParameters, reorderParameters } from '../servi
 import type { ConfigurationParameter } from '../services/config';
 import { ApiError } from '../lib/api';
 import { useLayoutMode } from '../hooks/useLayoutMode';
+import { useAuthStatus } from '../lib/authStatus';
+import { SignInDevicesSection } from '../components/auth/SignInDevicesSection';
 
 export const CONFIGURATION_AREA_PATH = '/configuration';
 
@@ -19,6 +21,8 @@ type ConfigurationPageProps = {
 
 export const ConfigurationPage: React.FC<ConfigurationPageProps> = ({ token, onTokenChange, onRememberChange, onBaseUrlChange }) => {
   const phone = useLayoutMode() === 'phone';
+  // The section of the sign-in devices shows only when the sign-in function is on (feature 187).
+  const signInEnabled = useAuthStatus().status?.signInEnabled === true;
   const [params, setParams] = useState<ConfigurationParameter[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -94,6 +98,12 @@ export const ConfigurationPage: React.FC<ConfigurationPageProps> = ({ token, onT
           onBaseUrlChange={onBaseUrlChange}
         />
       </CollapsibleSection>
+
+      {signInEnabled && (
+        <CollapsibleSection title="Sign-in devices" defaultOpen={phone}>
+          <SignInDevicesSection />
+        </CollapsibleSection>
+      )}
 
       <CollapsibleSection title="Main Configuration" defaultOpen>
         {loading && <p>Loading configuration…</p>}

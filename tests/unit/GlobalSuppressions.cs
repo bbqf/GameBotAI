@@ -7,3 +7,6 @@ using System.Diagnostics.CodeAnalysis;
 [assembly: SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Underscore-separated test method names are the accepted xUnit naming convention.", Scope = "module")]
 [assembly: SuppressMessage("Performance", "CA1859:Use concrete types when possible for improved performance", Justification = "Test helpers intentionally use interface return types for readability.", Scope = "module")]
 [assembly: SuppressMessage("Reliability", "CA2025:Ensure tasks using IDisposable instances complete before the instances are disposed", Justification = "ThrowAsync awaits the lambda before the using scope exits; disposal is safe.", Scope = "module")]
+[assembly: SuppressMessage("Performance", "CA1861:Avoid constant arrays as arguments", Justification = "Test code builds small argument arrays inline for readability.", Scope = "module")]
+[assembly: SuppressMessage("Design", "CA1062:Validate arguments of public methods", Justification = "xUnit supplies theory arguments; they are never null.", Scope = "module")]
+[assembly: SuppressMessage("Design", "CA1063:Implement IDisposable correctly", Justification = "Test base classes use the simple Dispose pattern and have no finalizer.", Scope = "module")]

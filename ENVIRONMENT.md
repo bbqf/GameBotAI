@@ -90,10 +90,28 @@ Examples:
   - Example (PowerShell): `$env:GAMEBOT_ENABLE_PROFILE_ENDPOINTS = "false"`
 
 - GAMEBOT_AUTH_TOKEN
-  - Purpose: Enables token-based auth for all non-health endpoints when set.
-  - Used in: `Program.cs`
+  - Purpose: Enables token-based auth for all non-health endpoints when set. With the sign-in function on (`GAMEBOT_AUTH_ENABLED=true`), the token works only for requests from the service machine and from the home network. It never works for a request from the internet (feature 187).
+  - Used in: `AccessGateMiddleware`, `AuthOptions`
   - Default: unset (no auth)
   - Example: `$env:GAMEBOT_AUTH_TOKEN = "dev-token-123"`
+
+- GAMEBOT_AUTH_ENABLED
+  - Purpose: Turns on the single-owner passkey sign-in (feature 187). While it is off, the service refuses each request from the internet. See `docs/internet-access.md`.
+  - Configuration key: `Service:Auth:Enabled`
+  - Values: `true` | `false`
+  - Default: `false`
+  - Read-only in the web UI (shown on the Configuration page with its source).
+
+- GAMEBOT_AUTH_PUBLIC_ORIGIN
+  - Purpose: The public `https` address of the service, for example `https://bot.example.com`. The passkeys are bound to its host. Necessary when the sign-in function is on. If it is absent or not `https`, the sign-in calls refuse all requests and token access still works.
+  - Configuration key: `Service:Auth:PublicOrigin`
+  - Default: unset
+
+- GAMEBOT_AUTH_TRUSTED_PROXIES
+  - Purpose: A comma list of IP addresses and CIDR ranges of reverse proxies. Each request from these addresses is an internet request. Mandatory for a proxy on a different host. Use `127.0.0.1,::1` for a gateway on the service machine.
+  - Configuration key: `Service:Auth:TrustedProxies`
+  - Example: `$env:GAMEBOT_AUTH_TRUSTED_PROXIES = "192.168.1.5,172.18.0.0/16"`
+  - Default: empty
 
 - Logging (ASP.NET Core built-in)
   - Purpose: Control log levels via configuration.
