@@ -108,7 +108,9 @@ internal static class GameBotServiceSetup {
   internal static void LogAuthStartup(WebApplication app) {
     var options = app.Services.GetRequiredService<AuthOptions>();
     var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(SignInRecorder.LogCategory);
-    AuthStartupLog.Started(logger, options.Enabled, options.PublicOrigin?.AbsoluteUri ?? "none", string.Join(", ", options.TrustedProxyEntries));
+    var originText = options.PublicOrigin?.AbsoluteUri ?? "none";
+    var proxyText = string.Join(", ", options.TrustedProxyEntries);
+    AuthStartupLog.Started(logger, options.Enabled, originText, proxyText);
     foreach (var problem in options.Problems) {
       AuthStartupLog.Problem(logger, problem);
     }
