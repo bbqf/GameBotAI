@@ -8,6 +8,16 @@ using GameBot.Service.Swagger;
 using GameBot.Service;
 using Microsoft.Extensions.FileProviders;
 
+// Local command mode (feature 187): `GameBot.Service.exe auth <command>` does not start the web server.
+if (AuthCommand.IsCommand(args)) {
+  var commandConfig = new ConfigurationBuilder()
+    .SetBasePath(AppContext.BaseDirectory)
+    .AddJsonFile("appsettings.json", optional: true)
+    .AddEnvironmentVariables()
+    .Build();
+  return AuthCommand.Run(args, Console.Out, Console.Error, commandConfig);
+}
+
 var builder = WebApplication.CreateBuilder(args);
 
 // All service registrations, logging setup, and URL binding live in
@@ -15,11 +25,8 @@ var builder = WebApplication.CreateBuilder(args);
 // method bodies make Roslyn dataflow analyzers pathologically slow).
 var storageRoot = GameBotServiceSetup.ConfigureServices(builder);
 
-// Configuration binding for auth token (env: GAMEBOT_AUTH_TOKEN)
-var authToken = builder.Configuration["Service:Auth:Token"]
-                 ?? Environment.GetEnvironmentVariable("GAMEBOT_AUTH_TOKEN");
-
 var app = builder.Build();
+GameBotServiceSetup.LogAuthStartup(app);
 var installedWebUiRoot = Path.Combine(AppContext.BaseDirectory, "web-ui");
 var hasInstalledWebUi = Directory.Exists(installedWebUiRoot) && File.Exists(Path.Combine(installedWebUiRoot, "index.html"));
 
@@ -40,9 +47,6 @@ var hasInstalledWebUi = Directory.Exists(installedWebUiRoot) && File.Exists(Path
   }
   logger.LogDetectionRuntimeInfo(is64, arch, firstLine);
 }
-
-// Enable Swagger in all environments for contract tests & debugging (locked down by token auth for non-health if configured)
-app.UseSwaggerDocs();
 
 // Global error handling
 app.UseMiddleware<ErrorHandlingMiddleware>();
@@ -65,22 +69,12 @@ if (hasInstalledWebUi) {
   });
 }
 
-// Token auth for all non-health requests (Bearer <token>) if token configured
-if (!string.IsNullOrWhiteSpace(authToken)) {
-  app.Use(async (context, next) => {
-    // Allow anonymous for health and swagger
-    var path = context.Request.Path.Value ?? string.Empty;
-    // Allow CORS preflight requests and public endpoints without auth
-    if (HttpMethods.IsOptions(context.Request.Method) ||
-        path.StartsWith("/health", StringComparison.OrdinalIgnoreCase) ||
-        path.StartsWith("/swagger", StringComparison.OrdinalIgnoreCase)) {
-      await next(context).ConfigureAwait(false);
-      return;
-    }
+// Access gate (feature 187): the sign-in function, the access token, and the refusal of the internet.
+// Static files are before the gate because the sign-in page needs them. Swagger is behind the gate.
+app.UseMiddleware<AccessGateMiddleware>();
 
-    await TokenAuthMiddleware.Invoke(context, next, authToken!).ConfigureAwait(false);
-  });
-}
+// Enable Swagger in all environments for contract tests & debugging (behind the access gate)
+app.UseSwaggerDocs();
 
 // Health endpoint (anonymous)
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }))
@@ -92,6 +86,9 @@ if (!hasInstalledWebUi) {
     .WithName("Root")
     .ExcludeFromDescription();
 }
+
+// Sign-in endpoints (feature 187)
+app.MapAuthEndpoints();
 
 // Sessions endpoints (protected if token set)
 app.MapSessionEndpoints();

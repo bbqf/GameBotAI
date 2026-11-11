@@ -26,6 +26,11 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
 
   private static readonly string[] s_obsoleteNetworkKeys = { "GAMEBOT_BIND_HOST", "GAMEBOT_PORT", "Service__Network__BindHost", "Service__Network__Port" };
 
+  /// <summary>The rows of the sign-in settings (feature 187). They are read-only and come from the service configuration and the environment.</summary>
+  internal static readonly string[] AuthKeys = { "GAMEBOT_AUTH_ENABLED", "GAMEBOT_AUTH_PUBLIC_ORIGIN", "GAMEBOT_AUTH_TRUSTED_PROXIES" };
+
+  internal const string AuthUpdateRejectedMessage = "The sign-in settings come only from the service configuration and the environment.";
+
   internal const string NetworkUpdateRejectedMessage = "The host and port come from the installer. Change them with the installer or in network.json.";
 
   public ConfigurationSnapshot? Current { get; private set; }
@@ -100,6 +105,9 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
           masked = listen.Port.ToString(System.Globalization.CultureInfo.InvariantCulture);
           source = listen.PortSource;
         }
+        else if (AuthKeys.Contains(name, StringComparer.OrdinalIgnoreCase)) {
+          (masked, source) = DescribeAuthSetting(name);
+        }
 
         parameters[name] = new ConfigurationParameter {
           Name = name,
@@ -135,6 +143,10 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
     foreach (var key in updates.Keys) {
       if (NetworkKeys.Contains(key, StringComparer.OrdinalIgnoreCase)) {
         throw new InvalidOperationException(NetworkUpdateRejectedMessage);
+      }
+
+      if (AuthKeys.Contains(key, StringComparer.OrdinalIgnoreCase)) {
+        throw new InvalidOperationException(AuthUpdateRejectedMessage);
       }
     }
 
@@ -280,6 +292,9 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
       ["GAMEBOT_DATA_DIR"] = _storageRoot,
       ["GAMEBOT_DYNAMIC_PORT"] = "false",
       ["GAMEBOT_AUTH_TOKEN"] = null, // secret; will be masked if set
+      ["GAMEBOT_AUTH_ENABLED"] = "false", // feature 187: read-only
+      ["GAMEBOT_AUTH_PUBLIC_ORIGIN"] = null,
+      ["GAMEBOT_AUTH_TRUSTED_PROXIES"] = null,
       ["GAMEBOT_USE_ADB"] = "true", // default enabled unless explicitly "false"
       ["GAMEBOT_TEST_SCREEN_IMAGE_B64"] = null,
       ["GAMEBOT_DEBUG_DUMP_IMAGES"] = "false",
@@ -343,6 +358,26 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
     Apply(saved);
     Apply(env);
     return result;
+  }
+
+  // The effective value and the source of a sign-in setting (feature 187). The environment wins over the service configuration.
+  private (object? Value, string Source) DescribeAuthSetting(string name) {
+    var configKey = name switch {
+      "GAMEBOT_AUTH_ENABLED" => "Service:Auth:Enabled",
+      "GAMEBOT_AUTH_PUBLIC_ORIGIN" => "Service:Auth:PublicOrigin",
+      _ => "Service:Auth:TrustedProxies"
+    };
+    var configured = _configuration?[configKey];
+    if (!string.IsNullOrWhiteSpace(configured)) {
+      return (configured, "File");
+    }
+
+    var env = _getEnvironmentVariable(name);
+    if (!string.IsNullOrWhiteSpace(env)) {
+      return (env, "Environment");
+    }
+
+    return (name == "GAMEBOT_AUTH_ENABLED" ? "false" : null, "Default");
   }
 
   private static string DetermineSource(string name, Dictionary<string, object?> env, Dictionary<string, object?> saved) {

@@ -153,6 +153,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     ApplyBackupRestoreExamples(operation, path, method, context);
     ApplyCaptureStalenessDocs(operation, path, method, context);
     ApplySessionInputErrorDocs(operation, path, method, context);
+    ApplyAuthExamples(operation, path, method, context);
   }
 
   // ── Feature 106 (FR-020): capture staleness headers and device errors ───────────────────────
@@ -191,6 +192,65 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
       + "The service stopped the adb process.";
   }
 
+  // ── Feature 187: sign-in API examples ───────────────────────────────────────────────────────
+
+  private static void ApplyAuthExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
+    if (!path.StartsWith(ApiRoutes.Auth, StringComparison.OrdinalIgnoreCase)) return;
+
+    var credential = new OpenApiObject {
+      ["id"] = new OpenApiString("AQID"),
+      ["rawId"] = new OpenApiString("AQID"),
+      ["type"] = new OpenApiString("public-key"),
+      ["response"] = new OpenApiObject()
+    };
+    var ceremonyId = new OpenApiString("c2VydmljZS1jZXJlbW9ueQ");
+    var options = new OpenApiObject {
+      ["ceremonyId"] = ceremonyId,
+      ["publicKey"] = new OpenApiObject { ["challenge"] = new OpenApiString("Y2hhbGxlbmdl") }
+    };
+    var passkey = new OpenApiObject {
+      ["id"] = new OpenApiString("3fa9c1d2"),
+      ["name"] = new OpenApiString("My phone"),
+      ["createdUtc"] = new OpenApiString("2026-11-10T18:00:00Z"),
+      ["lastUsedUtc"] = new OpenApiString("2026-11-11T07:30:00Z"),
+      ["current"] = new OpenApiBoolean(true)
+    };
+
+    if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.AuthStatus)) {
+      SetResponseExample(operation, "200", new OpenApiObject {
+        ["signInEnabled"] = new OpenApiBoolean(true),
+        ["signedIn"] = new OpenApiBoolean(false),
+        ["passkeysSupportedHere"] = new OpenApiBoolean(true),
+        ["source"] = new OpenApiString("internet"),
+        ["publicOrigin"] = new OpenApiNull(),
+        ["tokenAccessHere"] = new OpenApiBoolean(false)
+      }, context, typeof(GameBot.Service.Models.AuthStatusResponse));
+    }
+    else if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.AuthSignInOptions)) {
+      SetResponseExample(operation, "200", options, context, typeof(GameBot.Service.Models.AuthCeremonyResponse));
+    }
+    else if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.AuthSignInComplete)) {
+      SetRequestExample(operation, new OpenApiObject { ["ceremonyId"] = ceremonyId, ["credential"] = credential }, context, typeof(GameBot.Service.Models.SignInCompleteRequest));
+    }
+    else if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.AuthRegisterOptions)) {
+      SetRequestExample(operation, new OpenApiObject { ["code"] = new OpenApiString("ABCD-EFGH") }, context, typeof(GameBot.Service.Models.RegisterOptionsRequest));
+      SetResponseExample(operation, "200", options, context, typeof(GameBot.Service.Models.AuthCeremonyResponse));
+    }
+    else if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.AuthRegisterComplete)) {
+      SetRequestExample(operation, new OpenApiObject {
+        ["ceremonyId"] = ceremonyId,
+        ["name"] = new OpenApiString("My phone"),
+        ["credential"] = credential
+      }, context, typeof(GameBot.Service.Models.RegisterCompleteRequest));
+    }
+    else if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.AuthPasskeys)) {
+      SetResponseExample(operation, "200", new OpenApiObject { ["passkeys"] = new OpenApiArray { passkey } }, context, typeof(GameBot.Service.Models.PasskeyListResponse));
+    }
+    else if (IsMethod(method, HttpMethods.Patch) && IsPath(path, ApiRoutes.AuthPasskeys + "/{id}")) {
+      SetRequestExample(operation, new OpenApiObject { ["name"] = new OpenApiString("Work laptop") }, context, typeof(GameBot.Service.Models.RenamePasskeyRequest));
+      SetResponseExample(operation, "200", passkey, context, typeof(GameBot.Service.Models.PasskeyItem));
+    }
+  }
   private static OpenApiHeader CaptureHeader(string description, string type) => new() {
     Description = description,
     Schema = new OpenApiSchema { Type = type }

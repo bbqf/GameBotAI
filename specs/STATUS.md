@@ -214,6 +214,7 @@ Status vocabulary:
 | 184 | Run Next for Unscheduled Tasks | Implemented (iterated by 185) |
 | 185 | Sleeker Queue Entries and Parameters on the Phone | Implemented |
 | 186 | Resolve Parameter Placeholders in Inline WaitForImage | Implemented |
+| 187 | Single-Owner Sign-In for Internet Access | Implemented |
 
 ## Numbering notes
 

@@ -2,7 +2,7 @@
 
 **Feature Branch**: `187-single-user-auth`  
 **Created**: 2026-11-10  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: User description: "I want to expose the web service over the internet, so I need a proper authentication. I explicitly don't need authorization. It needs to be secure, but as I don't need to let more users, keep it simple. Most likely I will be the only user. Authentication has to be secure and simple, I was thinking via Google or something similar, as I don't want to mess with passwords. Make me couple of suggestions. Main thing is I want simplicity from my phone and making sure nobody else can log in or register new account from the internet"
 
 ## Clarifications

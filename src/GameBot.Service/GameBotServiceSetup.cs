@@ -1,4 +1,4 @@
-using GameBot.Emulator.Session;
+﻿using GameBot.Emulator.Session;
 using GameBot.Service.Middleware;
 using GameBot.Domain.Games;
 using GameBot.Domain.Triggers;
@@ -18,6 +18,7 @@ using GameBot.Domain.Versioning;
 using GameBot.Service.Services.Conditions;
 using GameBot.Service.Services.Updates;
 using GameBot.Service.Endpoints;
+using GameBot.Service.Security;
 
 namespace GameBot.Service;
 
@@ -25,6 +26,19 @@ namespace GameBot.Service;
 // from Program.cs so the implicit top-level Main stays small (huge top-level
 // method bodies make Roslyn dataflow analyzers pathologically slow). The same
 // applies to registration factory lambdas, so the bigger ones are named methods.
+internal static partial class AuthStartupLog {
+  [LoggerMessage(EventId = 18710, Level = LogLevel.Information,
+    Message = "Sign-in function enabled={Enabled}, public origin={PublicOrigin}, trusted proxies=[{TrustedProxies}].")]
+  public static partial void Started(ILogger logger, bool enabled, string publicOrigin, string trustedProxies);
+
+  [LoggerMessage(EventId = 18711, Level = LogLevel.Error, Message = "Sign-in setting problem: {Problem}")]
+  public static partial void Problem(ILogger logger, string problem);
+
+  [LoggerMessage(EventId = 18712, Level = LogLevel.Warning,
+    Message = "The sign-in function is on and no trusted proxy is set. A reverse proxy on a different host needs GAMEBOT_AUTH_TRUSTED_PROXIES.")]
+  public static partial void NoTrustedProxies(ILogger logger);
+}
+
 internal static class GameBotServiceSetup {
   // Registers all GameBot services and configures logging and Kestrel URLs.
   // Returns the resolved data storage root, which endpoint mapping needs later.
@@ -44,12 +58,11 @@ internal static class GameBotServiceSetup {
     var loggingGate = new LoggingPolicyGate();
 
     // Data storage configuration (env: GAMEBOT_DATA_DIR or config Service:Storage:Root)
-    var storageRoot = builder.Configuration["Service:Storage:Root"]
-                      ?? Environment.GetEnvironmentVariable("GAMEBOT_DATA_DIR")
-                      ?? Path.Combine(AppContext.BaseDirectory, "data");
+    var storageRoot = ResolveStorageRoot(builder.Configuration);
     Directory.CreateDirectory(storageRoot);
 
     ConfigureLogging(builder, loggingGate);
+    RegisterAuthServices(builder, storageRoot);
     RegisterWebPipelineServices(builder);
     RegisterSessionServices(builder);
     RegisterRepositories(builder, storageRoot);
@@ -65,6 +78,44 @@ internal static class GameBotServiceSetup {
     ConfigureWebHostUrls(builder, storageRoot);
 
     return storageRoot;
+  }
+
+  // The one storage root rule. The service and the local auth command (feature 187) both use it.
+  internal static string ResolveStorageRoot(IConfiguration configuration) =>
+    configuration["Service:Storage:Root"]
+    ?? Environment.GetEnvironmentVariable("GAMEBOT_DATA_DIR")
+    ?? Path.Combine(AppContext.BaseDirectory, "data");
+
+  // Sign-in function (feature 187): settings, stores, and checks. The files are in <storage root>/auth.
+  private static void RegisterAuthServices(WebApplicationBuilder builder, string storageRoot) {
+    var authDir = Path.Combine(storageRoot, "auth");
+    var services = builder.Services;
+    services.AddSingleton(sp => AuthOptions.Load(sp.GetRequiredService<IConfiguration>()));
+    services.AddSingleton<RequestOriginClassifier>();
+    services.AddSingleton(sp => new SignInRecorder(
+      authDir, sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<ILoggerFactory>().CreateLogger(SignInRecorder.LogCategory)));
+    services.AddSingleton<ClientAddressResolver>();
+    services.AddSingleton(sp => new FailedAttemptLimiter(sp.GetRequiredService<TimeProvider>()));
+    services.AddSingleton(sp => new PasskeyStore(authDir, sp.GetRequiredService<TimeProvider>()));
+    services.AddSingleton(sp => new SessionStore(authDir, sp.GetRequiredService<PasskeyStore>(), sp.GetRequiredService<TimeProvider>()));
+    services.AddSingleton<ISessionValidator>(sp => sp.GetRequiredService<SessionStore>());
+    services.AddSingleton(sp => new RegistrationCodeStore(authDir, sp.GetRequiredService<TimeProvider>()));
+    services.AddSingleton(sp => new PendingCeremonyCache(sp.GetRequiredService<TimeProvider>()));
+    services.AddSingleton<IPasskeyVerifier>(sp => new Fido2PasskeyVerifier(sp.GetRequiredService<AuthOptions>()));
+  }
+
+  // Writes the sign-in state at startup (feature 187). The log has no token.
+  internal static void LogAuthStartup(WebApplication app) {
+    var options = app.Services.GetRequiredService<AuthOptions>();
+    var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(SignInRecorder.LogCategory);
+    AuthStartupLog.Started(logger, options.Enabled, options.PublicOrigin?.AbsoluteUri ?? "none", string.Join(", ", options.TrustedProxyEntries));
+    foreach (var problem in options.Problems) {
+      AuthStartupLog.Problem(logger, problem);
+    }
+
+    if (options.Enabled && options.TrustedProxyCount == 0) {
+      AuthStartupLog.NoTrustedProxies(logger);
+    }
   }
 
   private static void ConfigureLogging(WebApplicationBuilder builder, LoggingPolicyGate loggingGate) {
@@ -128,6 +179,7 @@ internal static class GameBotServiceSetup {
       options.SchemaFilter<StepThroughSchemaFilter>();
       options.SchemaFilter<OcrReadSchemaFilter>();
       options.SchemaFilter<SessionMonitoringSchemaFilter>();
+      options.SchemaFilter<AuthSchemaFilter>();
     });
     builder.Services.AddControllers().AddJsonOptions(o => {
       o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());

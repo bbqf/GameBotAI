@@ -1,0 +1,74 @@
+/* Sign-in pages and the device list (feature 187). One column, touch targets of 44 px or more. */
+.auth-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 420px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+
+.auth-page h1 {
+  margin: 0;
+}
+
+.auth-page label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.auth-page input[type='text'],
+.auth-page input[type='password'] {
+  min-height: 44px;
+  padding: 0 12px;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.auth-button {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 16px;
+}
+
+.auth-error {
+  color: var(--color-danger, #b00020);
+  margin: 0;
+}
+
+.auth-help {
+  color: var(--color-muted, #555);
+  margin: 0;
+  font-size: 0.9em;
+}
+
+.auth-devices {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.auth-device-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.auth-device {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--color-border, #ccc);
+  border-radius: 6px;
+}
+
+.auth-device-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

@@ -50,7 +50,8 @@
       { "name": "integration-3", "include": [ "GameBot.IntegrationTests.Commands.", "GameBot.IntegrationTests.QueueTemplates.", "GameBot.IntegrationTests.Device", "GameBot.IntegrationTests.ConfigEndpointTests", "GameBot.IntegrationTests.Gamepacks.GamepackForce", "GameBot.IntegrationTests.StepThrough." ] },
       { "name": "integration-pinned", "collectsCoverage": true, "performanceGate": true, "include": [
           "GameBot.IntegrationTests.EmulatorImage", "GameBot.IntegrationTests.EmulatorScreenshot",
-          "GameBot.IntegrationTests.Images.", "GameBot.IntegrationTests.Installer.", "GameBot.IntegrationTests.Notifications.", "GameBot.IntegrationTests.Gamepacks.GamepackCatalog", "GameBot.IntegrationTests.ExecutionLogs.ExecutionLogsPerformanceIntegrationTests" ] },
+          "GameBot.IntegrationTests.Images.", "GameBot.IntegrationTests.Installer.", "GameBot.IntegrationTests.Notifications.", "GameBot.IntegrationTests.Gamepacks.GamepackCatalog", "GameBot.IntegrationTests.ExecutionLogs.ExecutionLogsPerformanceIntegrationTests",
+          "GameBot.IntegrationTests.Security." ] },
       { "name": "integration-rest", "complement": true }
     ]
   }

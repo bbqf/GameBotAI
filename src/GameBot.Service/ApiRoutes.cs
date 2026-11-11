@@ -35,6 +35,15 @@ internal static class ApiRoutes {
   internal const string Steps = Base + "/steps";
   internal const string StepThrough = Base + "/step-through";
   internal const string Update = Base + "/update";
+  internal const string Auth = Base + "/auth";
+  internal const string AuthStatus = Auth + "/status";
+  internal const string AuthSignInOptions = Auth + "/sign-in/options";
+  internal const string AuthSignInComplete = Auth + "/sign-in/complete";
+  internal const string AuthRegisterOptions = Auth + "/register/options";
+  internal const string AuthRegisterComplete = Auth + "/register/complete";
+  internal const string AuthSignOut = Auth + "/sign-out";
+  internal const string AuthSessionsEndAll = Auth + "/sessions/end-all";
+  internal const string AuthPasskeys = Auth + "/passkeys";
   internal const string AuthoringBackup = Base + "/authoring/backup";
   internal const string AuthoringRestoreDryRun = Base + "/authoring/restore/dry-run";
   internal const string AuthoringRestoreApply = Base + "/authoring/restore/apply";

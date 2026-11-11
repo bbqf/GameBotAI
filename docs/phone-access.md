@@ -41,7 +41,7 @@ A desktop-only area shows the notice "Use a larger screen for this area."
 
 > **Warning 2.** The token travels in clear text over plain HTTP. Anyone who can see the network traffic can read it. Use this setup only on a network that you trust.
 
-> **Warning 3.** Do not open the port to the Internet. Outside your home network, use a private VPN link to reach the PC.
+> **Warning 3.** Do not open the port to the Internet. Outside your home network, use a private VPN link to reach the PC. To use GameBot from the internet with a passkey sign-in, follow [Use GameBot from the internet](internet-access.md). The service refuses each request from the internet while its sign-in function is off.
 
 ## Limits of plain HTTP
 
@@ -56,7 +56,3 @@ A private HTTPS link (for example through a VPN or a tunnel that gives a certifi
 ## When the connection is lost
 
 If the phone cannot reach the service, the UI shows "Connection lost". The Start, Stop, and save controls are off. The UI does not send an action again when the connection returns. It only loads the data again.
-
-## Follow-up idea
-
-A later change can refuse to start on a non-local address when no token is set. This guide does not need that change.
