@@ -41,12 +41,19 @@ internal sealed class RequestOriginClassifier {
       return RequestOrigin.LocalMachine;
     }
 
-    // Rule 4: private or loopback address, and the host is not the public host.
+    // Rule 4: the sign-in function is on and no trusted proxy is set. The service cannot tell a request
+    // that a proxy sent with no forward header from a request of a home network device. The client
+    // controls the Host header, so the header must not raise the trust. Only loopback stays inside.
+    if (_options.Enabled && _options.TrustedProxyCount == 0 && !loopback) {
+      return RequestOrigin.Internet;
+    }
+
+    // Rule 5: private or loopback address, and the host is not the public host.
     if ((loopback || IsPrivate(remote!)) && !IsPublicHost(host)) {
       return RequestOrigin.HomeNetwork;
     }
 
-    // Rule 5: a doubt gives Internet.
+    // Rule 6: a doubt gives Internet.
     return RequestOrigin.Internet;
   }
 

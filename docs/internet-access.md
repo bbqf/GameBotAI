@@ -12,6 +12,7 @@ The sign-in function is off by default. While it is off, the service refuses eac
 - The service listens on plain HTTP in your home network. The proxy connects to it.
 - The service treats each request from the proxy as an internet request. For such a request, the service needs a session. A session starts with a passkey sign-in.
 - The access token (`GAMEBOT_AUTH_TOKEN`) never works for an internet request. It works only on the service computer and in your home network.
+- You must tell the service the address of the proxy (`GAMEBOT_AUTH_TRUSTED_PROXIES`). With the sign-in function on and no trusted proxy, the service trusts only the service computer. It treats each other request as an internet request.
 - You register each new device with a one-time code. Only a command on the service computer makes this code. No web page makes a code.
 
 ## Prerequisites
@@ -29,8 +30,8 @@ Set these environment variables on the service computer. Then restart the servic
 |----------|-------|-------|
 | `GAMEBOT_AUTH_ENABLED` | `true` | Turns the sign-in function on. The default is `false`. |
 | `GAMEBOT_AUTH_PUBLIC_ORIGIN` | `https://bot.example.com` | The public address. It must use `https`. The passkeys are bound to the host of this address. |
-| `GAMEBOT_AUTH_TRUSTED_PROXIES` | `192.168.1.5` | The address of your proxy. You can give more than one address and CIDR ranges, for example `192.168.1.5,172.18.0.0/16`. **This setting is mandatory for a proxy on a different host.** |
-| `GAMEBOT_AUTH_TOKEN` | a long random value | Optional. Use it to open the web UI at the direct address in your home network. |
+| `GAMEBOT_AUTH_TRUSTED_PROXIES` | `192.168.1.5` | The address of your proxy. You can give more than one address and CIDR ranges, for example `192.168.1.5,172.18.0.0/16`. **This setting is mandatory when the sign-in function is on.** For a gateway on the service computer, use `127.0.0.1,::1`. |
+| `GAMEBOT_AUTH_TOKEN` | a long random value | Optional. Use it to open the web UI at the direct address in your home network. In the home network, the token works only when `GAMEBOT_AUTH_TRUSTED_PROXIES` is set. |
 
 The same settings exist as `Service:Auth:Enabled`, `Service:Auth:PublicOrigin`, `Service:Auth:TrustedProxies`, and `Service:Auth:Token` in the service configuration. The web UI and the API cannot change these settings. The Configuration page shows them with their source.
 
@@ -64,14 +65,24 @@ Notes:
 - Do not set these settings on the Configuration page. The page refuses the change. The service takes the sign-in settings only from the file and the environment.
 - If a setting has no effect, read the startup log entry (category `GameBot.Service.Security`). It lists the settings that the service ignored.
 
-The service makes a startup log entry (category `GameBot.Service.Security`) with the sign-in state, the public origin, and the trusted proxies. It writes a warning when the sign-in function is on and no trusted proxy is set.
+The service makes a startup log entry (category `GameBot.Service.Security`) with the sign-in state, the public origin, and the trusted proxies. It writes a critical entry when the sign-in function is on and no trusted proxy is set.
+
+### Sign-in function on and no trusted proxy
+
+If the sign-in function is on and `GAMEBOT_AUTH_TRUSTED_PROXIES` is empty, the service cannot tell a request of the proxy from a request of a home network device. Thus the service uses the safe result:
+
+- Only a request from the service computer (loopback address) is a local request. The access token works there.
+- Each other request is an internet request. It needs a session from a passkey sign-in. The access token does not work, also in your home network.
+- The web UI at the direct address in your home network shows no token prompt.
+
+To get the access with the token in your home network back, set `GAMEBOT_AUTH_TRUSTED_PROXIES` and restart the service. With the sign-in function off, this rule does not apply, and the home network works as before.
 
 ## Primary layout: a proxy on a different host
 
 The proxy runs on a different computer of your home network. The service computer is not open to the internet.
 
 1. Set the listen address of the service to an address of your home network (`GAMEBOT_BIND_HOST`, see `docs/phone-access.md`).
-2. Set `GAMEBOT_AUTH_TRUSTED_PROXIES` to the address of the proxy.
+2. Set `GAMEBOT_AUTH_TRUSTED_PROXIES` to the address of the proxy. This step is mandatory.
 3. Add a firewall rule on the service computer. It must permit the service port only from the proxy computer.
 4. The hop from the proxy to the service uses plain HTTP in your home network. A person who can read your home network traffic can read the session cookie on this hop. Use this setup only on a network that you trust.
 
@@ -121,7 +132,7 @@ The default `proxy_pass` of nginx sends no forward header and changes the `Host`
 
 ## Use at the direct address in the home network
 
-With the sign-in function on, a request at the direct address (for example `http://192.168.1.20:5081`) has no passkey support, because passkeys work only at the public address. At the direct address:
+With the sign-in function on, a request at the direct address (for example `http://192.168.1.20:5081`) has no passkey support, because passkeys work only at the public address. This section applies when `GAMEBOT_AUTH_TRUSTED_PROXIES` is set. If it is not set, see "Sign-in function on and no trusted proxy". At the direct address:
 
 - The web UI shows the public address as a link.
 - If you set `GAMEBOT_AUTH_TOKEN`, the web UI also shows a token prompt. After you enter the token, you can use the web UI.
@@ -232,4 +243,10 @@ The service cannot always tell where a request comes from. Two setups hide the s
 - A proxy on a different host that sends no forward header, when `GAMEBOT_AUTH_TRUSTED_PROXIES` is not set.
 - A gateway on the service computer that sends no forward header and changes `Host` to a loopback name.
 
-The setting `GAMEBOT_AUTH_TRUSTED_PROXIES` closes these two cases. If you forget it, the service takes the request for a home network request. With the sign-in function on, such a request passes only with the correct access token, and wrong tokens count for the limit on failed attempts. With the sign-in function off, such a request passes. The check from a mobile network shows this problem. The firewall rule for the service port also protects you.
+The setting `GAMEBOT_AUTH_TRUSTED_PROXIES` closes these two cases.
+
+- With the sign-in function on and no trusted proxy, the service treats each request that does not come from the loopback address as an internet request. Thus the first case needs a session, and the access token does not help.
+- For the second case, you must set `127.0.0.1,::1`. If you forget it, the service takes the request for a request from the service computer. Such a request passes only with the correct access token, and wrong tokens count for the limit on failed attempts.
+- With the sign-in function off, the service takes a request of these two setups for a home network request, and such a request passes. The check from a mobile network shows this problem.
+
+The firewall rule for the service port also protects you.

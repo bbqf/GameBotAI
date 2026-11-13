@@ -34,8 +34,8 @@ internal static partial class AuthStartupLog {
   [LoggerMessage(EventId = 18711, Level = LogLevel.Error, Message = "Sign-in setting problem: {Problem}")]
   public static partial void Problem(ILogger logger, string problem);
 
-  [LoggerMessage(EventId = 18712, Level = LogLevel.Warning,
-    Message = "The sign-in function is on and no trusted proxy is set. A reverse proxy on a different host needs GAMEBOT_AUTH_TRUSTED_PROXIES.")]
+  [LoggerMessage(EventId = 18712, Level = LogLevel.Critical,
+    Message = "The sign-in function is on and no trusted proxy is set. The service treats each request that does not come from the service machine as an internet request. The access token works only on the service machine. Set GAMEBOT_AUTH_TRUSTED_PROXIES to the address of the reverse proxy.")]
   public static partial void NoTrustedProxies(ILogger logger);
 }
 
