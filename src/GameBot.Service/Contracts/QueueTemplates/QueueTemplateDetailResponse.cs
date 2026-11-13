@@ -39,7 +39,7 @@ namespace GameBot.Service.Contracts.QueueTemplates {
     /// Schedule type of this entry: "OncePerRun", "EveryStep", "Timer", "AtQueueStart", or "BeforeEachRun".
     /// ("EveryStep" is displayed to operators as "After Every Step"; the returned value is unchanged.
     /// "BeforeEachRun" is displayed as "Before Each Run" and runs immediately before each timed,
-    /// live-scheduled or self-rescheduled firing, at most once per scheduler wake-up.)
+    /// live-scheduled, or self-rescheduled firing, also when several firings are due in one wake-up.)
     /// </summary>
     public string ScheduleType { get; set; } = "OncePerRun";
 

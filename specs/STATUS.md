@@ -215,6 +215,7 @@ Status vocabulary:
 | 185 | Sleeker Queue Entries and Parameters on the Phone | Implemented |
 | 186 | Resolve Parameter Placeholders in Inline WaitForImage | Implemented |
 | 187 | Single-Owner Sign-In for Internet Access | Implemented |
+| 188 | Before Each Run Before Every Firing | Implemented |
 
 ## Numbering notes
 

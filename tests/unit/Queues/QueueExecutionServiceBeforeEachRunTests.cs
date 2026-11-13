@@ -11,8 +11,8 @@ using Xunit;
 
 namespace GameBot.UnitTests.Queues;
 
-// Feature 095 (#202): BeforeEachRun entries run immediately before every timed, live-scheduled or
-// self-rescheduled firing, at most once per scheduler wake-up, in template order.
+// Feature 095 (#202), changed by feature 188 (#393): BeforeEachRun entries run in template order immediately
+// before each timed, live-scheduled, or self-rescheduled firing, also when several firings are due in one wake-up.
 public sealed partial class QueueExecutionServiceTests {
   private static QueueTemplateEntry BeforeEachRun(string id, bool enabled = true)
     => new() { SequenceId = id, ScheduleType = ScheduleType.BeforeEachRun, Enabled = enabled };
@@ -226,10 +226,10 @@ public sealed partial class QueueExecutionServiceTests {
     rootOfB.Should().Be(rootOfT);
   }
 
-  // ── US2: once per wake-up ───────────────────────────────────────────────
+  // ── Feature 188 (#393): one pass before each triggering firing ──
 
-  [Fact] // T008(a)/(e)
-  public async Task BeforeEachRunRunsOnceForSeveralCoDueFiringsAndTriggersNoEveryStepPass() {
+  [Fact] // T008(a)/(e), changed by feature 188
+  public async Task BeforeEachRunRunsBeforeEachCoDueFiringAndTriggersNoEveryStepPass() {
     var h = new Harness();
     AddQueueWithEntries(h, "q1", new[] {
       BeforeEachRun("B"), TimerEntry("T1", TimeOnly.MinValue), TimerEntry("T2", TimeOnly.MinValue), EveryStep("E")
@@ -238,9 +238,135 @@ public sealed partial class QueueExecutionServiceTests {
     await h.Service.StartAsync("q1");
     await WaitUntilStoppedAsync(h.Service, "q1");
 
-    // B once, directly followed by the first firing (no every-step pass after B).
-    h.Sequences.Executed.Should().Equal("B", "T1", "E", "T2", "E");
+    // B runs immediately before each firing. No every-step pass runs after B.
+    h.Sequences.Executed.Should().Equal("B", "T1", "E", "B", "T2", "E");
   }
+
+  [Fact] // Feature 188: US1-AS1, SC-001
+  public async Task BeforeEachRunRunsBeforeEachOfThreeCoDueTimers() {
+    var h = new Harness();
+    AddQueueWithEntries(h, "q1", new[] {
+      BeforeEachRun("B"), TimerEntry("T1", TimeOnly.MinValue), TimerEntry("T2", TimeOnly.MinValue), TimerEntry("T3", TimeOnly.MinValue)
+    });
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.Sequences.Executed.Should().Equal("B", "T1", "B", "T2", "B", "T3");
+  }
+
+  [Fact] // Feature 188: US1-AS2, FR-003
+  public async Task SeveralBeforeEachRunEntriesRunInTemplateOrderBeforeEachCoDueFiring() {
+    var h = new Harness();
+    AddQueueWithEntries(h, "q1", new[] {
+      BeforeEachRun("B1"), TimerEntry("T1", TimeOnly.MinValue), BeforeEachRun("B2"), TimerEntry("T2", TimeOnly.MinValue)
+    });
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.Sequences.Executed.Should().Equal("B1", "B2", "T1", "B1", "B2", "T2");
+  }
+
+  [Fact] // Feature 188: US1-AS5, FR-002
+  public async Task BeforeEachRunRunsBeforeEachFiringOfMixedKindsInOneWakeUp() {
+    var h = new Harness();
+    AddQueueWithEntries(h, "q1", new[] {
+      BeforeEachRun("B"), TimerEntry("T", TimeOnly.MinValue), RelativeTimer("R", TimeSpan.Zero), OncePerRun("A")
+    });
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    // The template once-per-run step A gets no pass.
+    h.Sequences.Executed.Should().Equal("B", "T", "B", "R", "A");
+  }
+
+  [Fact] // Feature 188: the next wake-up after an idle gap also runs one pass for each co-due firing
+  public async Task TwoCoDueRelativeTimersAfterAnIdleGapEachGetAPass() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] {
+      OncePerRun("A"), RelativeTimer("T1", TimeSpan.FromMinutes(10)), RelativeTimer("T2", TimeSpan.FromMinutes(10)), BeforeEachRun("B")
+    });
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Sequences.Executed.Contains("A"));
+    await Task.Delay(100);
+    clock.Advance(TimeSpan.FromMinutes(10));
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.Sequences.Executed.Should().Equal("A", "B", "T1", "B", "T2");
+  }
+
+  [Fact] // Feature 188: US1-AS5, FR-002
+  public async Task BeforeEachRunRunsBeforeCoDueRelativeLiveAndSelfRescheduledFirings() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { OncePerRun("A"), RelativeTimer("T", TimeSpan.FromMinutes(10)), BeforeEachRun("B") });
+    var scheduled = 0;
+    h.Sequences.Handler = (id, ct) => {
+      if (id == "A" && Interlocked.Exchange(ref scheduled, 1) == 0) {
+        h.Coordinator.ScheduleSelf("q1", "R", SelfRescheduleOption.Timer, null, TimeSpan.FromMinutes(10));
+      }
+      return Task.FromResult(FakeSequenceExecution.Success(id));
+    };
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Sequences.Executed.Contains("A"));
+    h.Service.ScheduleRelative("q1", "L", TimeSpan.FromMinutes(10));
+    await Task.Delay(100);
+    clock.Advance(TimeSpan.FromMinutes(10));
+    await WaitForAsync(() => h.Sequences.Executed.Contains("T") && h.Sequences.Executed.Contains("L") && h.Sequences.Executed.Contains("R"), 10000);
+    await h.Service.StopAsync("q1");
+
+    var executed = h.Sequences.Executed.ToList();
+    executed.Count(id => id == "B").Should().Be(3);
+    foreach (var firing in new[] { "T", "L", "R" }) {
+      executed[executed.IndexOf(firing) - 1].Should().Be("B", "a pass runs immediately before {0}", firing);
+    }
+  }
+
+  // ── Feature 188 (#393): accounting and run log for each pass ──
+
+  [Fact] // Feature 188: US2-AS1, US2-AS2, FR-005
+  public async Task BeforeEachRunFailureIsCountedForEachPassAndBothFiringsRun() {
+    var h = new Harness();
+    AddQueueWithEntries(h, "q1", new[] {
+      BeforeEachRun("B"), RelativeTimer("T1", TimeSpan.Zero), RelativeTimer("T2", TimeSpan.Zero), OncePerRun("A")
+    });
+    h.Sequences.Handler = (id, ct) =>
+      Task.FromResult(id == "B" ? FakeSequenceExecution.Failure(id) : FakeSequenceExecution.Success(id));
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.Sequences.Executed.Should().Equal("B", "T1", "B", "T2", "A");
+    h.Log.FinalStatus.Should().Be("success");
+    h.Log.Summary.Should().Contain("3 sequence(s) executed"); // T1 + T2 + A; B does not count
+    h.Log.Summary.Should().Contain("2 failed");
+  }
+
+  [Fact] // Feature 188: US2-AS3, FR-006
+  public async Task EachBeforeEachRunPassIsItsOwnLogNodeUnderTheRunRoot() {
+    var h = new Harness();
+    AddQueueWithEntries(h, "q1", new[] {
+      BeforeEachRun("B"), TimerEntry("T1", TimeOnly.MinValue), TimerEntry("T2", TimeOnly.MinValue)
+    });
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.Sequences.Executed.Should().Equal("B", "T1", "B", "T2");
+    var rootOfT1 = h.Sequences.RootIds[h.Sequences.Executed.IndexOf("T1")];
+    foreach (var index in new[] { 0, 2 }) {
+      h.Sequences.Executed[index].Should().Be("B");
+      h.Sequences.RootIds[index].Should().NotBeNull();
+      h.Sequences.RootIds[index].Should().Be(rootOfT1);
+    }
+  }
+
+  // ── No triggering firing, stop, and session re-bind ──
 
   [Fact] // T008(b)
   public async Task BeforeEachRunDoesNotRunWithoutATriggeringFiring() {
