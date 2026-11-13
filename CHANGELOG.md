@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- Enforce the trusted proxy setting when the sign-in function is on (187-single-user-auth)
+  - **Change**: with the sign-in function on and `GAMEBOT_AUTH_TRUSTED_PROXIES` empty, the service trusts only the service machine (loopback address). It treats each other request as an internet request. Such a request needs a session, and the access token does not work in the home network.
+  - **Log**: the startup log entry for this condition (event 18712) is now critical and tells the owner to set `GAMEBOT_AUTH_TRUSTED_PROXIES`.
+  - **What to do**: if you use the sign-in function, set `GAMEBOT_AUTH_TRUSTED_PROXIES` to the address of the reverse proxy. Use `127.0.0.1,::1` for a gateway on the service machine.
+  - **Docs**: `SECURITY.md`, `ENVIRONMENT.md`, `docs/internet-access.md`, and `docs/architecture.md` state the rule.
+  - **Not changed**: with the sign-in function off, local and home network use works as before. With a trusted proxy set, all rules are the same as before.
+  - **Version**: the patch version is now 1.12.19.
+
 ### Fixed
 - Resolve parameter placeholders in an inline WaitForImage step (186-fix-waitforimage-placeholder, #386)
   - **Cause**: `SequenceRunner` did not resolve `{{name}}` in the image field of an inline WaitForImage step. The step kept the text and ended with `image_unavailable`. The step log also had no `matchedImageId`.

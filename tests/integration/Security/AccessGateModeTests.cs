@@ -52,6 +52,9 @@ public sealed class AccessGateOffModeTests {
 }
 
 public sealed class AccessGateOnModeTests {
+  // The home network tests set a trusted proxy. With no trusted proxy, only the service machine is inside.
+  private const string Proxy = "192.168.1.5";
+
   [Theory]
   [InlineData("/api/version")]
   [InlineData("/api/sessions")]
@@ -79,7 +82,7 @@ public sealed class AccessGateOnModeTests {
 
   [Fact]
   public async Task CorrectTokenPassesOnlyFromTheLocalMachineAndTheHomeNetwork() {
-    using var host = new AuthTestHost();
+    using var host = new AuthTestHost(trustedProxies: Proxy);
     using var client = NewClient(host);
     var token = AuthTestConstants.Token;
 
@@ -88,6 +91,24 @@ public sealed class AccessGateOnModeTests {
       .Should().Be(HttpStatusCode.OK);
     (await GetAsync(client, ProbePath, remote: "8.8.8.8", host: "bot.example.com", bearer: token).ConfigureAwait(true)).Status
       .Should().Be(HttpStatusCode.Unauthorized);
+  }
+
+  [Fact]
+  public async Task WithNoTrustedProxyTheTokenPassesOnlyFromTheLocalMachine() {
+    using var host = new AuthTestHost();
+    using var client = NewClient(host);
+    var token = AuthTestConstants.Token;
+
+    (await GetAsync(client, ProbePath, bearer: token).ConfigureAwait(true)).Status.Should().Be(HttpStatusCode.OK);
+    (await GetAsync(client, ProbePath, remote: "192.168.1.30", host: "192.168.1.20:8080", bearer: token).ConfigureAwait(true)).Status
+      .Should().Be(HttpStatusCode.Unauthorized);
+    (await GetAsync(client, ProbePath, remote: "192.168.1.30", host: "localhost", bearer: token).ConfigureAwait(true)).Status
+      .Should().Be(HttpStatusCode.Unauthorized);
+
+    var (_, body) = await GetAsync(client, ApiRoutes.AuthStatus, remote: "192.168.1.30", host: "192.168.1.20:8080").ConfigureAwait(true);
+    using var doc = JsonDocument.Parse(body);
+    doc.RootElement.GetProperty("source").GetString().Should().Be("internet");
+    doc.RootElement.GetProperty("tokenAccessHere").GetBoolean().Should().BeFalse();
   }
 
   [Fact]
@@ -104,7 +125,7 @@ public sealed class AccessGateOnModeTests {
 
   [Fact]
   public async Task FiveWrongTokensBlockOneSourceOnly() {
-    using var host = new AuthTestHost();
+    using var host = new AuthTestHost(trustedProxies: Proxy);
     using var client = NewClient(host);
 
     for (var i = 0; i < 5; i++) {
@@ -121,7 +142,7 @@ public sealed class AccessGateOnModeTests {
 
   [Fact]
   public async Task RequestsWithNoTokenDoNotCountForTheLimiter() {
-    using var host = new AuthTestHost();
+    using var host = new AuthTestHost(trustedProxies: Proxy);
     using var client = NewClient(host);
 
     for (var i = 0; i < 8; i++) {

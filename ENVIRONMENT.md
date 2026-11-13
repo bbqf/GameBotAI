@@ -90,7 +90,7 @@ Examples:
   - Example (PowerShell): `$env:GAMEBOT_ENABLE_PROFILE_ENDPOINTS = "false"`
 
 - GAMEBOT_AUTH_TOKEN
-  - Purpose: Enables token-based auth for all non-health endpoints when set. With the sign-in function on (`GAMEBOT_AUTH_ENABLED=true`), the token works only for requests from the service machine and from the home network. It never works for a request from the internet (feature 187).
+  - Purpose: Enables token-based auth for all non-health endpoints when set. With the sign-in function on (`GAMEBOT_AUTH_ENABLED=true`), the token works only for requests from the service machine and from the home network. In the home network it works only when `GAMEBOT_AUTH_TRUSTED_PROXIES` is set. It never works for a request from the internet (feature 187).
   - Used in: `AccessGateMiddleware`, `AuthOptions`
   - Default: unset (no auth)
   - Example: `$env:GAMEBOT_AUTH_TOKEN = "dev-token-123"`
@@ -108,7 +108,7 @@ Examples:
   - Default: unset
 
 - GAMEBOT_AUTH_TRUSTED_PROXIES
-  - Purpose: A comma list of IP addresses and CIDR ranges of reverse proxies. Each request from these addresses is an internet request. Mandatory for a proxy on a different host. Use `127.0.0.1,::1` for a gateway on the service machine.
+  - Purpose: A comma list of IP addresses and CIDR ranges of reverse proxies. Each request from these addresses is an internet request. Mandatory when the sign-in function is on. Use `127.0.0.1,::1` for a gateway on the service machine. With the sign-in function on and no entry, the service treats each request that does not come from the service machine as an internet request, and writes a critical startup log entry.
   - Configuration key: `Service:Auth:TrustedProxies`
   - Example: `$env:GAMEBOT_AUTH_TRUSTED_PROXIES = "192.168.1.5,172.18.0.0/16"`
   - Default: empty
