@@ -34,6 +34,36 @@ Set these environment variables on the service computer. Then restart the servic
 
 The same settings exist as `Service:Auth:Enabled`, `Service:Auth:PublicOrigin`, `Service:Auth:TrustedProxies`, and `Service:Auth:Token` in the service configuration. The web UI and the API cannot change these settings. The Configuration page shows them with their source.
 
+### Set the settings in a file (no environment variables)
+
+You can use a file in place of environment variables.
+
+1. Make a file named `appsettings.json` in the install folder of the service. This is the folder that holds `GameBot.Service.exe`. The file is optional. The service reads it at start. The `GameBot.Service.exe auth ...` command reads it too.
+2. Put the settings in the file. Use text values:
+
+   ```json
+   {
+     "Service": {
+       "Auth": {
+         "Enabled": "true",
+         "PublicOrigin": "https://bot.example.com",
+         "TrustedProxies": "192.168.1.5",
+         "Token": "a-long-random-value"
+       }
+     }
+   }
+   ```
+
+3. Restart the service.
+
+Notes:
+
+- A value in the file wins over the environment variable of the same setting.
+- The Configuration page shows a setting from the file with the source `File`.
+- `Token` is a secret. A person who can read the file can read the token. Limit the access to the file.
+- Do not set these settings on the Configuration page. The page refuses the change. The service takes the sign-in settings only from the file and the environment.
+- If a setting has no effect, read the startup log entry (category `GameBot.Service.Security`). It lists the settings that the service ignored.
+
 The service makes a startup log entry (category `GameBot.Service.Security`) with the sign-in state, the public origin, and the trusted proxies. It writes a warning when the sign-in function is on and no trusted proxy is set.
 
 ## Primary layout: a proxy on a different host
@@ -117,10 +147,12 @@ With this setting, each request that comes through the loopback address is an in
 Do this check before you rely on the setup.
 
 1. Turn off Wi-Fi on your phone. Use mobile data.
-2. With the sign-in function **off**, open `https://bot.example.com`. You must see "This service does not accept connections from the internet." If you see the web UI, stop. The service does not see the proxy as a proxy. Check `GAMEBOT_AUTH_TRUSTED_PROXIES`.
+2. With the sign-in function **off**, open `https://bot.example.com`. You must see "This service does not accept connections from the internet." An API call, for example `https://bot.example.com/api/queues`, must get `403` and the answer `{"error":{"code":"remote_access_refused",...}}`. With the function off, the service refuses each internet request with `403`, also with a passkey or a token. If you see the web UI, stop. The service does not see the proxy as a proxy. Check `GAMEBOT_AUTH_TRUSTED_PROXIES`.
 3. Turn the sign-in function on. Open the same address. You must see the sign-in page and no data.
-4. Open `https://bot.example.com/api/queues`. You must get the answer `{"error":{"code":"unauthorized",...}}`.
-5. Send the access token from the phone as a bearer header to `https://bot.example.com/api/version`. You must get `401`. The token must not work from the internet.
+4. With the sign-in function **on**, open `https://bot.example.com/api/queues`. You must get `401` and the answer `{"error":{"code":"unauthorized",...}}`.
+5. With the sign-in function **on**, send the access token from the phone as a bearer header to `https://bot.example.com/api/version`. You must get `401`. The token must not work from the internet.
+
+The two answers are different on purpose. `403` (`remote_access_refused`) means the function is off. `401` (`unauthorized`) means the function is on and the request has no valid session.
 
 ## Register a device
 
@@ -138,6 +170,34 @@ Do this check before you rely on the setup.
 The service cancels the code after 5 wrong attempts. The service blocks a source address for 15 minutes after 5 failed attempts in 5 minutes.
 
 A synced passkey (Google Password Manager, iCloud Keychain) works on all devices of that account after one registration. The service shows it as one device.
+
+### Android phone with no Google account (KeePassDX)
+
+An Android phone needs a passkey provider to store the passkey. Google Password Manager needs a Google account. If you do not want to use a Google account, use KeePassDX. KeePassDX keeps the passkey in a file on the phone. It has no cloud account.
+
+Before you start:
+
+- The phone must run Android 14 or newer.
+- Install KeePassDX and make a database in it.
+- Update Chrome.
+
+Set up the phone one time:
+
+1. Open the Android settings: Passwords, passkeys & accounts.
+2. Set KeePassDX as the preferred service.
+
+Register the phone:
+
+1. Make a code on the service computer (`GameBot.Service.exe auth new-code`).
+2. In Chrome on the phone, open `https://bot.example.com/register`. Enter the code. Tap "Register this device".
+3. The system dialog opens. Do **not** tap "Create" at once. Tap "More options", and then tap "Create" in the list that opens. KeePassDX opens and saves the passkey. If you tap "Create" at once, the registration can fail.
+4. Unlock the passkey with your screen lock.
+
+Notes:
+
+- The passkey is only on the phone, in the KeePassDX file. Make a backup of the file. If you lose the file, register the phone again.
+- If the page shows "Registration did not work" and you see no other error, the phone could not store the passkey. Check that a provider is selected in the Android settings.
+- A phone with Chrome and no passkey provider can fail with the browser error `NotReadableError`. The cause is on the phone, not in the service.
 
 ## Sessions
 
