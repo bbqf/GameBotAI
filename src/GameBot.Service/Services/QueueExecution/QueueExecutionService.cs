@@ -35,9 +35,10 @@ namespace GameBot.Service.Services.QueueExecution;
 ///                 once-per-run pass was done (the recovery-guard starvation bug).
 ///   Timer       — evaluated at each iteration boundary; either an absolute time-of-day (fires at
 ///                 most once per calendar day) or a relative offset / live schedule (feature 059).
-///   BeforeEachRun — executed immediately before the first timed, live or self-rescheduled firing
-///                 of each loop iteration (at most once per wake-up), in template order; never before
-///                 once-per-run, at-start or every-step executions; not counted (feature 095, #202).
+///   BeforeEachRun — executed in template order immediately before each timed, live, or
+///                 self-rescheduled firing, also when several firings are due in one wake-up
+///                 (feature 188, #393); never before once-per-run, at-start or every-step executions;
+///                 not counted (feature 095, #202).
 ///
 /// A cycling run re-evaluates timers on every cycle. A non-cyclic run runs its once-per-run steps
 /// once and then, if any relative-offset timer or live schedule is still pending, stays alive and
@@ -462,16 +463,14 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
               }
             }
 
-            // Before-each-run pass (feature 095, #202): the mirror of the every-step pass. Awaited
-            // immediately before every timed, live or self-rescheduled firing, but runs at most once per
-            // loop iteration — several firings due at one wake-up share a single pass, which precedes
-            // the first of them. Accounting matches the every-step pass: not counted toward `executed`,
-            // a failure counts toward `failed` and is non-fatal, and the triggering firing still runs.
+            // Before-each-run pass (feature 095, #202): the mirror of the every-step pass. The pass runs
+            // immediately before each timed, live, or self-rescheduled firing. It also runs before each
+            // firing when several firings are due in one wake-up (feature 188, #393). Accounting matches
+            // the every-step pass: not counted toward `executed`, a failure counts toward `failed` and is
+            // non-fatal, and the triggering firing still runs.
             // It never runs the every-step pass or itself, so it cannot loop.
-            var beforeEachRunRanThisIteration = false;
             async Task RunBeforeEachRunPassAsync() {
-              if (beforeEachRunRanThisIteration || plan.BeforeEachRun.Count == 0) return;
-              beforeEachRunRanThisIteration = true;
+              if (plan.BeforeEachRun.Count == 0) return;
 
               foreach (var berEntry in plan.BeforeEachRun) {
                 ct.ThrowIfCancellationRequested();
@@ -650,7 +649,6 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                 plan = schedule.Plan;
                 replanRequested = false;
                 everyStepRanThisIteration = false;
-                beforeEachRunRanThisIteration = false;
                 held = false;
                 holdReport = null;
 

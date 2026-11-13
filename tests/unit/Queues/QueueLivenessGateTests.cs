@@ -120,6 +120,20 @@ public sealed partial class QueueExecutionServiceTests {
       await rig.StopAsync("q1");
     }
 
+    [Fact] // Feature 188 (#393): FR-007
+    public async Task HeldCoDueFiringsRunNoBeforeEachRunPass() {
+      var rig = new Rig();
+      AddQueueWithEntries(rig.H, "q1", new[] { Every("E"), Before("B"), Timer("T1", 11), Timer("T2", 11) });
+      rig.Liveness.SetNotLive(DeviceLivenessReasons.TransportNotReady);
+
+      await rig.Service.StartAsync("q1");
+      await rig.PassIterationsAsync(6);
+
+      // The gate holds the first firing. The second firing is held in hold-only mode. No pass runs.
+      rig.Executed().Should().BeEmpty("a held firing gets no Before Each Run pass");
+      await rig.StopAsync("q1");
+    }
+
     [Fact]
     public async Task AStandaloneEveryStepPassGivesOneEntryForItsFirstSequence() {
       var rig = new Rig();

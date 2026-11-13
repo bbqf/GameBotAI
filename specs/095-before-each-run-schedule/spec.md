@@ -88,7 +88,7 @@ An operator can choose "Before Each Run" for a template entry when editing a que
 
 - **FR-001**: The system MUST support a fifth queue-template schedule type with the stored/wire identifier `BeforeEachRun`, shown to operators as "Before Each Run".
 - **FR-002**: Before Each Run entries MUST run immediately before each *triggering firing*. Triggering firings are: time-of-day Timer firings, daily retries of those firings, relative-offset Timer firings, live-schedule firings, and self-reschedule firings booked with the Timer, AtQueueStart or OncePerRun option.
-- **FR-003**: Within one scheduler wake-up (one pass of the run's scheduling loop), the Before Each Run entries MUST run at most once, immediately before the first triggering firing of that wake-up; later triggering firings in the same wake-up MUST NOT repeat them.
+- **FR-003**: Within one scheduler wake-up (one pass of the run's scheduling loop), the Before Each Run entries MUST run at most once, immediately before the first triggering firing of that wake-up; later triggering firings in the same wake-up MUST NOT repeat them. Feature 188 (#393) replaces FR-003: the pass now runs before each triggering firing.
 - **FR-004**: Before Each Run entries MUST run in template order.
 - **FR-005**: Template OncePerRun steps, template AtQueueStart entries, After Every Step entries and After Every Step self-reschedule injections MUST NOT trigger a Before Each Run pass.
 - **FR-006**: Before Each Run executions MUST NOT count toward the run's executed total; a failed execution MUST count toward the failed total, MUST be non-fatal, and MUST NOT prevent the triggering firing from running.

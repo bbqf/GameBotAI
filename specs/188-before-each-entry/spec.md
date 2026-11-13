@@ -2,7 +2,7 @@
 
 **Feature Branch**: `188-before-each-entry`  
 **Created**: 2026-11-13  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: GitHub issue #393 (https://github.com/bbqf/GameBotAI/issues/393). Make `BeforeEachRun` run before every task entry that fires, also when several entries are due in the same wake-up. No new schedule type and no new flag: the existing `BeforeEachRun` changes its behaviour. Closes #393
 
 ## Background

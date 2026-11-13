@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed
+- Run the Before Each Run pass before each triggering firing (188-before-each-entry, #393)
+  - **Change**: the Before Each Run entries now run immediately before each timed, live-scheduled, or self-rescheduled firing, also when several firings are due in one wake-up. Before this change, only the first firing of a wake-up got a pass. Thus a task that ends on a wrong screen does not make the next tasks of the same wake-up fail.
+  - **Not changed**: the set of firings that get a pass, the template order of the entries, the failure accounting (each pass counts its own failures, and they are not fatal), the run log nodes, the liveness hold, and the queue monitor text. No new flag or template option. Stored templates load with no change.
+  - **Perf note**: a wake-up with N triggering firings takes (N - 1) more passes. A wake-up with one firing does not change.
+  - **Version**: the patch version is now 1.12.20.
 - Enforce the trusted proxy setting when the sign-in function is on (187-single-user-auth)
   - **Change**: with the sign-in function on and `GAMEBOT_AUTH_TRUSTED_PROXIES` empty, the service trusts only the service machine (loopback address). It treats each other request as an internet request. Such a request needs a session, and the access token does not work in the home network.
   - **Log**: the startup log entry for this condition (event 18712) is now critical and tells the owner to set `GAMEBOT_AUTH_TRUSTED_PROXIES`.
