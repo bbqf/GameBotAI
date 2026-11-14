@@ -70,6 +70,41 @@ describe('QueueMonitor', () => {
     expect(screen.getByText('Charlie')).toBeInTheDocument();
   });
 
+  // ── Feature 189: smart scheduling ────────────────────────────────────────
+
+  it('shows the smart scheduling line in the header when it is on', async () => {
+    getQueueMonitorMock.mockResolvedValue(snapshot({ smartScheduling: { enabled: true, windowMinutes: 15 } }));
+
+    render(<QueueMonitor queueId="q1" />);
+    await flush();
+
+    expect(screen.getByText('Smart scheduling: 15 min')).toBeInTheDocument();
+  });
+
+  it('shows no smart scheduling line when it is off or not sent', async () => {
+    getQueueMonitorMock.mockResolvedValue(snapshot({ smartScheduling: { enabled: false, windowMinutes: 15 } }));
+
+    render(<QueueMonitor queueId="q1" />);
+    await flush();
+
+    expect(screen.queryByText(/Smart scheduling:/)).not.toBeInTheDocument();
+  });
+
+  it('shows the reason of a postponed item', async () => {
+    getQueueMonitorMock.mockResolvedValue(snapshot({
+      upcoming: [item({
+        sequenceId: 'R', sequenceName: 'Radio', scheduleKind: 'SelfReschedule',
+        reason: 'Rescheduled by a sequence, postponed from 12:00 (smart scheduling)',
+        expectedAt: '2026-01-01T12:10:00+00:00', requestedAt: '2026-01-01T12:00:00+00:00'
+      })],
+    }));
+
+    render(<QueueMonitor queueId="q1" />);
+    await flush();
+
+    expect(screen.getByText(/postponed from 12:00 \(smart scheduling\)/)).toBeInTheDocument();
+  });
+
   // ── US3: idle / empty / ended states ─────────────────────────────────────
 
   it('renders the running & waiting-until state for an idle-but-alive queue', async () => {

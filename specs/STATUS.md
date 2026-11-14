@@ -216,6 +216,7 @@ Status vocabulary:
 | 186 | Resolve Parameter Placeholders in Inline WaitForImage | Implemented |
 | 187 | Single-Owner Sign-In for Internet Access | Implemented |
 | 188 | Before Each Run Before Every Firing | Implemented |
+| 189 | Smart Scheduling | Implemented |
 
 ## Numbering notes
 

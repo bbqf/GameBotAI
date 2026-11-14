@@ -51,6 +51,15 @@ namespace GameBot.Domain.Commands {
     public bool ExcludeFromSuccessNotifications { get; set; }
 
     /// <summary>
+    /// When true, the bookings of this sequence always keep the requested time: smart scheduling of
+    /// a queue does not postpone them (feature 189). Use it for a time-critical sequence. Omitted
+    /// from JSON when false, so an old file with no member reads as false.
+    /// </summary>
+    [JsonPropertyName("ignoreSmartScheduling")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool IgnoreSmartScheduling { get; set; }
+
+    /// <summary>
     /// What a queue run does at its time limit (feature 170): <c>fail</c> (default) or <c>end</c>. With
     /// <c>end</c> the run gets the status success. Omitted from JSON when null or <c>fail</c>, so an old
     /// file with no member reads as <c>fail</c>.

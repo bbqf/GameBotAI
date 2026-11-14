@@ -6,7 +6,7 @@ jest.mock('../../../services/useAdbDevices', () => ({
   useAdbDevices: () => ({ devices: [{ serial: 'emu-1' }, { serial: 'emu-2' }], loading: false, error: undefined, refresh: () => {} }),
 }));
 
-const baseValue: QueueFormValue = { name: '', emulatorSerial: '', cycleExecution: false, pauseWhenIdle: false, idleThresholdSeconds: 30, emulatorInstanceName: '', emulatorInstanceIndex: null, resumeOnServiceStart: false };
+const baseValue: QueueFormValue = { name: '', emulatorSerial: '', cycleExecution: false, pauseWhenIdle: false, idleThresholdSeconds: 30, emulatorInstanceName: '', emulatorInstanceIndex: null, resumeOnServiceStart: false, smartScheduling: false, smartSchedulingWindowMinutes: 15 };
 
 const renderForm = (overrides: Partial<React.ComponentProps<typeof QueueForm>> = {}) => {
   const onChange = jest.fn();
@@ -48,7 +48,7 @@ describe('QueueForm', () => {
 
   it('says when the settings apply for a running queue, and keeps the emulator read-only', () => {
     renderForm({ mode: 'edit', running: true, value: { ...baseValue, name: 'Farm', emulatorSerial: 'emu-9' } });
-    expect(screen.getByText('Settings apply at the next start.')).toBeInTheDocument();
+    expect(screen.getByText('Settings apply at the next start. Smart scheduling applies to the next booking.')).toBeInTheDocument();
     expect(screen.getByLabelText('Emulator *')).toBeDisabled();
     expect(screen.getByLabelText('Cycle execution')).not.toBeDisabled();
     expect(screen.getByLabelText('Name *')).not.toBeDisabled();
@@ -56,15 +56,15 @@ describe('QueueForm', () => {
 
   it('shows the settings note once, after the Save button', () => {
     renderForm({ mode: 'edit', running: true, value: { ...baseValue, name: 'Farm', emulatorSerial: 'emu-9' } });
-    const note = screen.getByText('Settings apply at the next start.');
+    const note = screen.getByText('Settings apply at the next start. Smart scheduling applies to the next booking.');
     const save = screen.getByRole('button', { name: 'Save' });
-    expect(screen.getAllByText('Settings apply at the next start.')).toHaveLength(1);
+    expect(screen.getAllByText('Settings apply at the next start. Smart scheduling applies to the next booking.')).toHaveLength(1);
     expect(save.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('shows no settings note for a stopped queue or in create mode', () => {
     renderForm({ mode: 'edit', value: { ...baseValue, name: 'Farm', emulatorSerial: 'emu-9' } });
-    expect(screen.queryByText('Settings apply at the next start.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Settings apply at the next start. Smart scheduling applies to the next booking.')).not.toBeInTheDocument();
   });
 
   it('renders slots in the new order: emulator → cycle → game → Save → separator → template section', () => {
@@ -145,6 +145,39 @@ describe('QueueForm', () => {
     expect(box).toBeChecked();
     fireEvent.click(box);
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ resumeOnServiceStart: false }));
+  });
+
+  // ── Feature 189: smart scheduling ───────────────────────────────────────────
+
+  it('shows the smart scheduling switch off by default and hides the window', () => {
+    renderForm();
+    expect(screen.getByLabelText('Smart scheduling')).not.toBeChecked();
+    expect(screen.queryByLabelText('Window (minutes)')).not.toBeInTheDocument();
+  });
+
+  it('emits the smart scheduling switch change', () => {
+    const { onChange } = renderForm();
+    fireEvent.click(screen.getByLabelText('Smart scheduling'));
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ smartScheduling: true }));
+  });
+
+  it('shows the window with 15 minutes when the switch is on, and emits a change as a number', () => {
+    const { onChange } = renderForm({ value: { ...baseValue, smartScheduling: true } });
+    const window = screen.getByLabelText('Window (minutes)') as HTMLInputElement;
+    expect(window).toHaveValue(15);
+    fireEvent.change(window, { target: { value: '20' } });
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ smartSchedulingWindowMinutes: 20 }));
+  });
+
+  it.each([0, 121])('shows the range message for a window of %i', (minutes) => {
+    renderForm({ value: { ...baseValue, smartScheduling: true, smartSchedulingWindowMinutes: minutes } });
+    expect(screen.getByText('Enter a value from 1 to 120.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Window (minutes)')).toHaveAttribute('aria-invalid', 'true');
+  });
+
+  it('shows no range message for a valid window', () => {
+    renderForm({ value: { ...baseValue, smartScheduling: true, smartSchedulingWindowMinutes: 120 } });
+    expect(screen.queryByText('Enter a value from 1 to 120.')).not.toBeInTheDocument();
   });
 
   // ── Feature 074: emulator-instance cold-start config controls ───────────────

@@ -758,7 +758,18 @@ internal sealed record SelfRescheduleEntry(
   /// The id of the sequence run that made a Timer booking (feature 125). Null for a booking with no
   /// known run, such as a re-armed booking.
   /// </summary>
-  string? RunId = null);
+  string? RunId = null,
+  /// <summary>
+  /// Set when smart scheduling postponed a Timer booking (feature 189). <c>FireAt</c> is then the booked time,
+  /// and this member holds the requested time and the target. Null for a booking that is not postponed.
+  /// </summary>
+  SmartPostponement? Postponement = null);
+
+/// <summary>Why and from when smart scheduling postponed a Timer booking (feature 189).</summary>
+/// <param name="RequestedAt">The time that the <c>reschedule-self</c> step requested.</param>
+/// <param name="TargetSequenceId">The sequence of the pending firing that the booking moved to.</param>
+/// <param name="TargetKind">The kind of that pending firing.</param>
+internal sealed record SmartPostponement(DateTimeOffset RequestedAt, string TargetSequenceId, SmartTargetKind TargetKind);
 
 /// <summary>Kinds of result of <see cref="QueueRunHandle.AddTimerFiring"/> (feature 125).</summary>
 internal enum TimerBookingKind {

@@ -14,7 +14,7 @@ namespace GameBot.UnitTests.StepThrough;
 /// <summary>Feature 175 (FR-009): the preview text of a WaitForImage step names the absent mode.</summary>
 public sealed class WaitForImageAbsentPreviewTests {
   private sealed class StubCoordinator : ISelfRescheduleCoordinator {
-    public SelfRescheduleResult ScheduleSelf(string queueId, string sequenceId, SelfRescheduleOption option, TimeOnly? timerTimeOfDay, TimeSpan? timerRelativeOffset, ParameterScope? scope = null, SelfRescheduleKeep keep = SelfRescheduleKeep.None, string? runId = null) =>
+    public SelfRescheduleResult ScheduleSelf(string queueId, string sequenceId, SelfRescheduleOption option, TimeOnly? timerTimeOfDay, TimeSpan? timerRelativeOffset, ParameterScope? scope = null, SelfRescheduleKeep keep = SelfRescheduleKeep.None, string? runId = null, SmartSchedulingRequest? smartScheduling = null) =>
       throw new NotSupportedException();
 
     public SelfRescheduleCancelResult CancelSelf(string queueId, string sequenceId) => throw new NotSupportedException();

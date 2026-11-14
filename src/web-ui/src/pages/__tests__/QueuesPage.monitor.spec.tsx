@@ -49,7 +49,7 @@ describe('QueuesPage monitor-vs-editor routing', () => {
 
     await screen.findByTestId('queue-monitor-stub');
     expect(screen.getByRole('form', { name: 'Edit queue form' })).toBeInTheDocument();
-    expect(screen.getByText('Settings apply at the next start.')).toBeInTheDocument();
+    expect(screen.getByText('Settings apply at the next start. Smart scheduling applies to the next booking.')).toBeInTheDocument();
   });
 
   it('renders the editor when the opened queue is Stopped', async () => {

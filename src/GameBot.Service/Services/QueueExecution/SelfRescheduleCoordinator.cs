@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using GameBot.Domain.Commands.SelfReschedule;
+using GameBot.Domain.Queues;
 using GameBot.Domain.Parameters;
 using Microsoft.Extensions.Logging;
 
@@ -35,7 +37,8 @@ internal sealed class SelfRescheduleCoordinator : ISelfRescheduleCoordinator {
     TimeSpan? timerRelativeOffset,
     ParameterScope? scope = null,
     SelfRescheduleKeep keep = SelfRescheduleKeep.None,
-    string? runId = null) {
+    string? runId = null,
+    SmartSchedulingRequest? smartScheduling = null) {
     var entryId = Guid.NewGuid().ToString("n");
 
     if (!_registry.TryGet(queueId, out var handle)) {
@@ -69,10 +72,21 @@ internal sealed class SelfRescheduleCoordinator : ISelfRescheduleCoordinator {
       }
 
       case SelfRescheduleOption.Timer: {
-        var fireAt = ResolveTimerFireAt(timerTimeOfDay, timerRelativeOffset);
-        var entry = new SelfRescheduleEntry(entryId, sequenceId, option, fireAt, scope, runId);
+        var requestedAt = ResolveTimerFireAt(timerTimeOfDay, timerRelativeOffset);
+        // Feature 189: with a request, the booking can move to a pending firing of a different sequence.
+        var decision = smartScheduling is null
+          ? new SmartSchedulingDecision(requestedAt, null)
+          : SmartSchedulingRule.Resolve(
+              requestedAt,
+              TimeSpan.FromMinutes(smartScheduling.WindowMinutes),
+              CollectSmartCandidates(handle, sequenceId));
+        var fireAt = decision.BookedAt;
+        var target = decision.Target;
+        var postponement = target is null ? null : new SmartPostponement(requestedAt, target.SequenceId, target.Kind);
+        var entry = new SelfRescheduleEntry(entryId, sequenceId, option, fireAt, scope, runId, postponement);
         var booking = handle.AddTimerFiring(entry, keep == SelfRescheduleKeep.Earliest);
         var timing = fireAt.ToString("u", CultureInfo.InvariantCulture);
+        DateTimeOffset? postponedFrom = target is null ? null : requestedAt;
         if (booking.Kind == TimerBookingKind.KeptPending && booking.PendingFireAt is { } pendingAt) {
           // Feature 125: a losing booking is a normal event. The step is a success.
           if (_logger is not null) {
@@ -80,9 +94,13 @@ internal sealed class SelfRescheduleCoordinator : ISelfRescheduleCoordinator {
           }
           return new SelfRescheduleResult(
             SelfRescheduleOutcome.Scheduled, entryId, option, fireAt, timing,
-            KeptPending: true, PendingFireAt: pendingAt);
+            KeptPending: true, PendingFireAt: pendingAt, RequestedAt: postponedFrom, SmartTarget: target);
         }
-        return new SelfRescheduleResult(SelfRescheduleOutcome.Scheduled, entryId, option, fireAt, timing);
+        if (target is not null && _logger is not null) {
+          SelfRescheduleLog.Postponed(_logger, sequenceId, requestedAt, fireAt, target.SequenceId, smartScheduling!.WindowMinutes);
+        }
+        return new SelfRescheduleResult(
+          SelfRescheduleOutcome.Scheduled, entryId, option, fireAt, timing, RequestedAt: postponedFrom, SmartTarget: target);
       }
 
       default:
@@ -99,6 +117,28 @@ internal sealed class SelfRescheduleCoordinator : ISelfRescheduleCoordinator {
     return removed > 0
       ? new SelfRescheduleCancelResult(SelfRescheduleCancelOutcome.Cancelled, removed)
       : new SelfRescheduleCancelResult(SelfRescheduleCancelOutcome.NothingPending, 0);
+  }
+
+  /// <summary>
+  /// Collects the pending firings of the run that can be a smart scheduling target (feature 189), in this order: the
+  /// pending Timer bookings, the template Timer entries and the armed daily retries, and the pending live schedules.
+  /// It removes each firing of <paramref name="sequenceId"/>, because the booking replaces its own firings.
+  /// </summary>
+  private List<SmartCandidate> CollectSmartCandidates(QueueRunHandle handle, string sequenceId) {
+    var candidates = new List<SmartCandidate>();
+    foreach (var firing in handle.SnapshotPendingTimerFirings()) {
+      if (firing.FireAt is { } fireAt) {
+        candidates.Add(new SmartCandidate(fireAt, firing.SequenceId, SmartTargetKind.SelfReschedule));
+      }
+    }
+    if (handle.Schedule is { } schedule) {
+      candidates.AddRange(schedule.SnapshotTimedEntryDueTimes(_timeProvider.GetLocalNow()));
+    }
+    foreach (var live in handle.PendingLiveSchedules) {
+      candidates.Add(new SmartCandidate(live.Value, live.Key, SmartTargetKind.LiveSchedule));
+    }
+    candidates.RemoveAll(c => string.Equals(c.SequenceId, sequenceId, StringComparison.Ordinal));
+    return candidates;
   }
 
   /// <summary>
@@ -137,4 +177,7 @@ internal sealed class SelfRescheduleCoordinator : ISelfRescheduleCoordinator {
 internal static partial class SelfRescheduleLog {
   [LoggerMessage(EventId = 1161, Level = LogLevel.Information, Message = "Sequence {SequenceId} kept its pending booking for {PendingFireAt:u}; the new booking for {NewFireAt:u} is dropped (keep earliest)")]
   public static partial void KeptPending(ILogger logger, string SequenceId, DateTimeOffset PendingFireAt, DateTimeOffset NewFireAt);
+
+  [LoggerMessage(EventId = 1162, Level = LogLevel.Information, Message = "Sequence {SequenceId} booking moved from {RequestedAt:u} to {BookedAt:u}, the firing of {TargetSequenceId} (smart scheduling, window {WindowMinutes} min)")]
+  public static partial void Postponed(ILogger logger, string SequenceId, DateTimeOffset RequestedAt, DateTimeOffset BookedAt, string TargetSequenceId, int WindowMinutes);
 }

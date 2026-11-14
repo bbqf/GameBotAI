@@ -107,6 +107,12 @@ export const QueueMonitor: React.FC<QueueMonitorProps> = ({ queueId, onReturnToE
           </span>
         )}
         {snapshot.cycleExecution && <span className="monitor-badge">cycling</span>}
+        {/* Feature 189: the window of the stored queue. The reason of each item already shows a postponement. */}
+        {snapshot.smartScheduling?.enabled && (
+          <span className="monitor-badge" data-testid="monitor-smart-scheduling">
+            Smart scheduling: {snapshot.smartScheduling.windowMinutes} min
+          </span>
+        )}
       </div>
 
       {/* "Now" row */}

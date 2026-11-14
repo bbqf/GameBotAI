@@ -38,6 +38,8 @@ export type SequenceDto = {
   parameters?: ParameterDeclaration[] | null;
   /** If true, queues send no success message for this sequence (feature 122). */
   excludeFromSuccessNotifications?: boolean;
+  /** If true, the bookings of this sequence always keep the requested time (feature 189). Absent means false. */
+  ignoreSmartScheduling?: boolean;
   /** What a queue run does at its time limit (feature 170). Absent means 'fail'. */
   onTimeLimit?: 'fail' | 'end';
 };
@@ -52,6 +54,8 @@ export type SequenceCreate = {
   parameters?: ParameterDeclaration[];
   /** If true, queues send no success message for this sequence (feature 122). */
   excludeFromSuccessNotifications?: boolean;
+  /** If true, the bookings of this sequence always keep the requested time (feature 189). Absent means false. */
+  ignoreSmartScheduling?: boolean;
   /** What a queue run does at its time limit (feature 170). Absent means 'fail'. */
   onTimeLimit?: 'fail' | 'end';
 };

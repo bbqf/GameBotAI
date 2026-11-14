@@ -88,6 +88,11 @@ public static class SettingsDocumentValidator {
       if (queue.Entries.Any(string.IsNullOrWhiteSpace)) {
         errors.Add($"The queue '{queue.Name}' has an entry with an empty sequence name.");
       }
+
+      // Feature 189: the import refuses a window out of range, as the queue routes do.
+      if (!GameBot.Domain.Queues.SmartSchedulingLimits.IsValidWindow(queue.SmartSchedulingWindowMinutes)) {
+        errors.Add($"The queue '{queue.Name}' has a smartSchedulingWindowMinutes that is not from 1 to 120.");
+      }
     }
   }
 

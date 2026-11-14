@@ -19,7 +19,7 @@ import {
   stopQueue,
 } from '../services/queues';
 import { listSequences, SequenceDto } from '../services/sequences';
-import { QueueForm, QueueFormValue } from '../components/queues/QueueForm';
+import { QueueForm, QueueFormValue, isValidSmartWindow } from '../components/queues/QueueForm';
 import { QueueMonitor } from '../components/queues/QueueMonitor';
 import { QueueRowActions } from '../components/queues/QueueRowActions';
 import { EntrySchedule } from '../components/queues/QueueEntryList';
@@ -50,7 +50,14 @@ const START_CHECK_INTERVAL_MS = 5000;
 /** How often the list reads the queues and the monitor of each running queue (feature 173). The phone list uses the same time. */
 const LIST_POLL_INTERVAL_MS = 5000;
 
-const emptyForm: QueueFormValue = { name: '', emulatorSerial: '', cycleExecution: false, pauseWhenIdle: false, idleThresholdSeconds: 30, emulatorInstanceName: '', emulatorInstanceIndex: null, resumeOnServiceStart: false };
+/**
+ * The window to send (feature 189). A window out of range is sent only when the switch is on, where the form blocks the
+ * save. With the switch off, the stored window stays.
+ */
+const smartWindowToSend = (form: QueueFormValue): number | undefined =>
+  form.smartScheduling || isValidSmartWindow(form.smartSchedulingWindowMinutes) ? form.smartSchedulingWindowMinutes : undefined;
+
+const emptyForm: QueueFormValue = { name: '', emulatorSerial: '', cycleExecution: false, pauseWhenIdle: false, idleThresholdSeconds: 30, emulatorInstanceName: '', emulatorInstanceIndex: null, resumeOnServiceStart: false, smartScheduling: false, smartSchedulingWindowMinutes: 15 };
 
 export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
   const [queues, setQueues] = useState<QueueDto[]>([]);
@@ -157,7 +164,7 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
     const q = await getQueue(id);
     setDetail(q);
     setAssociatedTemplateName(q.linkedTemplateName ?? undefined);
-    setForm({ name: q.name, emulatorSerial: q.emulatorSerial, cycleExecution: q.cycleExecution, pauseWhenIdle: q.pauseWhenIdle, idleThresholdSeconds: q.idleThresholdSeconds, emulatorInstanceName: q.emulatorInstanceName ?? '', emulatorInstanceIndex: q.emulatorInstanceIndex ?? null, resumeOnServiceStart: q.resumeOnServiceStart ?? false });
+    setForm({ name: q.name, emulatorSerial: q.emulatorSerial, cycleExecution: q.cycleExecution, pauseWhenIdle: q.pauseWhenIdle, idleThresholdSeconds: q.idleThresholdSeconds, emulatorInstanceName: q.emulatorInstanceName ?? '', emulatorInstanceIndex: q.emulatorInstanceIndex ?? null, resumeOnServiceStart: q.resumeOnServiceStart ?? false, smartScheduling: q.smartScheduling ?? false, smartSchedulingWindowMinutes: q.smartSchedulingWindowMinutes ?? 15 });
 
     // Restore per-entry schedule state from the linked template so that the editor
     // reflects previously saved schedule types and saving doesn't overwrite them with OncePerRun.
@@ -202,7 +209,9 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
     if (!form.name.trim()) errs.name = 'Name is required';
     if (creating && !form.emulatorSerial.trim()) errs.emulatorSerial = 'Emulator is required';
     setFieldErrors(Object.keys(errs).length ? errs : undefined);
-    return Object.keys(errs).length === 0;
+    // Feature 189: the form shows the range message at the window field. A save waits for a valid window.
+    const windowOk = !form.smartScheduling || isValidSmartWindow(form.smartSchedulingWindowMinutes);
+    return Object.keys(errs).length === 0 && windowOk;
   };
 
   const submitForm = async () => {
@@ -212,10 +221,10 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
     setQueueSaveResult(undefined);
     try {
       if (creating) {
-        await createQueue({ name: form.name.trim(), emulatorSerial: form.emulatorSerial.trim(), cycleExecution: form.cycleExecution, pauseWhenIdle: form.pauseWhenIdle, idleThresholdSeconds: form.idleThresholdSeconds, emulatorInstanceName: form.emulatorInstanceName.trim() || null, emulatorInstanceIndex: form.emulatorInstanceIndex, resumeOnServiceStart: form.resumeOnServiceStart });
+        await createQueue({ name: form.name.trim(), emulatorSerial: form.emulatorSerial.trim(), cycleExecution: form.cycleExecution, pauseWhenIdle: form.pauseWhenIdle, idleThresholdSeconds: form.idleThresholdSeconds, emulatorInstanceName: form.emulatorInstanceName.trim() || null, emulatorInstanceIndex: form.emulatorInstanceIndex, resumeOnServiceStart: form.resumeOnServiceStart, smartScheduling: form.smartScheduling, smartSchedulingWindowMinutes: smartWindowToSend(form) });
         setQueueSaveResult({ kind: 'success', message: 'Queue created successfully.' });
       } else if (detail) {
-        await updateQueue(detail.id, { name: form.name.trim(), cycleExecution: form.cycleExecution, pauseWhenIdle: form.pauseWhenIdle, idleThresholdSeconds: form.idleThresholdSeconds, emulatorInstanceName: form.emulatorInstanceName.trim() || null, emulatorInstanceIndex: form.emulatorInstanceIndex, resumeOnServiceStart: form.resumeOnServiceStart });
+        await updateQueue(detail.id, { name: form.name.trim(), cycleExecution: form.cycleExecution, pauseWhenIdle: form.pauseWhenIdle, idleThresholdSeconds: form.idleThresholdSeconds, emulatorInstanceName: form.emulatorInstanceName.trim() || null, emulatorInstanceIndex: form.emulatorInstanceIndex, resumeOnServiceStart: form.resumeOnServiceStart, smartScheduling: form.smartScheduling, smartSchedulingWindowMinutes: smartWindowToSend(form) });
         setQueueSaveResult({ kind: 'success', message: 'Queue updated successfully.' });
       }
       // Keep the form open so the confirmation is visible at the Save action (FR-006); just

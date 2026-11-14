@@ -85,6 +85,18 @@ public sealed class QueueSettingsDoc {
   /// <summary>True to start the queue again after a service restart.</summary>
   public bool ResumeOnServiceStart { get; init; }
 
+  /// <summary>
+  /// True to move a Timer booking of a sequence to a pending firing in the window (feature 189). A document from
+  /// before feature 189 has no value and reads as false.
+  /// </summary>
+  public bool SmartScheduling { get; init; }
+
+  /// <summary>
+  /// The smart scheduling window in minutes, from 1 to 120 (feature 189). A document from before feature 189 has no
+  /// value and reads as 15. The import refuses a value out of range.
+  /// </summary>
+  public int SmartSchedulingWindowMinutes { get; init; } = SmartSchedulingLimits.DefaultWindowMinutes;
+
   /// <summary>The notification level.</summary>
   public GameBot.Domain.Notifications.NotificationLevel NotificationLevel { get; init; }
 

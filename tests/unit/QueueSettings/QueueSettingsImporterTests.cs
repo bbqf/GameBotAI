@@ -171,4 +171,57 @@ public sealed class QueueSettingsImporterTests {
     Assert.Equal("LD-9", queue.EmulatorInstanceName);
     Assert.Equal(9, queue.EmulatorInstanceIndex);
   }
+
+  [Fact] // Feature 189: the import applies the smart scheduling settings.
+  public async Task SmartSchedulingSettingsAreImported() {
+    using var kit = new QueueSettingsTestKit();
+    var json = QueueSettingsTestKit.Doc(queues: QueueSettingsTestKit.List(
+      "{\"name\":\"Q1\",\"emulatorSerial\":\"emulator-5554\",\"smartScheduling\":true,\"smartSchedulingWindowMinutes\":20}"));
+
+    await ImportOkAsync(kit, json);
+
+    var queue = (await kit.QueueByNameAsync("Q1"))!;
+    Assert.True(queue.SmartScheduling);
+    Assert.Equal(20, queue.SmartSchedulingWindowMinutes);
+  }
+
+  [Fact] // Feature 189: a sequence with ignoreSmartScheduling true imports with the value true.
+  public async Task ASequenceThatIgnoresSmartSchedulingImportsWithTheValue() {
+    using var kit = new QueueSettingsTestKit();
+    var json = QueueSettingsTestKit.Doc(sequences: QueueSettingsTestKit.List(
+      "{\"name\":\"Critical\",\"version\":1,\"steps\":[],\"ignoreSmartScheduling\":true}"));
+
+    await ImportOkAsync(kit, json);
+
+    Assert.True((await kit.Packs.SequenceByNameAsync("Critical"))!.IgnoreSmartScheduling);
+  }
+
+  [Fact] // Feature 189: a document from before the feature imports as off and 15.
+  public async Task ADocumentWithNoSmartSchedulingMembersImportsAsOffAnd15() {
+    using var kit = new QueueSettingsTestKit();
+    var json = QueueSettingsTestKit.Doc(queues: QueueSettingsTestKit.List(
+      "{\"name\":\"Q1\",\"emulatorSerial\":\"emulator-5554\"}"));
+
+    await ImportOkAsync(kit, json);
+
+    var queue = (await kit.QueueByNameAsync("Q1"))!;
+    Assert.False(queue.SmartScheduling);
+    Assert.Equal(15, queue.SmartSchedulingWindowMinutes);
+  }
+
+  [Theory] // Feature 189: a window out of range is a bad value. The import changes nothing.
+  [InlineData(0)]
+  [InlineData(121)]
+  public async Task AWindowOutOfRangeIsRefusedAndChangesNothing(int window) {
+    using var kit = new QueueSettingsTestKit();
+    var json = QueueSettingsTestKit.Doc(queues: QueueSettingsTestKit.List(
+      "{\"name\":\"Q1\",\"emulatorSerial\":\"emulator-5554\",\"smartSchedulingWindowMinutes\":" + window + "}"));
+
+    var outcome = await kit.Importer.ImportAsync(json);
+
+    Assert.Equal(ImportStatus.Invalid, outcome.Status);
+    Assert.Contains(outcome.Errors, e => e.Contains("smartSchedulingWindowMinutes", System.StringComparison.Ordinal));
+    Assert.Equal(0, kit.Probe.Writes);
+    Assert.Null(await kit.QueueByNameAsync("Q1"));
+  }
 }

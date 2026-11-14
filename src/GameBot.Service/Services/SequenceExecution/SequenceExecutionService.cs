@@ -522,6 +522,14 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
         if (step.Removed is { } removedFlag) {
           rescheduleDetail["removed"] = removedFlag;
         }
+        // Feature 189: only a postponed Timer booking reports what smart scheduling did.
+        if (step.SmartScheduling is { } smart) {
+          rescheduleDetail["requestedFireAt"] = smart.RequestedAt;
+          rescheduleDetail["bookedFireAt"] = smart.BookedAt;
+          rescheduleDetail["smartSchedulingTarget"] = smart.TargetLabel;
+          rescheduleDetail["smartSchedulingTargetKind"] = smart.TargetKind;
+          rescheduleDetail["smartSchedulingWindowMinutes"] = smart.WindowMinutes;
+        }
         detailItems.Add(new ExecutionDetailItem(
           "step",
           !string.IsNullOrWhiteSpace(step.Message)
@@ -883,13 +891,70 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
     }
   }
 
-  private ActionDispatchResult DispatchSelfReschedule(
+  private async Task<ActionDispatchResult> DispatchSelfRescheduleAsync(
       SequenceActionPayload action,
       string sequenceId,
       string? originatingQueueId,
       string? sessionId,
       GameBot.Domain.Parameters.ParameterScope scope,
       string? runId) {
+    var isTimer = SelfReschedulePayload.TryRead(action, out var peek, out _)
+      && peek is not null
+      && peek.Option == SelfRescheduleOption.Timer;
+    var smart = isTimer ? await ReadSmartSchedulingRequestAsync(originatingQueueId, sequenceId).ConfigureAwait(false) : null;
+    var result = DispatchSelfReschedule(action, sequenceId, originatingQueueId, sessionId, scope, runId, smart);
+    if (result.SmartScheduling is not { } info) return result;
+
+    // Feature 189: the log shows the name of the target sequence. The message has the ID until the name is known.
+    var targetName = await ResolveSequenceNameAsync(info.TargetSequenceId).ConfigureAwait(false);
+    if (string.IsNullOrWhiteSpace(targetName)) return result;
+    var named = info with { TargetName = targetName };
+    return result with {
+      Message = result.Message?.Replace(PostponedText(info), PostponedText(named), StringComparison.Ordinal),
+      SmartScheduling = named
+    };
+  }
+
+  /// <summary>
+  /// The step message part of a postponed booking (feature 189):
+  /// <c>postponed from &lt;requested&gt; to the firing of '&lt;target&gt;' (smart scheduling, window &lt;N&gt; min)</c>.
+  /// </summary>
+  internal static string PostponedText(SmartSchedulingLogInfo info) =>
+    $"postponed from {info.RequestedAt.ToString("u", CultureInfo.InvariantCulture)} to the firing of '{info.TargetLabel}' "
+    + $"(smart scheduling, window {info.WindowMinutes} min)";
+
+  /// <summary>
+  /// Makes the smart scheduling request of a Timer booking (feature 189). It reads the stored queue at each booking,
+  /// so a saved change applies immediately (research R-004). It gives null when the queue ID is empty, the queue or
+  /// the sequence is not found, the read fails, the queue has smart scheduling off, the window is not valid, or the
+  /// sequence ignores smart scheduling. A setting problem never fails the step: the booking then keeps the requested time.
+  /// </summary>
+  private async Task<SmartSchedulingRequest?> ReadSmartSchedulingRequestAsync(string? queueId, string sequenceId) {
+    if (string.IsNullOrWhiteSpace(queueId) || _queueRepository is null) return null;
+    try {
+      var queue = await _queueRepository.GetAsync(queueId!).ConfigureAwait(false);
+      if (queue is null || !queue.SmartScheduling
+          || !GameBot.Domain.Queues.SmartSchedulingLimits.IsValidWindow(queue.SmartSchedulingWindowMinutes)) {
+        return null;
+      }
+      var sequence = await _sequenceRepository.GetAsync(sequenceId).ConfigureAwait(false);
+      if (sequence is null || sequence.IgnoreSmartScheduling) return null;
+      return new SmartSchedulingRequest(queue.SmartSchedulingWindowMinutes);
+    }
+    catch (Exception) {
+      // A read problem must not fail the step. The booking keeps the requested time.
+      return null;
+    }
+  }
+
+  private ActionDispatchResult DispatchSelfReschedule(
+      SequenceActionPayload action,
+      string sequenceId,
+      string? originatingQueueId,
+      string? sessionId,
+      GameBot.Domain.Parameters.ParameterScope scope,
+      string? runId,
+      SmartSchedulingRequest? smartScheduling = null) {
     var isCancel = SelfReschedulePayload.TryRead(action, out var peek, out _)
       && peek is not null
       && peek.Option == SelfRescheduleOption.Cancel;
@@ -940,24 +1005,34 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
       timerRelativeOffset,
       scope,
       payload.Keep,
-      runId);
+      runId,
+      payload.Option == SelfRescheduleOption.Timer ? smartScheduling : null);
 
     if (schedule.Outcome == SelfRescheduleOutcome.NotRunning) {
       return new ActionDispatchResult("noop", "originating queue run no longer active; no reschedule performed");
     }
 
+    // Feature 189: a postponed booking adds its text before "applies to the current run only". The async caller puts
+    // the name of the target in place of its ID. A booking that is not postponed keeps the message of before.
+    SmartSchedulingLogInfo? smartInfo = null;
+    if (schedule.SmartTarget is { } target && schedule.RequestedAt is { } requestedAt && schedule.FireAt is { } bookedAt
+        && smartScheduling is not null) {
+      smartInfo = new SmartSchedulingLogInfo(requestedAt, bookedAt, target.SequenceId, target.Kind.ToString(), smartScheduling.WindowMinutes);
+    }
+    var applies = (smartInfo is null ? string.Empty : $"; {PostponedText(smartInfo)}") + "; applies to the current run only";
+
     var message = ocrResolution is null
-      ? $"rescheduled this sequence (option {schedule.Option}, {schedule.ResolvedTiming}); applies to the current run only"
-      : $"rescheduled this sequence (option {schedule.Option}, {schedule.ResolvedTiming}); {DescribeOcrOffset(ocrResolution)}; applies to the current run only";
+      ? $"rescheduled this sequence (option {schedule.Option}, {schedule.ResolvedTiming}){applies}"
+      : $"rescheduled this sequence (option {schedule.Option}, {schedule.ResolvedTiming}); {DescribeOcrOffset(ocrResolution)}{applies}";
     if (schedule.KeptPending && schedule.PendingFireAt is { } pendingFireAt) {
       // Feature 125: the booking lost to an earlier pending booking. The step still succeeds.
       message = $"kept the pending booking for {pendingFireAt.ToString("u", CultureInfo.InvariantCulture)} "
         + $"(keep earliest); the new booking ({schedule.ResolvedTiming}) is dropped"
         + (ocrResolution is null ? string.Empty : $"; {DescribeOcrOffset(ocrResolution)}")
-        + "; applies to the current run only";
+        + applies;
     }
 
-    return new ActionDispatchResult("scheduled", message);
+    return new ActionDispatchResult("scheduled", message, SmartScheduling: smartInfo);
   }
 
   // feature 068: renders the offset-source detail for the execution log (FR-007).
@@ -991,7 +1066,7 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
       string? runId,
       CancellationToken ct) {
     if (string.Equals(action.Type, ActionTypes.RescheduleSelf, StringComparison.OrdinalIgnoreCase)) {
-      return Task.FromResult(DispatchSelfReschedule(action, sequenceId, originatingQueueId, sessionId, scope, runId));
+      return DispatchSelfRescheduleAsync(action, sequenceId, originatingQueueId, sessionId, scope, runId);
     }
 
     if (string.Equals(action.Type, ActionTypes.Notify, StringComparison.OrdinalIgnoreCase)) {

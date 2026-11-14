@@ -44,6 +44,21 @@ namespace GameBot.Service.Contracts.Queues {
     /// Empty when the queue does not run.
     /// </summary>
     public Dictionary<string, string> EntryStates { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The smart scheduling settings of the stored queue (feature 189). Present for a running queue and for a
+    /// stopped queue.
+    /// </summary>
+    public QueueMonitorSmartSchedulingResponse SmartScheduling { get; set; } = new();
+  }
+
+  /// <summary>The smart scheduling settings of the stored queue, in the monitor response (feature 189).</summary>
+  internal sealed class QueueMonitorSmartSchedulingResponse {
+    /// <summary>True when the stored queue has smart scheduling on.</summary>
+    public bool Enabled { get; set; }
+
+    /// <summary>The window in minutes, from 1 to 120.</summary>
+    public int WindowMinutes { get; set; } = GameBot.Domain.Queues.SmartSchedulingLimits.DefaultWindowMinutes;
   }
 
   /// <summary>A single now/up-next monitor item (camelCase wire shape).</summary>
@@ -73,6 +88,13 @@ namespace GameBot.Service.Contracts.Queues {
 
     /// <summary>Stable position within the list.</summary>
     public int Order { get; set; }
+
+    /// <summary>
+    /// The requested time of a self-reschedule firing that smart scheduling postponed (feature 189).
+    /// <see cref="ExpectedAt"/> is then the booked time. Absent for all other items.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public DateTimeOffset? RequestedAt { get; set; }
   }
 
   /// <summary>Best-effort last finalized run outcome for a stopped queue.</summary>

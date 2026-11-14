@@ -115,4 +115,33 @@ public sealed class QueueSettingsExporterTests {
     Assert.Equal("LD-1", exported.EmulatorInstanceName);
     Assert.Equal(3, exported.EmulatorInstanceIndex);
   }
+
+  [Fact] // Feature 189: the document carries the smart scheduling settings of a queue.
+  public async Task SmartSchedulingSettingsAreExported() {
+    using var kit = new QueueSettingsTestKit();
+    var queue = await kit.AddQueueAsync("Q1");
+    queue.SmartScheduling = true;
+    queue.SmartSchedulingWindowMinutes = 20;
+    await kit.Queues.UpdateAsync(queue);
+
+    var json = await kit.ExportJsonAsync();
+
+    Assert.Contains("\"smartScheduling\": true", json, StringComparison.Ordinal);
+    Assert.Contains("\"smartSchedulingWindowMinutes\": 20", json, StringComparison.Ordinal);
+  }
+
+  [Fact] // Feature 189: the document stores a sequence as its JSON object, so the sequence setting goes with it.
+  public async Task ASequenceThatIgnoresSmartSchedulingKeepsTheMemberInTheDocument() {
+    using var kit = new QueueSettingsTestKit();
+    var sequence = await kit.AddSequenceAsync("Critical");
+    sequence.IgnoreSmartScheduling = true;
+    await kit.Packs.Sequences.UpdateAsync(sequence);
+
+    var doc = await kit.ExportAsync();
+
+    var exported = Assert.Single(doc.Sequences);
+    var member = exported.FirstOrDefault(p => string.Equals(p.Key, "ignoreSmartScheduling", StringComparison.OrdinalIgnoreCase)).Value;
+    Assert.NotNull(member);
+    Assert.True(member!.GetValue<bool>());
+  }
 }

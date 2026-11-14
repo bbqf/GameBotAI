@@ -167,6 +167,7 @@ internal static class GameBotServiceSetup {
       options.SchemaFilter<ImageAlternatesSchemaFilter>();
       options.SchemaFilter<SequenceNestingRulesSchemaFilter>();
       options.SchemaFilter<QueueRosterSchemaFilter>();
+    options.SchemaFilter<SmartSchedulingSchemaFilter>();
       options.SchemaFilter<ImageDetectCoordinatesSchemaFilter>();
       options.SchemaFilter<PrimitiveActionSchemaFilter>();
       options.SchemaFilter<ConditionReferenceScopeSchemaFilter>();

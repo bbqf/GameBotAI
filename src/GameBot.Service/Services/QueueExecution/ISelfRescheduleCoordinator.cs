@@ -1,5 +1,6 @@
 using System;
 using GameBot.Domain.Commands.SelfReschedule;
+using GameBot.Domain.Queues;
 
 namespace GameBot.Service.Services.QueueExecution;
 
@@ -22,6 +23,11 @@ internal enum SelfRescheduleOutcome {
 /// <param name="ResolvedTiming">Human-readable timing ("this cycle" / "next cycle" / target instant).</param>
 /// <param name="KeptPending">True when a <c>keep: earliest</c> booking lost and the pending booking stayed (feature 125).</param>
 /// <param name="PendingFireAt">The fire time of the pending booking that stayed. Set only when <paramref name="KeptPending"/> is true.</param>
+/// <param name="RequestedAt">
+/// The requested time of a Timer booking that smart scheduling postponed (feature 189). <paramref name="FireAt"/> is
+/// then the booked time. Null when the booking is not postponed.
+/// </param>
+/// <param name="SmartTarget">The pending firing that the booking moved to (feature 189). Null when the booking is not postponed.</param>
 internal sealed record SelfRescheduleResult(
   SelfRescheduleOutcome Outcome,
   string EntryId,
@@ -29,7 +35,16 @@ internal sealed record SelfRescheduleResult(
   DateTimeOffset? FireAt,
   string ResolvedTiming,
   bool KeptPending = false,
-  DateTimeOffset? PendingFireAt = null);
+  DateTimeOffset? PendingFireAt = null,
+  DateTimeOffset? RequestedAt = null,
+  SmartCandidate? SmartTarget = null);
+
+/// <summary>
+/// Asks the coordinator to apply smart scheduling to a Timer booking (feature 189). The caller gives it only when the
+/// stored queue has smart scheduling on and the sequence does not ignore it.
+/// </summary>
+/// <param name="WindowMinutes">The window in minutes, from 1 to 120.</param>
+internal sealed record SmartSchedulingRequest(int WindowMinutes);
 
 /// <summary>Result kinds of a Cancel request (feature 123).</summary>
 internal enum SelfRescheduleCancelOutcome {
@@ -73,6 +88,11 @@ internal interface ISelfRescheduleCoordinator {
   /// booking of the same run does not replace an earlier pending booking.
   /// </param>
   /// <param name="runId">The id of the run that makes the booking (feature 125). Null for an unknown run.</param>
+  /// <param name="smartScheduling">
+  /// The smart scheduling request of a Timer booking (feature 189). When not null, the booking moves to the earliest
+  /// pending firing of a different sequence that is later than the requested time and not more than the window later.
+  /// Null books the requested time. The other options ignore it.
+  /// </param>
   SelfRescheduleResult ScheduleSelf(
     string queueId,
     string sequenceId,
@@ -81,7 +101,8 @@ internal interface ISelfRescheduleCoordinator {
     TimeSpan? timerRelativeOffset,
     GameBot.Domain.Parameters.ParameterScope? scope = null,
     SelfRescheduleKeep keep = SelfRescheduleKeep.None,
-    string? runId = null);
+    string? runId = null,
+    SmartSchedulingRequest? smartScheduling = null);
 
   /// <summary>
   /// Removes the pending one-time bookings of <paramref name="sequenceId"/> from the active run of

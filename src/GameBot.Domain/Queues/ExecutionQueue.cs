@@ -105,6 +105,23 @@ namespace GameBot.Domain.Queues {
     /// </summary>
     public QueueDeviceRecovery? DeviceRecovery { get; set; }
 
+    /// <summary>
+    /// When true, a Timer booking of a sequence moves to a pending firing of a different sequence
+    /// that is not more than <see cref="SmartSchedulingWindowMinutes"/> later (feature 189). Default
+    /// false. An old queue file has no value and reads as false. Each Timer booking reads this value
+    /// from the stored queue, so a saved change applies to the next booking of a running queue. This
+    /// is the one exception to "a run reads the queue one time, at its start" (feature 173).
+    /// </summary>
+    public bool SmartScheduling { get; set; }
+
+    /// <summary>
+    /// The smart scheduling window in minutes, from 1 to 120 (feature 189). Default 15. An old queue
+    /// file has no value and reads as 15. The value stays when <see cref="SmartScheduling"/> is
+    /// false. Each Timer booking reads this value from the stored queue, so a saved change applies
+    /// immediately.
+    /// </summary>
+    public int SmartSchedulingWindowMinutes { get; set; } = SmartSchedulingLimits.DefaultWindowMinutes;
+
     public DateTimeOffset? CreatedAt { get; set; }
 
     public DateTimeOffset? UpdatedAt { get; set; }

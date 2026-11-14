@@ -70,7 +70,17 @@ internal sealed record QueueMonitorSnapshot(
   /// The state of each enabled entry that has an ID (feature 184): <c>running</c>, <c>queued</c>, <c>scheduled</c>
   /// or <c>idle</c>. Empty when the queue does not run.
   /// </summary>
-  IReadOnlyDictionary<string, string>? EntryStates = null);
+  IReadOnlyDictionary<string, string>? EntryStates = null,
+  /// <summary>
+  /// The smart scheduling settings of the stored queue (feature 189), for a running queue and for a stopped queue.
+  /// Null only in a snapshot that a test builds by hand; the projection then shows off and 15.
+  /// </summary>
+  QueueMonitorSmartScheduling? SmartScheduling = null);
+
+/// <summary>The smart scheduling settings of the stored queue, in the monitor (feature 189).</summary>
+/// <param name="Enabled">True when the stored queue has smart scheduling on.</param>
+/// <param name="WindowMinutes">The window in minutes.</param>
+internal sealed record QueueMonitorSmartScheduling(bool Enabled, int WindowMinutes);
 
 /// <summary>One item in the monitor's now/up-next plan.</summary>
 internal sealed record QueueMonitorItem(
@@ -82,7 +92,12 @@ internal sealed record QueueMonitorItem(
   DateTimeOffset? ExpectedAt,
   string? RelativeLabel,
   bool Repeats,
-  int Order);
+  int Order,
+  /// <summary>
+  /// The requested time of a self-reschedule firing that smart scheduling postponed (feature 189).
+  /// <c>ExpectedAt</c> is then the booked time. Null for all other items.
+  /// </summary>
+  DateTimeOffset? RequestedAt = null);
 
 /// <summary>Best-effort last finalized run outcome (shown when the queue is not running).</summary>
 internal sealed record RunOutcome(string Status, string Summary);

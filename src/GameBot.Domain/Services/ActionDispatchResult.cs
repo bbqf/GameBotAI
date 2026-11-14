@@ -12,4 +12,27 @@ namespace GameBot.Domain.Services;
 /// For the <c>Cancel</c> option: true when the action removed a booking, false when it did nothing.
 /// Null for all other options.
 /// </param>
-public sealed record ActionDispatchResult(string Outcome, string? Message, bool? Removed = null);
+/// <param name="SmartScheduling">
+/// For a <c>Timer</c> booking that smart scheduling postponed (feature 189): the values for the execution log. Null
+/// for all other bookings and options.
+/// </param>
+public sealed record ActionDispatchResult(
+  string Outcome, string? Message, bool? Removed = null, SmartSchedulingLogInfo? SmartScheduling = null);
+
+/// <summary>What smart scheduling did with a Timer booking, for the execution log (feature 189).</summary>
+/// <param name="RequestedAt">The time that the step requested.</param>
+/// <param name="BookedAt">The booked time.</param>
+/// <param name="TargetSequenceId">The sequence of the pending firing that the booking moved to.</param>
+/// <param name="TargetKind">The kind of that firing: <c>SelfReschedule</c>, <c>TemplateTimer</c>, <c>DailyRetry</c>, or <c>LiveSchedule</c>.</param>
+/// <param name="WindowMinutes">The window that the rule used, in minutes.</param>
+/// <param name="TargetName">The name of the target sequence. Null when the name is not known: the log then shows the ID.</param>
+public sealed record SmartSchedulingLogInfo(
+  System.DateTimeOffset RequestedAt,
+  System.DateTimeOffset BookedAt,
+  string TargetSequenceId,
+  string TargetKind,
+  int WindowMinutes,
+  string? TargetName = null) {
+  /// <summary>The text that the execution log shows for the target: the name, or the ID when the name is not known.</summary>
+  public string TargetLabel => string.IsNullOrWhiteSpace(TargetName) ? TargetSequenceId : TargetName;
+}

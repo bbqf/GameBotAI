@@ -54,6 +54,15 @@ namespace GameBot.Service.Contracts.Queues {
     public string NotificationLevel { get; set; } = "none";
 
     /// <summary>
+    /// Whether smart scheduling is on (feature 189). When true, a Timer booking of a sequence moves to a pending
+    /// firing that is not more than the window later. False for a queue from before feature 189.
+    /// </summary>
+    public bool SmartScheduling { get; set; }
+
+    /// <summary>The smart scheduling window in minutes, from 1 to 120 (feature 189). 15 for a queue from before feature 189.</summary>
+    public int SmartSchedulingWindowMinutes { get; set; } = GameBot.Domain.Queues.SmartSchedulingLimits.DefaultWindowMinutes;
+
+    /// <summary>
     /// The operator pause state of a running queue (feature 171): <c>none</c>, <c>pausing</c> or <c>paused</c>.
     /// The list gives it so a client needs no detail call (feature 173). The field is absent for a queue that does not run.
     /// </summary>

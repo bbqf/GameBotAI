@@ -165,6 +165,8 @@ public sealed class QueueSettingsExporter {
     PauseWhenIdle = queue.PauseWhenIdle,
     IdleThresholdSeconds = queue.IdleThresholdSeconds,
     ResumeOnServiceStart = queue.ResumeOnServiceStart,
+    SmartScheduling = queue.SmartScheduling,
+    SmartSchedulingWindowMinutes = queue.SmartSchedulingWindowMinutes,
     NotificationLevel = queue.NotificationLevel,
     FailurePolicy = queue.FailurePolicy,
     DeviceRecovery = queue.DeviceRecovery,

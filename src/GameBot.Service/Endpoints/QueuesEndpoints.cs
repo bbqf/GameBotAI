@@ -36,6 +36,8 @@ internal static class QueuesEndpoints {
       var createLevel = NotificationLevel.None;
       if (req.NotificationLevel is not null && !NotificationLevelText.TryParse(req.NotificationLevel, out createLevel))
         return LevelError();
+      if (SmartSchedulingWindowError(req.SmartSchedulingWindowMinutes) is { } createWindowError)
+        return Error(400, "invalid_request", createWindowError);
 
       var created = await repo.CreateAsync(new ExecutionQueue {
         Name = name,
@@ -48,7 +50,9 @@ internal static class QueuesEndpoints {
         FailurePolicy = createPolicy,
         DeviceRecovery = createRecovery,
         ResumeOnServiceStart = req.ResumeOnServiceStart,
-        NotificationLevel = createLevel
+        NotificationLevel = createLevel,
+        SmartScheduling = req.SmartScheduling ?? false,
+        SmartSchedulingWindowMinutes = req.SmartSchedulingWindowMinutes ?? SmartSchedulingLimits.DefaultWindowMinutes
       }).ConfigureAwait(false);
       return Results.Created($"{ApiRoutes.Queues}/{created.Id}", BuildResponse(created, runtime));
     }).WithName("CreateQueue");
@@ -117,6 +121,8 @@ internal static class QueuesEndpoints {
       var updateLevel = queue.NotificationLevel;
       if (req.NotificationLevel is not null && !NotificationLevelText.TryParse(req.NotificationLevel, out updateLevel))
         return LevelError();
+      if (SmartSchedulingWindowError(req.SmartSchedulingWindowMinutes) is { } updateWindowError)
+        return Error(400, "invalid_request", updateWindowError);
       queue.FailurePolicy = updatePolicy;
       queue.DeviceRecovery = updateRecovery;
       queue.Name = name;
@@ -127,6 +133,9 @@ internal static class QueuesEndpoints {
       queue.EmulatorInstanceIndex = req.EmulatorInstanceIndex;
       queue.ResumeOnServiceStart = req.ResumeOnServiceStart;
       queue.NotificationLevel = updateLevel;
+      // Feature 189: an absent member keeps the stored value. A saved change applies to the next booking of a running queue.
+      if (req.SmartScheduling is { } smart) queue.SmartScheduling = smart;
+      if (req.SmartSchedulingWindowMinutes is { } window) queue.SmartSchedulingWindowMinutes = window;
       var saved = await repo.UpdateAsync(queue).ConfigureAwait(false);
       if (updateLevel == NotificationLevel.None) notifications.ResetStreaks(saved.Id);
       return Results.Ok(BuildResponse(saved, runtime));
@@ -189,7 +198,9 @@ internal static class QueuesEndpoints {
         // silently lost its escalation policy would be exactly the silent-failure case this
         // feature exists to prevent. Copied by value so the two queues stay independent.
         FailurePolicy = QueueFailurePolicyMapping.Clone(source.FailurePolicy),
-        ResumeOnServiceStart = source.ResumeOnServiceStart
+        ResumeOnServiceStart = source.ResumeOnServiceStart,
+        SmartScheduling = source.SmartScheduling,
+        SmartSchedulingWindowMinutes = source.SmartSchedulingWindowMinutes
         // Feature 120: the duplicate keeps the default level none.
       }).ConfigureAwait(false);
 
@@ -632,7 +643,9 @@ internal static class QueuesEndpoints {
     FailurePolicy = QueueFailurePolicyMapping.Project(queue.FailurePolicy),
     DeviceRecovery = QueueDeviceRecoveryMapping.Project(queue.DeviceRecovery),
     ResumeOnServiceStart = queue.ResumeOnServiceStart,
-    NotificationLevel = NotificationLevelText.ToText(queue.NotificationLevel)
+    NotificationLevel = NotificationLevelText.ToText(queue.NotificationLevel),
+    SmartScheduling = queue.SmartScheduling,
+    SmartSchedulingWindowMinutes = queue.SmartSchedulingWindowMinutes
   };
 
   private static async Task<QueueDetailResponse> BuildDetailAsync(ExecutionQueue queue, IQueueRuntimeStore runtime, ISequenceRepository sequences, IQueueTemplateRepository templates, IGameRepository games, ISequenceRunStatisticsStore stats, IQueueRunRegistry? runs = null, DeviceLivenessReader? liveness = null) {
@@ -657,7 +670,9 @@ internal static class QueuesEndpoints {
       FailurePolicy = QueueFailurePolicyMapping.Project(queue.FailurePolicy),
       DeviceRecovery = QueueDeviceRecoveryMapping.Project(queue.DeviceRecovery),
       ResumeOnServiceStart = queue.ResumeOnServiceStart,
-      NotificationLevel = NotificationLevelText.ToText(queue.NotificationLevel)
+      NotificationLevel = NotificationLevelText.ToText(queue.NotificationLevel),
+      SmartScheduling = queue.SmartScheduling,
+      SmartSchedulingWindowMinutes = queue.SmartSchedulingWindowMinutes
     };
     foreach (var entry in entries) {
       var found = namesById.TryGetValue(entry.SequenceId, out var name);
@@ -723,7 +738,12 @@ internal static class QueuesEndpoints {
       NothingScheduled = snapshot.NothingScheduled,
       LastOutcome = snapshot.LastOutcome is null
         ? null
-        : new RunOutcomeResponse { Status = snapshot.LastOutcome.Status, Summary = snapshot.LastOutcome.Summary }
+        : new RunOutcomeResponse { Status = snapshot.LastOutcome.Status, Summary = snapshot.LastOutcome.Summary },
+      // Feature 189: the settings of the stored queue. A snapshot with no value shows off and 15.
+      SmartScheduling = new QueueMonitorSmartSchedulingResponse {
+        Enabled = snapshot.SmartScheduling?.Enabled ?? false,
+        WindowMinutes = snapshot.SmartScheduling?.WindowMinutes ?? SmartSchedulingLimits.DefaultWindowMinutes
+      }
     };
     foreach (var item in snapshot.Upcoming) resp.Upcoming.Add(ProjectMonitorItem(item));
     if (snapshot.EntryStates is not null) {
@@ -741,7 +761,8 @@ internal static class QueuesEndpoints {
     ExpectedAt = item.ExpectedAt,
     RelativeLabel = item.RelativeLabel,
     Repeats = item.Repeats,
-    Order = item.Order
+    Order = item.Order,
+    RequestedAt = item.RequestedAt
   };
 
   // ── Queue cycle observability (feature 086, issue #180) ──────────────────────────────────────
@@ -841,6 +862,15 @@ internal static class QueuesEndpoints {
   // means "unset" (feature 074), matching how the runtime treats a missing identifier.
   private static string? NormalizeInstanceName(string? name) =>
     string.IsNullOrWhiteSpace(name) ? null : name.Trim();
+
+  /// <summary>
+  /// Checks the smart scheduling window of a create or update request (feature 189). Returns the error text for a value
+  /// out of range, or null for a valid value and for no value.
+  /// </summary>
+  private static string? SmartSchedulingWindowError(int? minutes) =>
+    minutes is { } value && !SmartSchedulingLimits.IsValidWindow(value)
+      ? "smartSchedulingWindowMinutes must be from 1 to 120"
+      : null;
 
   private static IResult LevelError() =>
     Error(400, "invalid_request", "level must be one of: none, failure, successAndFailure");

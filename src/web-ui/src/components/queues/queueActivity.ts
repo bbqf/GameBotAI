@@ -41,6 +41,16 @@ const timeText = (iso: string, now: Date): string => {
   return `${formatClock(date)} (${formatRelative(date, now)})`;
 };
 
+/**
+ * Feature 189: the text of a firing that smart scheduling postponed, for example " · postponed from 12:00". The text is
+ * on the row, because a touch screen has no tooltip. Empty for an item with no valid requested time.
+ */
+const postponedSuffix = (item: QueueMonitorItemDto): string => {
+  if (!item.requestedAt) return '';
+  const requested = new Date(item.requestedAt);
+  return Number.isNaN(requested.getTime()) ? '' : ` · postponed from ${formatClock(requested)}`;
+};
+
 const monitorItems = (monitor: QueueMonitorDto | null | undefined): QueueMonitorItemDto[] => {
   if (!monitor || !monitor.running) return [];
   const items = [...(monitor.current ? [monitor.current] : []), ...(monitor.upcoming ?? [])];
@@ -92,7 +102,7 @@ export const buildScheduleRows = (
         repeats = item.repeats;
         if (item.expectedAt && !Number.isNaN(new Date(item.expectedAt).getTime())) {
           nextAt = item.expectedAt;
-          timingText = timeText(item.expectedAt, now);
+          timingText = timeText(item.expectedAt, now) + postponedSuffix(item);
         } else if (item.relativeLabel) {
           timingText = item.relativeLabel;
         }

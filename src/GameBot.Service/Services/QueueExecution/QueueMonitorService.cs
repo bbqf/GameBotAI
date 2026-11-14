@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -49,6 +50,10 @@ internal sealed class QueueMonitorService : IQueueMonitorService {
   public async Task<QueueMonitorSnapshot> BuildAsync(string queueId, CancellationToken ct = default) {
     var queue = await _queues.GetAsync(queueId).ConfigureAwait(false);
     var name = queue?.Name ?? string.Empty;
+    // Feature 189: the settings of the stored queue, also while it runs (each booking reads them there).
+    var smart = new QueueMonitorSmartScheduling(
+      queue?.SmartScheduling ?? false,
+      queue?.SmartSchedulingWindowMinutes ?? SmartSchedulingLimits.DefaultWindowMinutes);
 
     // Not running → 200 envelope with best-effort last outcome (the endpoint maps a missing queue to 404).
     if (!_registry.TryGet(queueId, out var handle)) {
@@ -56,7 +61,7 @@ internal sealed class QueueMonitorService : IQueueMonitorService {
       return new QueueMonitorSnapshot(
         queueId, name, Running: false, CycleExecution: queue?.CycleExecution ?? false,
         RunStartedAt: null, Current: null, Upcoming: Array.Empty<QueueMonitorItem>(),
-        NothingScheduled: false, LastOutcome: lastOutcome, DeviceSerial: null);
+        NothingScheduled: false, LastOutcome: lastOutcome, DeviceSerial: null, SmartScheduling: smart);
     }
 
     var template = string.IsNullOrEmpty(queue?.LinkedTemplateId)
@@ -97,7 +102,8 @@ internal sealed class QueueMonitorService : IQueueMonitorService {
       // never report one another's emulator. Falls back to the queue's bound serial for a handle
       // built before the run assigned it (and in tests that hand-build one).
       DeviceSerial: string.IsNullOrWhiteSpace(handle.DeviceSerial) ? queue?.EmulatorSerial : handle.DeviceSerial,
-      EntryStates: entryStates);
+      EntryStates: entryStates,
+      SmartScheduling: smart);
   }
 
   // ── Current ("now") ────────────────────────────────────────────────────────────────────────
@@ -206,8 +212,17 @@ internal sealed class QueueMonitorService : IQueueMonitorService {
         kv.Value, relativeLabel: null, repeats: false, order: 0));
     }
     foreach (var firing in selfTimerFirings.Where(f => f.FireAt is not null)) {
-      timed.Add(NewItem(firing.SequenceId, names, ScheduleKind.SelfReschedule, "Rescheduled by a sequence",
-        firing.FireAt, relativeLabel: null, repeats: false, order: 0));
+      var item = NewItem(firing.SequenceId, names, ScheduleKind.SelfReschedule, "Rescheduled by a sequence",
+        firing.FireAt, relativeLabel: null, repeats: false, order: 0);
+      // Feature 189: a postponed firing shows the booked time as ExpectedAt and the requested time in the reason.
+      if (firing.Postponement is { } postponement) {
+        item = item with {
+          Reason = string.Format(CultureInfo.InvariantCulture,
+            "Rescheduled by a sequence, postponed from {0:HH:mm} (smart scheduling)", postponement.RequestedAt),
+          RequestedAt = postponement.RequestedAt
+        };
+      }
+      timed.Add(item);
     }
     timed = timed.OrderBy(i => i.ExpectedAt).ToList();
 

@@ -139,6 +139,35 @@ public sealed class FileQueueRepositoryTests : IDisposable {
     loaded.IdleThresholdSeconds.Should().Be(30);      // initializer default preserved (back-compat)
   }
 
+  [Fact] // Feature 189: the smart scheduling settings keep their values after a save and a load.
+  public async Task UpdatePersistsSmartSchedulingConfig() {
+    var repo = NewRepo();
+    var created = await repo.CreateAsync(new ExecutionQueue { Name = "A", EmulatorSerial = "emu-1" }).ConfigureAwait(true);
+
+    created.SmartScheduling = true;
+    created.SmartSchedulingWindowMinutes = 20;
+    await repo.UpdateAsync(created).ConfigureAwait(true);
+
+    var loaded = await repo.GetAsync(created.Id).ConfigureAwait(true);
+    loaded!.SmartScheduling.Should().BeTrue();
+    loaded.SmartSchedulingWindowMinutes.Should().Be(20);
+  }
+
+  [Fact] // Feature 189: a queue file from before the feature reads as off with a window of 15 minutes.
+  public async Task LegacyQueueJsonWithoutSmartSchedulingFieldsLoadsAsOffWithDefaultWindow() {
+    var repo = NewRepo();
+    var dir = Path.Combine(_root, "queues");
+    Directory.CreateDirectory(dir);
+    await File.WriteAllTextAsync(Path.Combine(dir, "legacy189.json"),
+      "{\"Id\":\"legacy189\",\"Name\":\"Old\",\"EmulatorSerial\":\"emu-1\",\"CycleExecution\":false}").ConfigureAwait(true);
+
+    var loaded = await repo.GetAsync("legacy189").ConfigureAwait(true);
+
+    loaded.Should().NotBeNull();
+    loaded!.SmartScheduling.Should().BeFalse();
+    loaded.SmartSchedulingWindowMinutes.Should().Be(15);
+  }
+
   [Fact] // T013 — feature 074: emulator-instance config round-trips through persistence
   public async Task UpdatePersistsEmulatorInstanceConfig() {
     var repo = NewRepo();

@@ -53,6 +53,11 @@ internal static class SequencesEndpoints {
       return Results.BadRequest(new { message = "Invalid sequence payload", errors = new[] { excludeError } });
     }
 
+    // Feature 189: check ignoreSmartScheduling in the same way. Absent gives false on create.
+    if (!TryReadIgnoreSmartSchedulingFlag(root, out var ignoreFlag, out var ignoreError)) {
+      return Results.BadRequest(new { message = "Invalid sequence payload", errors = new[] { ignoreError } });
+    }
+
     // Feature 170: check onTimeLimit in the same way, before any other change.
     if (!TryReadOnTimeLimit(root, out var onTimeLimit, out var onTimeLimitError)) {
       return Results.BadRequest(new { message = "Invalid sequence payload", errors = new[] { onTimeLimitError } });
@@ -63,6 +68,7 @@ internal static class SequencesEndpoints {
       var perStepSequence = new GameBot.Domain.Commands.CommandSequence {
         Id = string.Empty,
         ExcludeFromSuccessNotifications = excludeFlag ?? false,
+        IgnoreSmartScheduling = ignoreFlag ?? false,
         OnTimeLimit = onTimeLimit,
         Name = perStepRequest.Name.Trim(),
         Version = perStepRequest.Version > 0 ? perStepRequest.Version : 1,
@@ -114,7 +120,7 @@ internal static class SequencesEndpoints {
     // Authoring shape: { name: string, steps?: string[] }
     if (root.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == System.Text.Json.JsonValueKind.String && !root.TryGetProperty("blocks", out _)) {
       var name = nameProp.GetString()!.Trim();
-      var seq = new GameBot.Domain.Commands.CommandSequence { Id = string.Empty, Name = name, ExcludeFromSuccessNotifications = excludeFlag ?? false, OnTimeLimit = onTimeLimit, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow };
+      var seq = new GameBot.Domain.Commands.CommandSequence { Id = string.Empty, Name = name, ExcludeFromSuccessNotifications = excludeFlag ?? false, IgnoreSmartScheduling = ignoreFlag ?? false, OnTimeLimit = onTimeLimit, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow };
       // Issue #242: this shape keeps only string command ids. Reject each part of the request that
       // it cannot keep, so that the stored sequence never differs from the request.
       var oldShapeErrors = ValidateOldShapeRequest(root);
@@ -143,6 +149,7 @@ internal static class SequencesEndpoints {
     var seqDomain = JsonSerializer.Deserialize<GameBot.Domain.Commands.CommandSequence>(root);
     if (seqDomain is null) return Results.BadRequest(new { message = "Invalid sequence payload" });
     seqDomain.ExcludeFromSuccessNotifications = excludeFlag ?? false;
+    seqDomain.IgnoreSmartScheduling = ignoreFlag ?? false;
     seqDomain.OnTimeLimit = onTimeLimit;
     var errors = ValidateSequence(seqDomain);
     if (errors.Count > 0) return Results.BadRequest(new { message = "Invalid sequence", errors });
@@ -163,6 +170,18 @@ internal static class SequencesEndpoints {
     if (prop.ValueKind == JsonValueKind.True) { value = true; return true; }
     if (prop.ValueKind == JsonValueKind.False) { value = false; return true; }
     error = "excludeFromSuccessNotifications must be true or false.";
+    return false;
+  }
+
+  // Feature 189: reads the optional member ignoreSmartScheduling. Only JSON true and false are valid. Absent gives
+  // null, and the caller keeps the stored value on PUT and PATCH.
+  private static bool TryReadIgnoreSmartSchedulingFlag(JsonElement root, out bool? value, out string? error) {
+    value = null;
+    error = null;
+    if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("ignoreSmartScheduling", out var prop)) return true;
+    if (prop.ValueKind == JsonValueKind.True) { value = true; return true; }
+    if (prop.ValueKind == JsonValueKind.False) { value = false; return true; }
+    error = "ignoreSmartScheduling must be true or false.";
     return false;
   }
 
@@ -224,6 +243,13 @@ internal static class SequencesEndpoints {
     }
 
     if (excludeFlag is { } excludeValue) existing.ExcludeFromSuccessNotifications = excludeValue;
+
+    // Feature 189: an absent member keeps the stored value, also on PUT. A bad value gives 400 before any change.
+    if (!TryReadIgnoreSmartSchedulingFlag(root, out var ignoreFlag, out var ignoreError)) {
+      return Results.BadRequest(new { message = "Invalid sequence payload", errors = new[] { ignoreError } });
+    }
+
+    if (ignoreFlag is { } ignoreValue) existing.IgnoreSmartScheduling = ignoreValue;
 
     // Feature 170: PUT replaces the sequence, so an absent onTimeLimit resets to fail.
     if (!TryReadOnTimeLimit(root, out var onTimeLimit, out var onTimeLimitError)) {
@@ -325,6 +351,13 @@ internal static class SequencesEndpoints {
     }
 
     if (excludeFlag is { } excludeValue) existing.ExcludeFromSuccessNotifications = excludeValue;
+
+    // Feature 189: an absent member keeps the stored value, also on PUT. A bad value gives 400 before any change.
+    if (!TryReadIgnoreSmartSchedulingFlag(root, out var ignoreFlag, out var ignoreError)) {
+      return Results.BadRequest(new { message = "Invalid sequence payload", errors = new[] { ignoreError } });
+    }
+
+    if (ignoreFlag is { } ignoreValue) existing.IgnoreSmartScheduling = ignoreValue;
 
     // Feature 170: an absent onTimeLimit keeps the saved value.
     if (!TryReadOnTimeLimit(root, out var onTimeLimit, out var onTimeLimitError)) {
@@ -437,6 +470,7 @@ internal static class SequencesEndpoints {
       Steps = new System.Collections.ObjectModel.Collection<string>(s.Steps.Select(x => x.CommandId).ToList()),
       Parameters = ParameterDtoMapper.ToResponseDeclarations(s.Parameters),
       ExcludeFromSuccessNotifications = s.ExcludeFromSuccessNotifications,
+      IgnoreSmartScheduling = s.IgnoreSmartScheduling,
       OnTimeLimit = s.OnTimeLimit ?? GameBot.Domain.Commands.SequenceTimeLimits.OnTimeLimitFail,
       Owner = GamepackOwnerResponse.For(owners, GameBot.Domain.Gamepacks.GamepackObjectTypes.Sequence, s.Id)
     });
@@ -589,6 +623,7 @@ internal static class SequencesEndpoints {
         watchdogTimeoutMs = sequence.WatchdogTimeoutMs,
         effectiveWatchdogTimeoutMs = GameBot.Domain.Commands.SequenceTimeLimits.Resolve(sequence.WatchdogTimeoutMs),
         excludeFromSuccessNotifications = sequence.ExcludeFromSuccessNotifications,
+        ignoreSmartScheduling = sequence.IgnoreSmartScheduling,
         onTimeLimit = sequence.OnTimeLimit ?? GameBot.Domain.Commands.SequenceTimeLimits.OnTimeLimitFail
       };
     }
@@ -606,6 +641,7 @@ internal static class SequencesEndpoints {
         effectiveWatchdogTimeoutMs = GameBot.Domain.Commands.SequenceTimeLimits.Resolve(sequence.WatchdogTimeoutMs),
         parameters = ParameterDtoMapper.ToResponseDeclarations(sequence.Parameters),
         excludeFromSuccessNotifications = sequence.ExcludeFromSuccessNotifications,
+        ignoreSmartScheduling = sequence.IgnoreSmartScheduling,
         onTimeLimit = sequence.OnTimeLimit ?? GameBot.Domain.Commands.SequenceTimeLimits.OnTimeLimitFail
       };
     }
@@ -622,6 +658,7 @@ internal static class SequencesEndpoints {
       effectiveWatchdogTimeoutMs = GameBot.Domain.Commands.SequenceTimeLimits.Resolve(sequence.WatchdogTimeoutMs),
       parameters = ParameterDtoMapper.ToResponseDeclarations(sequence.Parameters),
       excludeFromSuccessNotifications = sequence.ExcludeFromSuccessNotifications,
+      ignoreSmartScheduling = sequence.IgnoreSmartScheduling,
       onTimeLimit = sequence.OnTimeLimit ?? GameBot.Domain.Commands.SequenceTimeLimits.OnTimeLimitFail
     };
   }

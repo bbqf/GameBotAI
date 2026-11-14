@@ -135,11 +135,14 @@ type SequenceFormValue = {
   parameters: ParameterDeclaration[];
   /** Feature 122: when true, queues send no success message for this sequence. */
   excludeFromSuccessNotifications: boolean;
+  /** Feature 189: when true, the bookings of this sequence always keep the requested time. */
+  ignoreSmartScheduling: boolean;
   /** Feature 170: what a queue run does at its time limit. */
   onTimeLimit: 'fail' | 'end';
 };
 
 const EXCLUDE_NOTIFICATIONS_HELP = 'The queue sends no success message for this sequence. It still sends failure, cancelled and recovered messages.';
+const IGNORE_SMART_SCHEDULING_HELP = 'Use it for a time-critical sequence. The bookings of this sequence always keep the requested time.';
 
 const ON_TIME_LIMIT_HELP = 'Choose "End the run as success" for a sequence that is meant to run until its time limit. The run log shows success and keeps the time-limit reason.';
 
@@ -196,6 +199,7 @@ const emptyForm: SequenceFormValue = {
   delayMax: '',
   parameters: [],
   excludeFromSuccessNotifications: false,
+  ignoreSmartScheduling: false,
   onTimeLimit: 'fail'
 };
 
@@ -1181,7 +1185,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
 
   const commandLookup = useMemo(() => new Map(commandOptions.map((o) => [o.value, o.label])), [commandOptions]);
   const editorCommandOptions = useMemo(() => mergeCommandOptionsWithUnresolved(commandOptions, form.steps), [commandOptions, form.steps]);
-  const sequenceRows = useMemo(() => sequences.map((s) => ({ id: s.id, name: s.name, stepCount: s.steps?.length ?? 0, excludeFromSuccessNotifications: s.excludeFromSuccessNotifications === true })), [sequences]);
+  const sequenceRows = useMemo(() => sequences.map((s) => ({ id: s.id, name: s.name, stepCount: s.steps?.length ?? 0, excludeFromSuccessNotifications: s.excludeFromSuccessNotifications === true, ignoreSmartScheduling: s.ignoreSmartScheduling === true })), [sequences]);
 
   const displayedSequences = useMemo(() => {
     const query = filterName.trim().toLowerCase();
@@ -1222,6 +1226,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
       delayMax: delayRange ? String(delayRange.max) : '',
       parameters: s.parameters ?? [],
       excludeFromSuccessNotifications: s.excludeFromSuccessNotifications === true,
+      ignoreSmartScheduling: s.ignoreSmartScheduling === true,
       onTimeLimit: s.onTimeLimit === 'end' ? 'end' : 'fail'
     });
     setLoadedVersion(s.version ?? 1);
@@ -2064,6 +2069,11 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                     No success notifications
                   </span>
                 )}
+                {s.ignoreSmartScheduling && (
+                  <span className="badge sequence-badge--ignores-smart-scheduling" title={IGNORE_SMART_SCHEDULING_HELP}>
+                    Ignores smart scheduling
+                  </span>
+                )}
               </td>
               <td>{s.stepCount}</td>
             </tr>
@@ -2118,6 +2128,8 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                   ...(form.parameters.length > 0 ? { parameters: form.parameters } : {}),
                   // Feature 122: sent only when on. An absent member means false on create.
                   ...(form.excludeFromSuccessNotifications ? { excludeFromSuccessNotifications: true } : {}),
+                  // Feature 189: sent only when on. An absent member means false on create.
+                  ...(form.ignoreSmartScheduling ? { ignoreSmartScheduling: true } : {}),
                   // Feature 170: sent only for 'end'. An absent member means 'fail' on create.
                   ...(form.onTimeLimit === 'end' ? { onTimeLimit: 'end' as const } : {})
                 }
@@ -2165,6 +2177,23 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                 Exclude from success notifications
               </label>
               <div className="form-hint">{EXCLUDE_NOTIFICATIONS_HELP}</div>
+            </div>
+            <div className="field">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={form.ignoreSmartScheduling}
+                  onChange={(event) => {
+                    const enabled = event.target.checked;
+                    setForm((prev) => ({ ...prev, ignoreSmartScheduling: enabled }));
+                    setErrors(undefined);
+                    setDirty(true);
+                  }}
+                  disabled={submitting || loading}
+                />
+                Ignore smart scheduling
+              </label>
+              <div className="form-hint">{IGNORE_SMART_SCHEDULING_HELP}</div>
             </div>
             <OnTimeLimitField
               id="sequence-on-time-limit"
@@ -2421,6 +2450,8 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                     parameters: form.parameters,
                     // Feature 122: always sent on update, so a save of another change keeps the value.
                     excludeFromSuccessNotifications: form.excludeFromSuccessNotifications,
+                    // Feature 189: always sent on update, so a save from the web UI can set it to false.
+                    ignoreSmartScheduling: form.ignoreSmartScheduling,
                     // Feature 170: always sent on update, because PUT resets an absent value to 'fail'.
                     onTimeLimit: form.onTimeLimit
                   }
@@ -2471,6 +2502,23 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                   Exclude from success notifications
                 </label>
                 <div className="form-hint">{EXCLUDE_NOTIFICATIONS_HELP}</div>
+              </div>
+              <div className="field">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={form.ignoreSmartScheduling}
+                    onChange={(event) => {
+                      const enabled = event.target.checked;
+                      setForm((prev) => ({ ...prev, ignoreSmartScheduling: enabled }));
+                      setErrors(undefined);
+                      setDirty(true);
+                    }}
+                    disabled={submitting || loading}
+                  />
+                  Ignore smart scheduling
+                </label>
+                <div className="form-hint">{IGNORE_SMART_SCHEDULING_HELP}</div>
               </div>
               <OnTimeLimitField
                 id="sequence-edit-on-time-limit"
