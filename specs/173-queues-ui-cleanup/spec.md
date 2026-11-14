@@ -172,7 +172,7 @@ The operator turns a sequence (an entry) on or off with one tap on the phone. Th
 - **FR-011**: A save on the Edit page of a running queue MUST change the linked template only. It MUST NOT change the running queue. It MUST NOT stop or restart the run. The changes reach the queue only through the review and apply steps (FR-013 to FR-015).
 - **FR-012**: The Edit page of a stopped queue MUST work as before.
 - **FR-018**: A running queue with no linked template needs a different page. The Edit page MUST show the entries as read-only. It MUST show the message "Link a template to edit this queue while it runs." It MUST let the operator link a template. It MUST NOT change the running entries.
-- **FR-019**: On the Edit page of a running queue, the emulator MUST be read-only. All other queue settings MUST stay editable. The page MUST show one note near Save: "Settings apply at the next start."
+- **FR-019**: On the Edit page of a running queue, the emulator MUST be read-only. All other queue settings MUST stay editable. The page MUST show one note near Save: "Settings apply at the next start." Feature 189 makes one exception: the smart scheduling settings apply to the next booking of a running queue, and the note says so.
 
 **Review of template changes**
 

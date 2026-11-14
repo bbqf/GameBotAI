@@ -10,6 +10,8 @@ namespace GameBot.UnitTests.Queues;
 
 // Feature 173 (FR-019): the settings of a running queue can be saved. A run reads the queue once, at its start, and the
 // repository gives each caller its own copy. So a saved setting applies at the next start. These tests keep that true.
+// Feature 189 makes one exception: each Timer booking reads the smart scheduling settings from the stored queue, so a
+// saved change of these two settings applies to the next booking. The integration tests of feature 189 prove that.
 public sealed partial class QueueExecutionServiceTests {
   /// <summary>Saves new settings the way the update route does: a changed copy replaces the stored queue.</summary>
   private static async Task SaveSettingsAsync(Harness h, string id, Action<ExecutionQueue> change) {
@@ -21,7 +23,9 @@ public sealed partial class QueueExecutionServiceTests {
       CycleExecution = stored.CycleExecution,
       LinkedTemplateId = stored.LinkedTemplateId,
       PauseWhenIdle = stored.PauseWhenIdle,
-      IdleThresholdSeconds = stored.IdleThresholdSeconds
+      IdleThresholdSeconds = stored.IdleThresholdSeconds,
+      SmartScheduling = stored.SmartScheduling,
+      SmartSchedulingWindowMinutes = stored.SmartSchedulingWindowMinutes
     };
     change(copy);
     await h.Queues.UpdateAsync(copy);

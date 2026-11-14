@@ -16,7 +16,22 @@ export type QueueFormValue = {
   emulatorInstanceIndex: number | null;
   /** Opt-in: start the queue again after a service restart if it was running (feature 098). */
   resumeOnServiceStart: boolean;
+  /** Opt-in: move a Timer booking of a sequence to a pending firing in the window (feature 189). */
+  smartScheduling: boolean;
+  /** The smart scheduling window in minutes, from 1 to 120 (default 15). */
+  smartSchedulingWindowMinutes: number;
 };
+
+/** The permitted smart scheduling window, in minutes (feature 189). */
+export const SMART_WINDOW_MIN = 1;
+export const SMART_WINDOW_MAX = 120;
+
+/** True when the window is a whole number from 1 to 120 (feature 189). */
+export const isValidSmartWindow = (minutes: number): boolean =>
+  Number.isInteger(minutes) && minutes >= SMART_WINDOW_MIN && minutes <= SMART_WINDOW_MAX;
+
+/** The text of a window out of range (feature 189). */
+export const SMART_WINDOW_ERROR = 'Enter a value from 1 to 120.';
 
 type QueueFormProps = {
   mode: 'create' | 'edit';
@@ -155,6 +170,44 @@ export const QueueForm: React.FC<QueueFormProps> = ({
         </div>
       )}
 
+      {/* Row 2b'': Smart scheduling (feature 189) */}
+      <div className="field">
+        <label>
+          <input
+            type="checkbox"
+            checked={value.smartScheduling}
+            onChange={(e) => onChange({ ...value, smartScheduling: e.target.checked })}
+            disabled={submitting}
+            aria-label="Smart scheduling"
+            aria-describedby="queue-smart-help"
+          />
+          {' '}Smart scheduling
+        </label>
+        <div id="queue-smart-help" className="form-hint">
+          Moves a booking of a sequence to a pending firing that is not more than the window later. The queue wakes up less often.
+        </div>
+      </div>
+      {value.smartScheduling && (
+        <div className="field">
+          <label htmlFor="queue-smart-window">Window (minutes)</label>
+          <input
+            id="queue-smart-window"
+            type="number"
+            min={SMART_WINDOW_MIN}
+            max={SMART_WINDOW_MAX}
+            value={value.smartSchedulingWindowMinutes}
+            onChange={(e) => onChange({ ...value, smartSchedulingWindowMinutes: Number(e.target.value) })}
+            disabled={submitting}
+            aria-label="Window (minutes)"
+            aria-invalid={!isValidSmartWindow(value.smartSchedulingWindowMinutes)}
+            aria-describedby={isValidSmartWindow(value.smartSchedulingWindowMinutes) ? undefined : 'queue-smart-window-error'}
+          />
+          {!isValidSmartWindow(value.smartSchedulingWindowMinutes) && (
+            <div id="queue-smart-window-error" className="field-error" role="alert">{SMART_WINDOW_ERROR}</div>
+          )}
+        </div>
+      )}
+
       {/* Row 2b': Resume after a service restart (feature 098) */}
       <div className="field">
         <label>
@@ -212,7 +265,11 @@ export const QueueForm: React.FC<QueueFormProps> = ({
         <button type="button" onClick={onSubmit} disabled={submitting}>Save</button>
         <button type="button" onClick={onCancel} disabled={submitting}>Cancel</button>
       </div>
-      {isEdit && running && <div className="form-hint" id="queue-running-note">Settings apply at the next start.</div>}
+      {isEdit && running && (
+        <div className="form-hint" id="queue-running-note">
+          Settings apply at the next start. Smart scheduling applies to the next booking.
+        </div>
+      )}
       {saveResult && (
         saveResult.kind === 'success'
           ? <div className="form-hint" role="status">{saveResult.message}</div>

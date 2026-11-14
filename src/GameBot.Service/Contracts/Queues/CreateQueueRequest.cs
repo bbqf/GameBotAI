@@ -32,5 +32,18 @@ namespace GameBot.Service.Contracts.Queues {
     /// value. A wrong value gives 400.
     /// </summary>
     public string? NotificationLevel { get; set; }
+
+    /// <summary>
+    /// Optional smart scheduling switch (feature 189). When true, a Timer booking of a sequence moves to a pending
+    /// firing that is not more than the window later. When absent or null, a create uses false and an update keeps
+    /// the stored value.
+    /// </summary>
+    public bool? SmartScheduling { get; set; }
+
+    /// <summary>
+    /// Optional smart scheduling window in minutes, from 1 to 120 (feature 189). When absent or null, a create uses
+    /// 15 and an update keeps the stored value. A value out of range gives 400, also when the switch is off.
+    /// </summary>
+    public int? SmartSchedulingWindowMinutes { get; set; }
   }
 }

@@ -22,6 +22,13 @@ export type QueueDto = {
   resumeOnServiceStart?: boolean;
   /** Notification level of the queue (feature 120). The API sends 'none' when the queue has no level. */
   notificationLevel?: NotificationLevel;
+  /**
+   * When true, a Timer booking of a sequence moves to a pending firing in the window (feature 189). The API always sends
+   * it. It is optional here so that a reply of an older service reads as off.
+   */
+  smartScheduling?: boolean;
+  /** The smart scheduling window in minutes, from 1 to 120 (feature 189). An absent value reads as 15. */
+  smartSchedulingWindowMinutes?: number;
   status: QueueStatus;
   entryCount: number;
   linkedTemplateId: string | null;
@@ -67,6 +74,10 @@ export type QueueCreate = {
   emulatorInstanceName?: string | null;
   emulatorInstanceIndex?: number | null;
   resumeOnServiceStart?: boolean;
+  /** Feature 189. Absent gives false. */
+  smartScheduling?: boolean;
+  /** Feature 189. From 1 to 120. Absent gives 15. */
+  smartSchedulingWindowMinutes?: number;
 };
 
 export type QueueUpdate = {
@@ -77,6 +88,10 @@ export type QueueUpdate = {
   emulatorInstanceName?: string | null;
   emulatorInstanceIndex?: number | null;
   resumeOnServiceStart?: boolean;
+  /** Feature 189. Absent keeps the stored value. */
+  smartScheduling?: boolean;
+  /** Feature 189. From 1 to 120. Absent keeps the stored value. */
+  smartSchedulingWindowMinutes?: number;
 };
 
 const base = '/api/queues';
@@ -252,6 +267,11 @@ export type QueueMonitorItemDto = {
   relativeLabel: string | null;
   repeats: boolean;
   order: number;
+  /**
+   * The requested time of a self-reschedule firing that smart scheduling postponed (feature 189). expectedAt is then
+   * the booked time. Absent for all other items.
+   */
+  requestedAt?: string | null;
 };
 
 /** Best-effort last finalized run outcome (shown when the queue is not running). */
@@ -278,6 +298,8 @@ export type QueueMonitorDto = {
    * queue does not run. An old service does not send it.
    */
   entryStates?: Record<string, EntryState>;
+  /** The smart scheduling settings of the stored queue (feature 189). An old service does not send it. */
+  smartScheduling?: { enabled: boolean; windowMinutes: number };
 };
 
 /** The state of a template entry in a running queue (feature 184). 'idle' is the state where Run next works. */

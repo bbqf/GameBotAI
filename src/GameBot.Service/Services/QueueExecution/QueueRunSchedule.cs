@@ -347,5 +347,37 @@ internal sealed class QueueRunSchedule {
     return earliest;
   }
 
+  /// <summary>
+  /// Gives the due times of the template Timer entries and of the armed daily retries of this run, as smart
+  /// scheduling candidates (feature 189). A time-of-day entry gives its next due time. A relative-offset entry
+  /// gives the run start plus the offset, only when it did not fire. An armed daily retry of an entry of the plan
+  /// gives its due time. The candidates come in plan order, then the retries. It uses the same helpers and the
+  /// same lock as <see cref="ComputeNextDue"/>, so the two cannot disagree. Pure read.
+  /// </summary>
+  /// <param name="now">The local time now.</param>
+  public IReadOnlyList<GameBot.Domain.Queues.SmartCandidate> SnapshotTimedEntryDueTimes(DateTimeOffset now) {
+    var candidates = new List<GameBot.Domain.Queues.SmartCandidate>();
+    lock (_gate) {
+      var entries = _plan.Entries;
+      for (var i = 0; i < entries.Count; i++) {
+        var entry = entries[i];
+        if (!IsTimer(entry)) continue;
+        var key = _plan.Keys[i];
+        if (entry.TimerTimeOfDay is { } tod) {
+          candidates.Add(new(NextTimeOfDayDueLocked(key, tod, now), entry.SequenceId, GameBot.Domain.Queues.SmartTargetKind.TemplateTimer));
+        }
+        if (entry.TimerRelativeOffset is { } offset && !_relativeFired.Contains(key)) {
+          candidates.Add(new(RunStartedAt + offset, entry.SequenceId, GameBot.Domain.Queues.SmartTargetKind.TemplateTimer));
+        }
+      }
+      foreach (var pair in _dailyRetries) {
+        var index = _plan.IndexOfKey(pair.Key);
+        if (index < 0) continue;
+        candidates.Add(new(pair.Value.DueAt, entries[index].SequenceId, GameBot.Domain.Queues.SmartTargetKind.DailyRetry));
+      }
+    }
+    return candidates;
+  }
+
   private static bool IsTimer(QueueTemplateEntry entry) => entry.ScheduleType == ScheduleType.Timer;
 }

@@ -824,7 +824,8 @@ namespace GameBot.Domain.Services {
           conditionResult: step.Condition is null ? null : "true",
           actionOutcome: dispatch.Outcome,
           message: dispatch.Message,
-          removed: dispatch.Removed);
+          removed: dispatch.Removed,
+          smartScheduling: dispatch.SmartScheduling);
       // Feature 142: a quiz step records its own outcome (pick_N, unreadable, stored, ...), so a later
       // commandOutcome condition can read it. Feature 174: a WaitForStill step records still or
       // timeout_elapsed. Other service-level steps record "success".
@@ -2868,7 +2869,8 @@ namespace GameBot.Domain.Services {
         string? message = null,
         WaitForImageStepResultDetails? waitForImageDetails = null,
         string? stepId = null,
-        bool? removed = null) {
+        bool? removed = null,
+        SmartSchedulingLogInfo? smartScheduling = null) {
       // Feature 181: the matched image of the guard of this step goes to the entry of the step.
       StepImageMatch? matched = null;
       if (_pendingMatch is { Match: not null } pending
@@ -2892,6 +2894,7 @@ namespace GameBot.Domain.Services {
         ActionOutcome = actionOutcome,
         Message = message,
         Removed = removed,
+        SmartScheduling = smartScheduling,
         WaitForImageDetails = waitForImageDetails
       });
     }
@@ -2994,6 +2997,9 @@ namespace GameBot.Domain.Services {
     public string? Message { get; set; }
     /// <summary>For a reschedule-self Cancel step: true if a booking was removed. Null for other steps.</summary>
     public bool? Removed { get; set; }
+
+    /// <summary>For a reschedule-self Timer step that smart scheduling postponed (feature 189). Null for other steps.</summary>
+    public SmartSchedulingLogInfo? SmartScheduling { get; set; }
     public WaitForImageStepResultDetails? WaitForImageDetails { get; set; }
 
     /// <summary>

@@ -685,6 +685,11 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
         + "has entries with no entry ID, and 409 apply_in_progress when another apply runs. The call does not resume the queue.";
       SetRequestExample(operation, QueueApplyTemplateRequestExample(), context, typeof(GameBot.Service.Contracts.Queues.ApplyTemplateRequest));
     }
+    else if (IsMethod(method, HttpMethods.Get) && path.EndsWith("/monitor", StringComparison.OrdinalIgnoreCase)
+      && path.StartsWith(ApiRoutes.Queues + "/", StringComparison.OrdinalIgnoreCase)) {
+      // Feature 189: publish the response schema, so the smart scheduling members and requestedAt are described.
+      SetResponseExample(operation, "200", QueueMonitorExample(), context, typeof(GameBot.Service.Contracts.Queues.QueueMonitorResponse));
+    }
     else if (IsMethod(method, HttpMethods.Get) && path.EndsWith("/cycles", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Recent completed cycles of a running queue (newest first)";
       operation.Description ??=
@@ -774,6 +779,38 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     ["sequenceId"] = new OpenApiString("sequence-collect"),
     ["alreadyQueued"] = new OpenApiBoolean(false),
     ["state"] = new OpenApiString("queued")
+  };
+
+  // Feature 189: a running queue with smart scheduling on and one postponed self-reschedule firing.
+  private static OpenApiObject QueueMonitorExample() => new OpenApiObject {
+    ["queueId"] = new OpenApiString("q1"),
+    ["name"] = new OpenApiString("Daily"),
+    ["running"] = new OpenApiBoolean(true),
+    ["cycleExecution"] = new OpenApiBoolean(true),
+    ["runStartedAt"] = new OpenApiString("2026-11-13T08:00:00+01:00"),
+    ["deviceSerial"] = new OpenApiString("emulator-5554"),
+    ["current"] = new OpenApiNull(),
+    ["upcoming"] = new OpenApiArray {
+      new OpenApiObject {
+        ["sequenceId"] = new OpenApiString("46baa304d46445a9ae214ffbcf416755"),
+        ["sequenceName"] = new OpenApiString("PNS.RadioQuiz"),
+        ["stale"] = new OpenApiBoolean(false),
+        ["scheduleKind"] = new OpenApiString("SelfReschedule"),
+        ["reason"] = new OpenApiString("Rescheduled by a sequence, postponed from 12:00 (smart scheduling)"),
+        ["expectedAt"] = new OpenApiString("2026-11-13T12:10:00+01:00"),
+        ["requestedAt"] = new OpenApiString("2026-11-13T12:00:00+01:00"),
+        ["relativeLabel"] = new OpenApiNull(),
+        ["repeats"] = new OpenApiBoolean(false),
+        ["order"] = new OpenApiInteger(3)
+      }
+    },
+    ["nothingScheduled"] = new OpenApiBoolean(false),
+    ["lastOutcome"] = new OpenApiNull(),
+    ["entryStates"] = new OpenApiObject(),
+    ["smartScheduling"] = new OpenApiObject {
+      ["enabled"] = new OpenApiBoolean(true),
+      ["windowMinutes"] = new OpenApiInteger(15)
+    }
   };
 
   private static OpenApiObject QueueLiveScheduleResponse() => new OpenApiObject {
@@ -2614,6 +2651,9 @@ internal sealed class SequenceRequestSchema {
   /// <summary>If true, queues send no success message for this sequence (feature 122).</summary>
   public bool? ExcludeFromSuccessNotifications { get; set; }
 
+  /// <summary>If true, the bookings of this sequence always keep the requested time (feature 189).</summary>
+  public bool? IgnoreSmartScheduling { get; set; }
+
   /// <summary>What a queue run does at its time limit (feature 170): fail (default) or end.</summary>
   public string? OnTimeLimit { get; set; }
 }
@@ -2631,6 +2671,9 @@ internal sealed class SequenceResponseSchema {
 
   /// <summary>If true, queues send no success message for this sequence (feature 122).</summary>
   public bool ExcludeFromSuccessNotifications { get; set; }
+
+  /// <summary>If true, the bookings of this sequence always keep the requested time (feature 189).</summary>
+  public bool IgnoreSmartScheduling { get; set; }
 
   /// <summary>What a queue run does at its time limit (feature 170): fail or end.</summary>
   public string OnTimeLimit { get; set; } = "fail";

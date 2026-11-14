@@ -208,3 +208,36 @@ describe('buildScheduleRows entry states (feature 184)', () => {
     expect(rows.every((r) => r.entryState === null)).toBe(true);
   });
 });
+
+describe('buildScheduleRows smart scheduling (feature 189)', () => {
+  const tpl = template([
+    entry('s1', 'Alpha', { entryId: 'e1' }),
+    entry('s2', 'Beta', { entryId: 'e2' })
+  ]);
+
+  it('adds the postponed text for an item with a requested time', () => {
+    const m = monitor({
+      upcoming: [item({ sequenceId: 's1', scheduleKind: 'SelfReschedule', expectedAt: at(10, 10), requestedAt: at(10, 0), order: 0 })],
+      entryStates: { e1: 'scheduled' }
+    });
+    const rows = buildScheduleRows(m, tpl, null, NOW);
+    expect(rows.find((r) => r.name === 'Alpha')?.timingText).toBe('Scheduled · 10:10 (in 10 min) · postponed from 10:00');
+  });
+
+  it('keeps the text of today for an item with no requested time', () => {
+    const m = monitor({
+      upcoming: [item({ sequenceId: 's1', scheduleKind: 'SelfReschedule', expectedAt: at(10, 10), order: 0 })],
+      entryStates: { e1: 'scheduled' }
+    });
+    const rows = buildScheduleRows(m, tpl, null, NOW);
+    expect(rows.find((r) => r.name === 'Alpha')?.timingText).toBe('Scheduled · 10:10 (in 10 min)');
+  });
+
+  it('ignores a requested time that is not valid', () => {
+    const m = monitor({
+      upcoming: [item({ sequenceId: 's1', scheduleKind: 'SelfReschedule', expectedAt: at(10, 10), requestedAt: 'bad', order: 0 })]
+    });
+    const rows = buildScheduleRows(m, tpl, null, NOW);
+    expect(rows.find((r) => r.name === 'Alpha')?.timingText).toBe('10:10 (in 10 min)');
+  });
+});

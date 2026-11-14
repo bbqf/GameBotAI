@@ -524,6 +524,8 @@ public sealed class QueueSettingsImporter {
     queue.PauseWhenIdle = doc.PauseWhenIdle;
     queue.IdleThresholdSeconds = doc.IdleThresholdSeconds;
     queue.ResumeOnServiceStart = doc.ResumeOnServiceStart;
+    queue.SmartScheduling = doc.SmartScheduling;
+    queue.SmartSchedulingWindowMinutes = doc.SmartSchedulingWindowMinutes;
     queue.NotificationLevel = doc.NotificationLevel;
     queue.FailurePolicy = doc.FailurePolicy;
     queue.DeviceRecovery = doc.DeviceRecovery;

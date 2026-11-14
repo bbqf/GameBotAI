@@ -35,6 +35,12 @@ internal sealed record SequenceUpsertContract {
   /// </summary>
   public bool? ExcludeFromSuccessNotifications { get; init; }
 
+  /// <summary>
+  /// If true, the bookings of this sequence always keep the requested time (feature 189). Absent means false on
+  /// create and keeps the stored value on update.
+  /// </summary>
+  public bool? IgnoreSmartScheduling { get; init; }
+
   /// <summary>What a queue run does at its time limit (feature 170): fail (default) or end. Absent means fail.</summary>
   public string? OnTimeLimit { get; init; }
 
@@ -64,6 +70,9 @@ internal sealed record SequencePatchContract {
 
   /// <summary>If true, queues send no success message for this sequence (feature 122). Absent leaves it unchanged.</summary>
   public bool? ExcludeFromSuccessNotifications { get; init; }
+
+  /// <summary>If true, the bookings of this sequence always keep the requested time (feature 189). Absent leaves it unchanged.</summary>
+  public bool? IgnoreSmartScheduling { get; init; }
 
   /// <summary>What a queue run does at its time limit (feature 170): fail or end. Absent leaves it unchanged.</summary>
   public string? OnTimeLimit { get; init; }
@@ -283,6 +292,9 @@ internal sealed record SequenceListItemResponse {
 
   /// <summary>If true, queues send no success message for this sequence (feature 122).</summary>
   public bool ExcludeFromSuccessNotifications { get; init; }
+
+  /// <summary>If true, the bookings of this sequence always keep the requested time (feature 189).</summary>
+  public bool IgnoreSmartScheduling { get; init; }
 
   /// <summary>What a queue run does at its time limit (feature 170): fail or end.</summary>
   public string OnTimeLimit { get; init; } = GameBot.Domain.Commands.SequenceTimeLimits.OnTimeLimitFail;

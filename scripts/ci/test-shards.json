@@ -15,7 +15,8 @@
       { "name": "contract-1", "include": [
           "GameBot.ContractTests.Sequences.Composite", "GameBot.ContractTests.Sequences.EnsureGameRunning",
           "GameBot.ContractTests.Sequences.LastRun", "GameBot.ContractTests.Sequences.Primitive",
-          "GameBot.ContractTests.Update.", "GameBot.ContractTests.Gamepacks.GamepackForce" ] },
+          "GameBot.ContractTests.Update.", "GameBot.ContractTests.Gamepacks.GamepackForce",
+          "GameBot.ContractTests.Sequences.IgnoreSmartScheduling" ] },
       { "name": "contract-2", "include": [
           "GameBot.ContractTests.Sequences.Region", "GameBot.ContractTests.Sequences.Parametr",
           "GameBot.ContractTests.Sequences.Parameter", "GameBot.ContractTests.Sequences.Self",

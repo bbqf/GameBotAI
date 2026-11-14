@@ -36,6 +36,11 @@ internal sealed class SequenceTimeLimitSchemaFilter : ISchemaFilter {
     "If true, queues send no success message for this sequence. Failure, cancelled and recovered messages "
     + "are still sent. If absent on PUT or PATCH, the stored value does not change.";
 
+  // Feature 189: the description of the sequence option that keeps the requested time of each booking.
+  internal const string IgnoreSmartSchedulingDescription =
+    "When true, the bookings of this sequence always keep the requested time. Smart scheduling of a queue does not "
+    + "postpone them. Use it for a time-critical sequence.";
+
   // Feature 170: the description of the sequence option that ends a run at its time limit.
   internal const string OnTimeLimitDescription =
     "What a queue run does when it reaches its time limit. Allowed values: 'fail' "
@@ -49,12 +54,14 @@ internal sealed class SequenceTimeLimitSchemaFilter : ISchemaFilter {
     if (context.Type == typeof(SequenceUpsertContract) || context.Type == typeof(SequencePatchContract)) {
       Describe(schema, "watchdogTimeoutMs", WatchdogDescription);
       Describe(schema, "excludeFromSuccessNotifications", ExcludeFromSuccessNotificationsDescription);
+      Describe(schema, "ignoreSmartScheduling", IgnoreSmartSchedulingDescription);
       Describe(schema, "onTimeLimit", OnTimeLimitDescription);
     }
     else if (context.Type == typeof(SequenceRequestSchema)
       || context.Type == typeof(SequenceResponseSchema)
       || context.Type == typeof(SequenceListItemResponse)) {
       Describe(schema, "excludeFromSuccessNotifications", ExcludeFromSuccessNotificationsDescription);
+      Describe(schema, "ignoreSmartScheduling", IgnoreSmartSchedulingDescription);
       Describe(schema, "onTimeLimit", OnTimeLimitDescription);
     }
     else if (context.Type == typeof(ExecutionLogEntryDto)) {

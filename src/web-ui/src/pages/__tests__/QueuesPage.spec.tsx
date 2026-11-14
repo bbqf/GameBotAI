@@ -64,7 +64,7 @@ describe('QueuesPage CRUD', () => {
     createQueueMock.mockResolvedValue({} as any);
 
     fireEvent.click(screen.getByText('Save'));
-    await waitFor(() => expect(createQueueMock).toHaveBeenCalledWith({ name: 'Daily', emulatorSerial: 'emu-1', cycleExecution: false, pauseWhenIdle: false, idleThresholdSeconds: 30, emulatorInstanceName: null, emulatorInstanceIndex: null, resumeOnServiceStart: false }));
+    await waitFor(() => expect(createQueueMock).toHaveBeenCalledWith({ name: 'Daily', emulatorSerial: 'emu-1', cycleExecution: false, pauseWhenIdle: false, idleThresholdSeconds: 30, emulatorInstanceName: null, emulatorInstanceIndex: null, resumeOnServiceStart: false, smartScheduling: false, smartSchedulingWindowMinutes: 15 }));
   });
 
   it('opens edit and updates a queue', async () => {
@@ -80,7 +80,39 @@ describe('QueuesPage CRUD', () => {
     fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Daily 2' } });
     fireEvent.click(screen.getByText('Save'));
 
-    await waitFor(() => expect(updateQueueMock).toHaveBeenCalledWith('q1', { name: 'Daily 2', cycleExecution: false, pauseWhenIdle: false, idleThresholdSeconds: 30, emulatorInstanceName: null, emulatorInstanceIndex: null, resumeOnServiceStart: false }));
+    await waitFor(() => expect(updateQueueMock).toHaveBeenCalledWith('q1', { name: 'Daily 2', cycleExecution: false, pauseWhenIdle: false, idleThresholdSeconds: 30, emulatorInstanceName: null, emulatorInstanceIndex: null, resumeOnServiceStart: false, smartScheduling: false, smartSchedulingWindowMinutes: 15 }));
+  });
+
+  it('sends the smart scheduling settings when it saves an edited queue (feature 189)', async () => {
+    listQueuesMock.mockResolvedValue([queue({ smartScheduling: true, smartSchedulingWindowMinutes: 20 })] as any);
+    getQueueMock.mockResolvedValue({ ...queue({ smartScheduling: true, smartSchedulingWindowMinutes: 20 }), entries: [] } as any);
+    updateQueueMock.mockResolvedValue({} as any);
+
+    render(<QueuesPage />);
+    await screen.findByText('Daily');
+    fireEvent.click(screen.getByText('Daily'));
+
+    await screen.findByText('Edit Queue');
+    fireEvent.change(screen.getByLabelText('Window (minutes)'), { target: { value: '30' } });
+    fireEvent.click(screen.getByText('Save'));
+
+    await waitFor(() => expect(updateQueueMock).toHaveBeenCalledWith('q1', expect.objectContaining({ smartScheduling: true, smartSchedulingWindowMinutes: 30 })));
+  });
+
+  it('does not save a queue with a window out of range (feature 189)', async () => {
+    listQueuesMock.mockResolvedValue([queue({ smartScheduling: true })] as any);
+    getQueueMock.mockResolvedValue({ ...queue({ smartScheduling: true }), entries: [] } as any);
+
+    render(<QueuesPage />);
+    await screen.findByText('Daily');
+    fireEvent.click(screen.getByText('Daily'));
+
+    await screen.findByText('Edit Queue');
+    fireEvent.change(screen.getByLabelText('Window (minutes)'), { target: { value: '0' } });
+    fireEvent.click(screen.getByText('Save'));
+
+    expect(await screen.findByText('Enter a value from 1 to 120.')).toBeInTheDocument();
+    expect(updateQueueMock).not.toHaveBeenCalled();
   });
 
   it('deletes a queue after confirmation', async () => {

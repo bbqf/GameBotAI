@@ -2,7 +2,7 @@
 
 **Feature Branch**: `189-smart-scheduling`  
 **Created**: 2026-11-13  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: User description: "Let's implement smart scheduling. Smart scheduling should minimize the number of wakeups of an idling queue and at the same time provide a reasonable balance between maximizing the free rewards and longer idle times. On the queue level it should be possible to activate smart scheduling (default off). What it means is that when a sequence reschedules itself for a given time, scheduler should check if there's already something scheduled within certain time from the desired, I.e. at or later, it is allowed to postpone the scheduled time. Default time window for smart scheduling should be 15 min, but check the logs if another window make more sense. This time should be also configurable on the queue level when smart scheduling is enabled. Sequences should be able to be configured to ignore smart scheduling, this should be off by default, but set on a sequence level, if a certain action is time critical, e.g. setting a new shield as close as possible to the time the existing one expires."
 
 ## Background

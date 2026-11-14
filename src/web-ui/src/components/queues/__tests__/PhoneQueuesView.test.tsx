@@ -207,6 +207,22 @@ describe('PhoneQueuesView activity', () => {
     expect(within(list).getByText(/23:30/)).toBeInTheDocument();
   });
 
+  it('shows "postponed from" on the row of a postponed firing (feature 189)', async () => {
+    queuesMock.getQueue.mockResolvedValue(detail({ status: 'Running' }));
+    const m = runningMonitor();
+    m.upcoming = [{
+      sequenceId: 's2', sequenceName: 'Gift', stale: false, scheduleKind: 'SelfReschedule', reason: '',
+      expectedAt: at(23, 30), requestedAt: at(23, 20), relativeLabel: null, repeats: false, order: 1
+    }];
+    queuesMock.getQueueMonitor.mockResolvedValue(m);
+    const tpl = template();
+    tpl.entries[1].enabled = true;
+    templatesMock.getQueueTemplate.mockResolvedValue(tpl);
+    render(<View initialQueueId="q1" />);
+    const list = await screen.findByRole('list', { name: 'Queue schedule' });
+    await waitFor(() => expect(within(list).getByText(/postponed from 23:20/)).toBeInTheDocument());
+  });
+
   it('marks disabled rows and shows no false running data for a stopped queue', async () => {
     render(<View initialQueueId="q1" />);
     await waitFor(() => expect(screen.getByTestId('queue-now')).toHaveTextContent('Stopped'));
