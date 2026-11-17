@@ -218,6 +218,7 @@ Status vocabulary:
 | 188 | Before Each Run Before Every Firing | Implemented |
 | 189 | Smart Scheduling | Implemented |
 | 190 | Trace Noise Cleanup | Implemented |
+| 191 | Security Alerts Fix | Implemented |
 
 ## Numbering notes
 

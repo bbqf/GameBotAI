@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Security
+- Remove the vulnerable `minimatch` 9.x from the web UI tools (191-security-alerts-fix)
+  - **Change**: an npm override (`"minimatch@9": "^11.0.1"` in `src/web-ui/package.json`) replaces `minimatch` 9.0.9 below `@typescript-eslint/typescript-estree` 7.18.0 with 11.x. This fixes GHSA-g3hv-75wg-m249 (Dependabot alert #79). `npm audit` in the web UI now reports 0 vulnerabilities (before: 6 moderate).
+  - **Not changed**: the runtime dependencies of the web UI, the shipped web UI, the service, and the `minimatch` 3.1.5 copies. Lint, the tests, and the build give the same result as before.
+  - **Test**: the leave guard tests in `PhoneEntryNavigation.test.tsx` now wait until the guard has undone the back step. Before, on a slow CI machine, the test could check the address too early.
+  - **Perf note**: no performance effect.
+  - **Version**: the patch version is now 1.12.23.
+
 ### Changed
 - Remove noise from the service traces (190-trace-noise-cleanup)
   - **Change**: the service does not write the "Slow image match" Warning. It came for almost each image-match evaluation and told of no fault. The "target not detected after N retry cycles" message of a PrimitiveTap step (event 6012) is now Debug, not Warning. The execution log records this normal result. Events 6002, 6006, and 6007 are removed, because no code wrote them.
