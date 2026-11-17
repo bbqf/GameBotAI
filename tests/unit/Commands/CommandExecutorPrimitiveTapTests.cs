@@ -163,6 +163,38 @@ public sealed class CommandExecutorPrimitiveTapTests {
     result.StepOutcomes[0].Reason.Should().Be("detection_failed_after_3_retries");
   }
 
+  // Feature 190 (FR-003, FR-004): a tap step that does not find its target writes event 6012 at Debug level.
+  [Fact]
+  public async Task ExhaustedRetriesLogAtDebugNotWarning() {
+    var command = CreatePrimitiveTapCommand();
+    using var bmp = CreateOneByOneBitmap();
+
+    var matcher = new TemplateMatcherStub(Array.Empty<TemplateMatch>());
+    var screenSource = new ScreenSourceStub(bmp);
+    var imageStore = new ReferenceImageStoreStub(("img-1", bmp));
+    var config = new AppConfig { CaptureIntervalMs = 10, TapRetryCount = 1, TapRetryProgression = 1.0 };
+    var logger = new EventListLogger();
+
+    var executor = new CommandExecutor(
+      new CommandRepoStub(command),
+      new SessionManagerStub(),
+      new TriggerRepoStub(),
+      new TriggerEvaluationService(Array.Empty<ITriggerEvaluator>()),
+      logger,
+      imageStore, screenSource, matcher,
+      new SessionContextCache(),
+      config);
+
+    var result = await executor.ForceExecuteDetailedAsync("sess-1", command.Id, CancellationToken.None);
+
+    var exhausted = logger.Entries.Where(e => e.EventId == 6012).ToList();
+    exhausted.Should().ContainSingle();
+    exhausted[0].Level.Should().Be(Microsoft.Extensions.Logging.LogLevel.Debug);
+    exhausted[0].Message.Should().Be("PrimitiveTap step 0: target not detected after 1 retry cycles.");
+    logger.Entries.Should().NotContain(e => e.Level == Microsoft.Extensions.Logging.LogLevel.Warning);
+    result.StepOutcomes[0].Status.Should().Be("skipped_detection_failed");
+  }
+
   [Fact]
   public async Task PrimitiveTapCancellationDuringWaitReportsCancelled() {
     var command = CreatePrimitiveTapCommand();
@@ -626,6 +658,15 @@ public sealed class CommandExecutorPrimitiveTapTests {
     }
     public Task<GameBot.Emulator.Session.SessionInputDispatchResult> SendInputsWithResultsAsync(string id, IEnumerable<GameBot.Emulator.Session.InputAction> actions, CancellationToken ct = default) => Task.FromResult(new GameBot.Emulator.Session.SessionInputDispatchResult(true, Array.Empty<GameBot.Emulator.Session.InputActionResult>()));
     public Task<byte[]> GetSnapshotAsync(string id, CancellationToken ct = default) => Task.FromResult(Array.Empty<byte>());
+  }
+
+  // Records the level, the event id, and the text of each log call.
+  private sealed class EventListLogger : Microsoft.Extensions.Logging.ILogger<CommandExecutor> {
+    public List<(Microsoft.Extensions.Logging.LogLevel Level, int EventId, string Message)> Entries { get; } = new();
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+    public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+    public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+      Entries.Add((logLevel, eventId.Id, formatter(state, exception)));
   }
 
   private sealed class CommandRepoStub : ICommandRepository {

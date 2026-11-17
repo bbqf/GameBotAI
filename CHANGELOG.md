@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed
+- Remove noise from the service traces (190-trace-noise-cleanup)
+  - **Change**: the service does not write the "Slow image match" Warning. It came for almost each image-match evaluation and told of no fault. The "target not detected after N retry cycles" message of a PrimitiveTap step (event 6012) is now Debug, not Warning. The execution log records this normal result. Events 6002, 6006, and 6007 are removed, because no code wrote them.
+  - **Not changed**: all other trace messages, the execution log, the image-match results, and the logging policy file.
+  - **Perf note**: each image-match evaluation does one time measurement less and writes no console line.
+  - **Version**: the patch version is now 1.12.22.
 - Run the Before Each Run pass before each triggering firing (188-before-each-entry, #393)
   - **Change**: the Before Each Run entries now run immediately before each timed, live-scheduled, or self-rescheduled firing, also when several firings are due in one wake-up. Before this change, only the first firing of a wake-up got a pass. Thus a task that ends on a wrong screen does not make the next tasks of the same wake-up fail.
   - **Not changed**: the set of firings that get a pass, the template order of the entries, the failure accounting (each pass counts its own failures, and they are not fatal), the run log nodes, the liveness hold, and the queue monitor text. No new flag or template option. Stored templates load with no change.

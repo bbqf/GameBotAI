@@ -72,7 +72,7 @@ Status vocabulary:
 | 034 | Command Loop Structures | Implemented (iterated by 066) |
 | 035 | Background Screenshot Service | Implemented |
 | 036 | UI Configuration Editor | Implemented |
-| 037 | Tap Wait-and-Retry Before Execution | Implemented |
+| 037 | Tap Wait-and-Retry Before Execution | Implemented (iterated by 190) |
 | 038 | Randomized Sequence Step Delays | Implemented |
 | 039 | Primitive Actions Data Model Refactor | Implemented (removed the Action data model) |
 | 040 | Wait for Image Primitive Action | Implemented |
@@ -217,6 +217,7 @@ Status vocabulary:
 | 187 | Single-Owner Sign-In for Internet Access | Implemented |
 | 188 | Before Each Run Before Every Firing | Implemented |
 | 189 | Smart Scheduling | Implemented |
+| 190 | Trace Noise Cleanup | Implemented |
 
 ## Numbering notes
 

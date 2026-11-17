@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Runtime.Versioning;
@@ -37,12 +36,7 @@ public sealed class ImageMatchEvaluator : ITriggerEvaluator {
   public TriggerEvaluationResult Evaluate(Trigger trigger, DateTimeOffset now) {
     ArgumentNullException.ThrowIfNull(trigger);
     var p = (ImageMatchParams)trigger.Params;
-    var sw = Stopwatch.StartNew();
     var similarity = ComputeSimilarity(p);
-    sw.Stop();
-    if (_logger is not null && sw.ElapsedMilliseconds > 50) {
-      ImageMatchLog.SlowMatch(_logger, p.ReferenceImageId, sw.ElapsedMilliseconds, null);
-    }
     var status = similarity >= p.SimilarityThreshold ? TriggerStatus.Satisfied : TriggerStatus.Pending;
     return new TriggerEvaluationResult {
       Status = status,
@@ -182,9 +176,6 @@ public sealed class ImageMatchEvaluator : ITriggerEvaluator {
 }
 
 internal static partial class ImageMatchLog {
-  [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Warning, Message = "Slow image match for '{ReferenceImageId}': {ElapsedMs}ms")]
-  public static partial void SlowMatch(ILogger logger, string referenceImageId, long elapsedMs, Exception? ex);
-
   [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Information, Message = "Image match for '{ReferenceImageId}' was satisfied by alternate reference '{AlternateId}' (similarity {Similarity:F3})")]
   public static partial void AlternateMatched(ILogger logger, string referenceImageId, string alternateId, double similarity, Exception? ex);
 }
