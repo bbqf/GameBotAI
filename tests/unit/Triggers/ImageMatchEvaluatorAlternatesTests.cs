@@ -138,6 +138,19 @@ namespace GameBot.Tests.Unit.Triggers {
                                                 && e.Message.Contains("anchor-night", StringComparison.Ordinal));
     }
 
+    // Feature 190 (FR-001): a slow evaluation writes no line about its duration.
+    [Fact]
+    public void SlowEvaluationWritesNoDurationLine() {
+      var logger = new CapturingLogger<ImageMatchEvaluator>();
+      var eval = new ImageMatchEvaluator(Store(), new SlowScreenSource(), new TemplateMatcher(), logger, Alternates("anchor-night"));
+
+      var result = eval.Evaluate(AnchorTrigger(), DateTimeOffset.UtcNow);
+
+      result.Status.Should().Be(TriggerStatus.Satisfied);
+      logger.Inner.Entries.Should().NotContain(e => e.Message.Contains("Slow image match", StringComparison.Ordinal));
+      logger.Inner.Entries.Should().NotContain(e => e.Level == LogLevel.Warning);
+    }
+
     [Theory]
     [InlineData("present", true)]
     [InlineData("absent", false)]
@@ -202,7 +215,15 @@ namespace GameBot.Tests.Unit.Triggers {
       result.ImageLoadStatus.Should().Be("missing");
     }
 
-    private sealed class CapturingLogger<T> : Microsoft.Extensions.Logging.ILogger<T> {
+    // A screen source that waits 60 ms, so the evaluation takes more than the old 50 ms limit.
+    private sealed class SlowScreenSource : IScreenSource {
+      public Bitmap? GetLatestScreenshot() {
+        System.Threading.Thread.Sleep(60);
+        return NightScreen();
+      }
+    }
+
+    private sealed class CapturingLogger<T>: Microsoft.Extensions.Logging.ILogger<T> {
       public ReferenceSetTemplateMatcherTests.ListLogger Inner { get; } = new();
       public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
       public bool IsEnabled(LogLevel logLevel) => true;

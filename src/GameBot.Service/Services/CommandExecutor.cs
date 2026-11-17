@@ -962,9 +962,6 @@ internal static partial class Log {
   [LoggerMessage(EventId = 6001, Level = LogLevel.Information, Message = "EvaluateAndExecute skipped command {CommandId} via trigger {TriggerId}. Status: {Status}. Reason: {Reason}")]
   public static partial void TriggerSkipped(ILogger logger, string commandId, string triggerId, TriggerStatus Status, string? Reason);
 
-  [LoggerMessage(EventId = 6002, Level = LogLevel.Information, Message = "EvaluateAndExecute bypassed trigger for command {CommandId}; executed via ForceExecute with {Accepted} accepted inputs.")]
-  public static partial void TriggerBypassed(ILogger logger, string commandId, int accepted);
-
   [LoggerMessage(EventId = 6003, Level = LogLevel.Debug, Message = "Detection coordinate resolution skipped: {Err}")]
   public static partial void DetectionSkip(ILogger logger, string Err);
 
@@ -973,12 +970,6 @@ internal static partial class Log {
 
   [LoggerMessage(EventId = 6005, Level = LogLevel.Debug, Message = "SessionId provided explicitly for command {CommandId} (session {SessionId}).")]
   public static partial void SessionProvided(ILogger logger, string CommandId, string SessionId);
-
-  [LoggerMessage(EventId = 6006, Level = LogLevel.Information, Message = "Using cached session for command {CommandId}: game {GameId}, device {AdbSerial}, session {SessionId}.")]
-  public static partial void SessionCacheHit(ILogger logger, string CommandId, string GameId, string AdbSerial, string SessionId);
-
-  [LoggerMessage(EventId = 6007, Level = LogLevel.Warning, Message = "No cached session for command {CommandId}: game {GameId}, device {AdbSerial}.")]
-  public static partial void SessionCacheMiss(ILogger logger, string CommandId, string GameId, string AdbSerial);
 
   [LoggerMessage(EventId = 6008, Level = LogLevel.Warning, Message = "No connect-to-game context found for command {CommandId} to resolve session.")]
   public static partial void SessionContextMissing(ILogger logger, string CommandId);
@@ -992,7 +983,8 @@ internal static partial class Log {
   [LoggerMessage(EventId = 6011, Level = LogLevel.Debug, Message = "PrimitiveTap step {StepOrder}: target not detected on cycle {Cycle}.")]
   public static partial void TapRetryNotDetected(ILogger logger, int StepOrder, int Cycle);
 
-  [LoggerMessage(EventId = 6012, Level = LogLevel.Warning, Message = "PrimitiveTap step {StepOrder}: target not detected after {TotalCycles} retry cycles.")]
+  // Feature 190: Debug, not Warning. A target that does not show is a normal result, and the execution log records it.
+  [LoggerMessage(EventId = 6012, Level = LogLevel.Debug, Message = "PrimitiveTap step {StepOrder}: target not detected after {TotalCycles} retry cycles.")]
   public static partial void TapRetryExhausted(ILogger logger, int StepOrder, int TotalCycles);
 
   [LoggerMessage(EventId = 6013, Level = LogLevel.Information, Message = "PrimitiveTap step {StepOrder}: cancelled during retry cycle {Cycle}.")]
