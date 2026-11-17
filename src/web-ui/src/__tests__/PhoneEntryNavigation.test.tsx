@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { App } from '../App';
 import { mockViewport, ViewportMock } from '../testUtils/viewport';
 import * as queuesApi from '../services/queues';
@@ -45,6 +45,13 @@ const goBack = async () => {
     window.history.back();
     await new Promise((resolve) => setTimeout(resolve, 30));
   });
+};
+
+// The leave guard undoes a blocked back step with history.go(1). jsdom does this step later, so wait
+// for the entry address again. If not, the pending step can fall into the next test.
+const goBackBlocked = async () => {
+  await goBack();
+  await waitFor(() => expect(window.location.search).toContain('entry=e1'));
 };
 
 const originalFetch = global.fetch;
@@ -207,7 +214,7 @@ describe('Phone entry page navigation (feature 185, rules P-01, E-11, M-01, M-02
       await openAndType();
       const length = window.history.length;
 
-      await goBack();
+      await goBackBlocked();
 
       expect(screen.getByTestId('phone-entry-page')).toBeInTheDocument();
       expect(await screen.findByRole('alertdialog', { name: 'Unsaved changes' })).toBeInTheDocument();
@@ -219,7 +226,7 @@ describe('Phone entry page navigation (feature 185, rules P-01, E-11, M-01, M-02
     it('does not loop: one back step gives one dialog and the page stays', async () => {
       await openAndType();
 
-      await goBack();
+      await goBackBlocked();
       await act(async () => { await new Promise((resolve) => setTimeout(resolve, 60)); });
 
       expect(screen.getAllByRole('alertdialog')).toHaveLength(1);
@@ -228,7 +235,7 @@ describe('Phone entry page navigation (feature 185, rules P-01, E-11, M-01, M-02
 
     it('leaves to the queue detail after Discard changes', async () => {
       await openAndType();
-      await goBack();
+      await goBackBlocked();
       fireEvent.click(await screen.findByRole('button', { name: 'Discard changes' }));
       await act(async () => { await new Promise((resolve) => setTimeout(resolve, 60)); });
 
@@ -238,7 +245,7 @@ describe('Phone entry page navigation (feature 185, rules P-01, E-11, M-01, M-02
 
     it('stays on the page after Keep editing', async () => {
       await openAndType();
-      await goBack();
+      await goBackBlocked();
 
       fireEvent.click(await screen.findByRole('button', { name: 'Keep editing' }));
 
