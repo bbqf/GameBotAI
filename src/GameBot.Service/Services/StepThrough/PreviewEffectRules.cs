@@ -27,7 +27,8 @@ internal static class PreviewEffectRules {
     [CommandStepType.KeyInput] = false,
     [CommandStepType.Swipe] = false,
     [CommandStepType.GoToHomeScreen] = false,
-    [CommandStepType.EnsureEmulatorRunning] = false
+    [CommandStepType.EnsureEmulatorRunning] = false,
+    [CommandStepType.TextInput] = false
   };
 
   /// <summary>

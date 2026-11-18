@@ -14,16 +14,17 @@ import { EnsureEmulatorRunningPanel } from './EnsureEmulatorRunningPanel';
 import { GoToHomeScreenPanel } from './GoToHomeScreenPanel';
 import { KeyInputPanel } from './KeyInputPanel';
 import { SwipePanel } from './SwipePanel';
+import { TextInputPanel } from './TextInputPanel';
 import { VisualStepPicker } from './VisualStepPicker/VisualStepPicker';
 import { ParameterDeclarationList } from '../parameters/ParameterDeclarationList';
 import { buildEditorScope } from '../parameters/types';
-import { dropForeignTemplateKeys } from '../parameters/fieldTemplatePaths';
+import { dropForeignTemplateKeys, templateParameterName } from '../parameters/fieldTemplatePaths';
 import type { ParameterDeclaration } from '../parameters/types';
 import './CommandForm.css';
 
 export type StepEntry = {
   id: string;
-  type: 'Command' | 'PrimitiveTap' | 'WaitForImage' | 'EnsureGameRunning' | 'GoToHomeScreen' | 'KeyInput' | 'Swipe' | 'EnsureEmulatorRunning';
+  type: 'Command' | 'PrimitiveTap' | 'WaitForImage' | 'EnsureGameRunning' | 'GoToHomeScreen' | 'KeyInput' | 'Swipe' | 'EnsureEmulatorRunning' | 'TextInput';
   targetId?: string;
   primitiveTap?: {
     detectionTarget: DetectionTargetForm;
@@ -35,6 +36,8 @@ export type StepEntry = {
     timeoutMs?: string;
   };
   keyInput?: { key: string };
+  /** The text of a TextInput step (feature 192). */
+  textInput?: { text: string };
   swipe?: { startX: string; startY: string; endX: string; endY: string; durationMs?: string };
   ensureEmulatorRunning?: { instanceName?: string; instanceIndex?: string; adbSerial: string };
   /** The option of an EnsureGameRunning step (feature 129). Absent means false. */
@@ -144,6 +147,15 @@ const toStepItems = (steps: StepEntry[], commandOpts: SearchableOption[]): Reord
       };
     }
 
+    if (step.type === 'TextInput') {
+      const parameter = templateParameterName(step.fieldTemplates?.['textInput.text']);
+      return {
+        id: step.id,
+        label: parameter ? `Text: {{${parameter}}}` : `Text: ${step.textInput?.text ?? ''}`,
+        description: undefined,
+      };
+    }
+
     if (step.type === 'Swipe') {
       const { startX = '0', startY = '0', endX = '0', endY = '0', durationMs } = step.swipe ?? {};
       const desc = durationMs?.trim()
@@ -162,7 +174,7 @@ const toStepItems = (steps: StepEntry[], commandOpts: SearchableOption[]): Reord
   });
 };
 
-const EDITABLE_TYPES = new Set<string>(['PrimitiveTap', 'WaitForImage', 'EnsureGameRunning', 'GoToHomeScreen', 'KeyInput', 'Swipe', 'EnsureEmulatorRunning']);
+const EDITABLE_TYPES = new Set<string>(['PrimitiveTap', 'WaitForImage', 'EnsureGameRunning', 'GoToHomeScreen', 'KeyInput', 'Swipe', 'EnsureEmulatorRunning', 'TextInput']);
 
 export const CommandForm: React.FC<CommandFormProps> = ({
   value,
@@ -486,6 +498,25 @@ export const CommandForm: React.FC<CommandFormProps> = ({
           <KeyInputPanel
             initialValue={editingStep?.keyInput}
             onConfirm={(v) => handlePanelConfirm({ type: 'KeyInput', keyInput: { key: v.key } })}
+            onCancel={handlePanelCancel}
+            disabled={submitting}
+          />
+        )}
+
+        {pendingActionType === 'TextInput' && (
+          <TextInputPanel
+            key={editingStepId ?? 'new'}
+            initialValue={editingStep?.textInput}
+            parameters={declaredParameters}
+            fieldTemplates={editingStep?.fieldTemplates}
+            fieldErrors={editingStepErrors}
+            onConfirm={(v) =>
+              handlePanelConfirm({
+                type: 'TextInput',
+                textInput: { text: v.text },
+                fieldTemplates: v.fieldTemplates,
+              })
+            }
             onCancel={handlePanelCancel}
             disabled={submitting}
           />

@@ -1,6 +1,6 @@
 import React from 'react';
 
-export type PrimitiveActionType = 'PrimitiveTap' | 'WaitForImage' | 'EnsureGameRunning' | 'KeyInput' | 'Swipe' | 'GoToHomeScreen' | 'EnsureEmulatorRunning';
+export type PrimitiveActionType = 'PrimitiveTap' | 'WaitForImage' | 'EnsureGameRunning' | 'KeyInput' | 'Swipe' | 'GoToHomeScreen' | 'EnsureEmulatorRunning' | 'TextInput';
 
 export type ActionTypeSelectorProps = {
   value: PrimitiveActionType | '';
@@ -25,6 +25,7 @@ export const ActionTypeSelector: React.FC<ActionTypeSelectorProps> = ({ value, o
         <option value="EnsureEmulatorRunning">Ensure Emulator Running</option>
         <option value="GoToHomeScreen">Go to Home Screen</option>
         <option value="KeyInput">Key Input</option>
+        <option value="TextInput">Text Input</option>
         <option value="Swipe">Swipe</option>
       </select>
     </div>

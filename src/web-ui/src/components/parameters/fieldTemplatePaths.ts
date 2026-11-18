@@ -9,7 +9,7 @@
 import type { ParameterDeclaration } from './types';
 import { effectiveKind } from './types';
 
-export type FieldTemplateKind = 'integer' | 'decimal' | 'image';
+export type FieldTemplateKind = 'integer' | 'decimal' | 'image' | 'text';
 
 export type ParametrizablePath = {
   path: string;
@@ -33,9 +33,10 @@ export const PARAMETRIZABLE_PATHS: readonly ParametrizablePath[] = [
   { path: 'ensureGameRunning.readinessImage.offsetY', kind: 'integer' },
   { path: 'primitiveTap.detectionTarget.referenceImageId', kind: 'image' },
   { path: 'waitForImage.detectionTarget.referenceImageId', kind: 'image' },
+  { path: 'textInput.text', kind: 'text' },
 ];
 
-/** The 12 paths that have a field in the editor. The 4 `ensureGameRunning` numeric paths have none. */
+/** The 13 paths that have a field in the editor. The 4 `ensureGameRunning` numeric paths have none. */
 export const EDITOR_PATHS: readonly string[] = PARAMETRIZABLE_PATHS
   .map((p) => p.path)
   .filter((p) => !p.startsWith('ensureGameRunning.'));
@@ -46,12 +47,17 @@ export const NUMERIC_TEXT_HINT =
 export const PLAIN_TEXT_HINT =
   'This parameter gives text. A numeric field needs a number. The save works, but the run fails when the value is not a number.';
 export const IMAGE_HINT ='This parameter is not an image picker.';
+/** Feature 192: a text field needs one text value. */
+export const TEXT_HINT = 'This parameter gives an image or a list. A text field needs one text value.';
 
 const findPath = (path: string): ParametrizablePath | undefined =>
   PARAMETRIZABLE_PATHS.find((p) => p.path === path);
 
 /** True when the path is one of the image paths. */
 export const isImagePath = (path: string): boolean => findPath(path)?.kind === 'image';
+
+/** True when the path is one of the text paths (feature 192). */
+export const isTextPath = (path: string): boolean => findPath(path)?.kind === 'text';
 
 /** True when the path is in the mirror list. */
 export const isParametrizablePath = (path: string): boolean => findPath(path) !== undefined;
@@ -63,12 +69,18 @@ export type ParameterFit = { fits: true } | { fits: false; hint: string };
  * The rules follow the service rule for text in a numeric field.
  */
 export const parameterFit = (
-  declaration: Pick<ParameterDeclaration, 'kind' | 'type' | 'pattern'>,
+  declaration: Pick<ParameterDeclaration, 'kind' | 'type' | 'pattern'> & Partial<Pick<ParameterDeclaration, 'multiple'>>,
   path: string,
 ): ParameterFit => {
   const kind = effectiveKind(declaration);
   if (isImagePath(path)) {
     return kind === 'image' ? { fits: true } : { fits: false, hint: IMAGE_HINT };
+  }
+  if (isTextPath(path)) {
+    // Feature 192: text, number, and a single choice give one text value.
+    const single = declaration.multiple !== true;
+    const fits = kind === 'text' || kind === 'number' || (kind === 'choice' && single);
+    return fits ? { fits: true } : { fits: false, hint: TEXT_HINT };
   }
   const givesNumber =
     !declaration.pattern && ((kind === 'number') || (kind === 'choice' && declaration.type === 'number'));
@@ -91,6 +103,7 @@ const STEP_KEY_PREFIX: Record<string, string> = {
   WaitForImage: 'waitForImage.',
   EnsureEmulatorRunning: 'ensureEmulatorRunning.',
   EnsureGameRunning: 'ensureGameRunning.',
+  TextInput: 'textInput.',
 };
 
 /**

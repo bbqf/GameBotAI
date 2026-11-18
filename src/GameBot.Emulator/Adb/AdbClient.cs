@@ -26,17 +26,43 @@ public sealed class AdbClient : IAdbSessionClient {
 
   public AdbClient WithSerial(string? serial) => new(_adb, serial, _logger);
 
-  public async Task<(int ExitCode, string StdOut, string StdErr)> ExecAsync(string arguments, CancellationToken ct = default) {
+  public Task<(int ExitCode, string StdOut, string StdErr)> ExecAsync(string arguments, CancellationToken ct = default) {
     var args = string.IsNullOrWhiteSpace(_serial) ? arguments : $"-s {_serial} {arguments}";
+    var psi = NewStartInfo();
+    psi.Arguments = args;
+    return ExecProcessAsync(psi, args, ct);
+  }
+
+  /// <summary>
+  /// Sends <c>input text</c> for one chunk (feature 192). The chunk goes in single quotes for the
+  /// device shell, and <see cref="ProcessStartInfo.ArgumentList"/> does the quotes for the Windows
+  /// command line. Thus no character of the chunk can start a shell function on the device.
+  /// </summary>
+  /// <param name="chunk">One chunk from <see cref="AdbTextEncoder.Split"/>: no space and no <c>%s</c>.</param>
+  /// <param name="ct">Cancels the command and kills the adb process.</param>
+  public Task<(int ExitCode, string StdOut, string StdErr)> InputTextAsync(string chunk, CancellationToken ct = default) {
+    ArgumentNullException.ThrowIfNull(chunk);
+    Log.InputText(_logger, chunk.Length);
+    var psi = NewStartInfo();
+    if (!string.IsNullOrWhiteSpace(_serial)) {
+      psi.ArgumentList.Add("-s");
+      psi.ArgumentList.Add(_serial);
+    }
+    psi.ArgumentList.Add("shell");
+    psi.ArgumentList.Add("input text " + AdbTextEncoder.QuoteForDeviceShell(chunk));
+    return ExecProcessAsync(psi, string.Join(' ', psi.ArgumentList), ct);
+  }
+
+  private ProcessStartInfo NewStartInfo() => new() {
+    FileName = _adb,
+    RedirectStandardOutput = true,
+    RedirectStandardError = true,
+    UseShellExecute = false,
+    CreateNoWindow = true,
+  };
+
+  private async Task<(int ExitCode, string StdOut, string StdErr)> ExecProcessAsync(ProcessStartInfo psi, string args, CancellationToken ct) {
     Log.ExecStart(_logger, _adb, args);
-    var psi = new ProcessStartInfo {
-      FileName = _adb,
-      Arguments = args,
-      RedirectStandardOutput = true,
-      RedirectStandardError = true,
-      UseShellExecute = false,
-      CreateNoWindow = true,
-    };
     using var proc = new Process { StartInfo = psi, EnableRaisingEvents = true };
     var stdout = new StringBuilder();
     var stderr = new StringBuilder();
@@ -259,4 +285,10 @@ internal static class Log {
   public static void ScreencapStart(ILogger? l, string args) { if (l != null) _screencapStart(l, args, null); }
   public static void ScreencapEnd(ILogger? l, int bytes) { if (l != null) _screencapEnd(l, bytes, null); }
   public static void LaunchApp(ILogger? l, string pkg) { if (l != null) _launchApp(l, pkg, null); }
+  public static void InputText(ILogger? l, int length) { if (l != null) _inputText(l, length, null); }
+
+  // Feature 192: the log holds the length of the chunk, not the text.
+  private static readonly Action<ILogger, int, Exception?> _inputText =
+      LoggerMessage.Define<int>(LogLevel.Debug, new EventId(1009, nameof(InputText)),
+          "ADB input text length={Length}");
 }

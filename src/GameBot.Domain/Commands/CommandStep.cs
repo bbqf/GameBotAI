@@ -12,7 +12,8 @@ public enum CommandStepType {
   KeyInput,
   Swipe,
   GoToHomeScreen,
-  EnsureEmulatorRunning
+  EnsureEmulatorRunning,
+  TextInput
 }
 
 /// <summary>
@@ -72,6 +73,19 @@ public sealed class KeyInputConfig {
   public required string Key { get; init; }
 }
 
+/// <summary>
+/// Config for the text input command step (feature 192). The service types <see cref="Text"/> into
+/// the input field that has the focus on the device.
+/// </summary>
+public sealed class TextInputConfig {
+  /// <summary>
+  /// The text to type. It can hold inline placeholders <c>{{name}}</c>. A literal text must pass
+  /// <see cref="TextInputRules.Check"/>. The text can be empty when the step has the
+  /// <c>textInput.text</c> key in <see cref="CommandStep.FieldTemplates"/>.
+  /// </summary>
+  public required string Text { get; init; }
+}
+
 public sealed class SwipeConfig {
   public required int StartX { get; init; }
   public required int StartY { get; init; }
@@ -89,6 +103,15 @@ public sealed class CommandStep {
   public SwipeConfig? Swipe { get; init; }
   public EnsureEmulatorRunningConfig? EnsureEmulatorRunning { get; init; }
   public EnsureGameRunningConfig? EnsureGameRunning { get; init; }
+
+  /// <summary>
+  /// The config of a <see cref="CommandStepType.TextInput"/> step (feature 192). Null is not written
+  /// to storage, so a stored command without a text input step does not change.
+  /// </summary>
+  [System.Text.Json.Serialization.JsonIgnore(
+      Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+  public TextInputConfig? TextInput { get; init; }
+
   public int Order { get; init; }
 
   /// <summary>
@@ -98,8 +121,9 @@ public sealed class CommandStep {
   /// The numeric keys exist because a placeholder cannot be stored in an <c>int</c>. The two image
   /// keys (<c>primitiveTap.detectionTarget.referenceImageId</c> and
   /// <c>waitForImage.detectionTarget.referenceImageId</c>) let a parameter replace the inline image
-  /// id at dispatch. The value of an image key must be one whole placeholder. Other text fields
-  /// keep their placeholder inline. See <see cref="CommandStepFieldPaths"/> for the supported keys.
+  /// id at dispatch. The text key <c>textInput.text</c> (feature 192) lets a parameter replace the
+  /// inline text of a text input step. The value of an image key or a text key must be one whole
+  /// placeholder. Other text fields keep their placeholder inline. See <see cref="CommandStepFieldPaths"/> for the supported keys.
   /// The save rejects an unsupported key, so a typo cannot silently do nothing.
   /// </para>
   /// <para><c>null</c> or empty means no field is parametrized through this overlay.</para>
@@ -120,7 +144,8 @@ public sealed class CommandStep {
 
 /// <summary>
 /// The complete set of dotted field paths accepted by <see cref="CommandStep.FieldTemplates"/>
-/// (features 078 and 114): the numeric paths, with the numeric kind of each target, and the image paths.
+/// (features 078, 114, and 192): the numeric paths, with the numeric kind of each target, the image
+/// paths, and the text paths.
 /// </summary>
 public static class CommandStepFieldPaths {
   /// <summary>Supported path → true when the target field is an integer, false when it is a double.</summary>
@@ -152,13 +177,29 @@ public static class CommandStepFieldPaths {
         "waitForImage.detectionTarget.referenceImageId"
       };
 
-  /// <summary>True when <paramref name="path"/> is a supported numeric key or image key.</summary>
+  /// <summary>
+  /// The text paths (feature 192). The value of a text path must be one whole placeholder. At
+  /// dispatch, the resolved value replaces the inline text.
+  /// </summary>
+  public static IReadOnlySet<string> SupportedTextPaths { get; } =
+      new HashSet<string>(System.StringComparer.Ordinal) {
+        "textInput.text"
+      };
+
+  /// <summary>True when <paramref name="path"/> is a supported numeric key, image key, or text key.</summary>
   /// <param name="path">Dotted field path to check.</param>
   public static bool IsSupported(string? path) =>
-      path is not null && (SupportedNumericPaths.ContainsKey(path) || SupportedImagePaths.Contains(path));
+      path is not null && (SupportedNumericPaths.ContainsKey(path)
+          || SupportedImagePaths.Contains(path)
+          || SupportedTextPaths.Contains(path));
 
   /// <summary>True when <paramref name="path"/> is a supported image key.</summary>
   /// <param name="path">Dotted field path to check.</param>
   public static bool IsImagePath(string? path) =>
       path is not null && SupportedImagePaths.Contains(path);
+
+  /// <summary>True when <paramref name="path"/> is a supported text key (feature 192).</summary>
+  /// <param name="path">Dotted field path to check.</param>
+  public static bool IsTextPath(string? path) =>
+      path is not null && SupportedTextPaths.Contains(path);
 }

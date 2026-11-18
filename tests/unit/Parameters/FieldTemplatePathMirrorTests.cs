@@ -14,7 +14,7 @@ namespace GameBot.UnitTests.Parameters;
 /// </summary>
 public sealed class FieldTemplatePathMirrorTests {
   private static readonly Regex EntryPattern = new(
-      @"\{\s*path:\s*'(?<path>[^']+)'\s*,\s*kind:\s*'(?<kind>integer|decimal|image)'\s*\}",
+      @"\{\s*path:\s*'(?<path>[^']+)'\s*,\s*kind:\s*'(?<kind>integer|decimal|image|text)'\s*\}",
       RegexOptions.Compiled, TimeSpan.FromSeconds(1));
 
   private static string MirrorFile() {
@@ -38,6 +38,7 @@ public sealed class FieldTemplatePathMirrorTests {
       CommandStepFieldPaths.SupportedNumericPaths
           .Select(p => (p.Key, p.Value ? "integer" : "decimal"))
           .Concat(CommandStepFieldPaths.SupportedImagePaths.Select(p => (p, "image")))
+          .Concat(CommandStepFieldPaths.SupportedTextPaths.Select(p => (p, "text")))
           .OrderBy(e => e.Item1, StringComparer.Ordinal)
           .ToArray();
 

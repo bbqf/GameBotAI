@@ -21,8 +21,10 @@ internal sealed class ParametrizedReferenceImageSchemaFilter : ISchemaFilter {
     + "Image keys: primitiveTap.detectionTarget.referenceImageId, waitForImage.detectionTarget.referenceImageId. "
     + "The value of an image key must be one whole placeholder, for example {{name}}. At run time the resolved "
     + "value replaces the inline referenceImageId. The save gives the warning static_check_skipped for an image key. "
-    + "Errors: an unknown key gives unknown_field_template_path. An image key with a value that is not one whole "
-    + "placeholder gives invalid_field_template_value. "
+    + "Text key: textInput.text (a TextInput step). The value must be one whole placeholder, for example "
+    + "{{fighterBatch}}. At run time the value of a text or number parameter replaces the inline textInput.text. "
+    + "Errors: an unknown key gives unknown_field_template_path. An image key or a text key with a value that is not "
+    + "one whole placeholder gives invalid_field_template_value. "
     + "Declaration rule: you must declare each {{placeholder}} of a step in the top-level `parameters` list of the "
     + "command, or use a queue built-in. A step-level parameterBindings does not satisfy this check. If you do not "
     + "declare a name, the service gives 400 unresolvable_parameter_reference.";

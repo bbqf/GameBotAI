@@ -2,7 +2,7 @@
 
 **Feature Branch**: `192-text-input-step`  
 **Created**: 2026-11-18  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: User description: "Add a TextInput command step that types a string into the device, and accept a parameter placeholder in the text. GitHub issue #400 (FR-045): https://github.com/bbqf/GameBotAI/issues/400. Closes #400"
 
 ## Background

@@ -52,6 +52,36 @@ public sealed class ParameterReferenceScannerTests {
   }
 
   [Fact]
+  public void FindsAnInlineReferenceInTextInputText() {
+    // Feature 192.
+    var command = new Command { Id = "c", Name = "C" };
+    command.Steps.Add(new CommandStep {
+      Type = CommandStepType.TextInput,
+      Order = 0,
+      TextInput = new TextInputConfig { Text = "{{fighterBatch}}" }
+    });
+
+    ParameterReferenceScanner.Scan(command)
+        .Should().ContainSingle(r => r.ParameterName == "fighterBatch" && r.FieldPath == "textInput.text");
+  }
+
+  [Fact]
+  public void FindsAnOverlayReferenceInTextInputTextThatDoesNotDefeatTheStaticCheck() {
+    // Feature 192: the overlay key replaces the inline text, so only the overlay is scanned.
+    var command = new Command { Id = "c", Name = "C" };
+    command.Steps.Add(new CommandStep {
+      Type = CommandStepType.TextInput,
+      Order = 0,
+      TextInput = new TextInputConfig { Text = "{{inlineName}}" },
+      FieldTemplates = new Dictionary<string, string> { ["textInput.text"] = "{{fighterBatch}}" }
+    });
+
+    ParameterReferenceScanner.Scan(command)
+        .Should().ContainSingle(r => r.ParameterName == "fighterBatch" && r.FieldPath == "textInput.text"
+            && !r.DefeatsStaticCheck);
+  }
+
+  [Fact]
   public void IgnoresCommandStepTargetIdBecauseItIsAReference() {
     var command = new Command { Id = "c", Name = "C" };
     command.Steps.Add(new CommandStep { Type = CommandStepType.Command, Order = 0, TargetId = "{{which}}" });

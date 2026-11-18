@@ -261,6 +261,9 @@ public sealed class SessionManager : ISessionManager, ISessionRemovalNotifier {
             var ok = await SendRecordedInputAsync(id, "key", t => adb.KeyEventAsync(keyCode, t), ct).ConfigureAwait(false);
             if (ok) executed++;
           }
+          else if (string.Equals(a.Type, "text", StringComparison.OrdinalIgnoreCase)) {
+            if (await SendTextAsync(id, a, adb, ct).ConfigureAwait(false)) executed++;
+          }
           // Per-action delay handling (cancellable)
           if (a.DelayMs.HasValue && a.DelayMs.Value > 0) {
             await Task.Delay(a.DelayMs.Value, ct).ConfigureAwait(false);
@@ -292,6 +295,30 @@ public sealed class SessionManager : ISessionManager, ISessionRemovalNotifier {
       }
     }
     return count;
+  }
+
+  /// <summary>
+  /// Sends the input action <c>text</c> (feature 192). Each part from <see cref="AdbTextEncoder.Split"/>
+  /// is one recorded input with the ADB retries: a chunk goes as <c>input text</c>, and a space goes
+  /// as key event 62. The send stops at the first part that fails. The number of characters that the
+  /// device accepted goes into <c>Args["typedLength"]</c>.
+  /// </summary>
+  /// <returns>True when the device accepted all parts.</returns>
+  private async Task<bool> SendTextAsync(string id, InputAction a, IAdbSessionClient adb, CancellationToken ct) {
+    if (!a.Args.TryGetValue("text", out var raw)) throw new KeyNotFoundException("text is required for text action");
+    var text = raw is JsonElement je && je.ValueKind == JsonValueKind.String ? je.GetString() : raw?.ToString();
+    var typed = 0;
+    var ok = true;
+    foreach (var part in AdbTextEncoder.Split(text ?? string.Empty)) {
+      ok = AdbTextEncoder.IsSpace(part)
+        ? await SendRecordedInputAsync(id, "key", t => adb.KeyEventAsync(AdbTextEncoder.SpaceKeyCode, t), ct).ConfigureAwait(false)
+        : await SendRecordedInputAsync(id, "text", t => adb.InputTextAsync(part, t), ct).ConfigureAwait(false);
+      if (!ok) break;
+      typed += part.Length;
+    }
+
+    a.Args["typedLength"] = typed;
+    return ok;
   }
 
   // B-001: unlike SendInputsAsync's stub-mode branch (which never parses action args at all),

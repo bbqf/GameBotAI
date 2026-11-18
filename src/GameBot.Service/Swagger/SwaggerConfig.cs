@@ -325,6 +325,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
   private static void ApplyCommandExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
     if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.Commands)) {
       operation.Summary ??= "Create a command";
+      operation.Description ??= CommandCreateDescription;
       SetRequestExample(operation, CommandCreateRequest(), context, typeof(CommandCreateSchema));
       SetResponseExample(operation, "201", CommandCreateResponse(), context, typeof(GameBot.Service.Models.CommandResponse));
     }
@@ -338,6 +339,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     }
     else if (IsMethod(method, HttpMethods.Patch) && path.StartsWith(ApiRoutes.Commands + "/", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Update a command";
+      operation.Description ??= CommandUpdateDescription;
       SetRequestExample(operation, CommandUpdateRequest(), context, typeof(GameBot.Service.Models.UpdateCommandRequest));
       SetResponseExample(operation, "200", CommandCreateResponse(), context, typeof(GameBot.Service.Models.CommandResponse));
     }
@@ -389,6 +391,19 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
       }
     }
   };
+
+  // Feature 192: dryRun on the command write routes, the same as on the sequence routes.
+  internal const string CommandCreateDescription =
+    "Set dryRun: true to validate without a save: the service runs all save checks (the step checks, the region "
+    + "checks, and the parameter checks) and stores no command. A valid body gives 200 { valid: true, dryRun: true, "
+    + "errors: [] }. An invalid body gives the same 400 as a real create. A placeholder in a step field (for example "
+    + "textInput.text) that the command does not declare gives 400 unresolvable_parameter_reference with the field path.";
+
+  internal const string CommandUpdateDescription =
+    "Set dryRun: true to validate without a save: the stored command does not change. A valid body gives 200 "
+    + "{ valid: true, dryRun: true, errors: [] }. An invalid body gives the same 400 or 404 as a real update. A "
+    + "placeholder in a step field (for example textInput.text) that the command does not declare gives 400 "
+    + "unresolvable_parameter_reference with the field path.";
 
   // Feature 091 (FR-009): the write rules an author otherwise discovers only by breaking a live sequence.
   private const string SequenceCommandReferenceRule =
@@ -2811,6 +2826,9 @@ internal sealed class CommandCreateSchema {
   public string? TriggerId { get; set; }
   public ICollection<GameBot.Service.Models.CommandStepDto>? Steps { get; set; }
   public ICollection<GameBot.Service.Models.ParameterDeclarationDto>? Parameters { get; set; }
+
+  /// <summary>Feature 192: true runs all save checks and stores nothing.</summary>
+  public bool? DryRun { get; set; }
 }
 
 internal sealed class CommandEvaluateResponseSchema {

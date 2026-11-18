@@ -101,6 +101,10 @@ internal static class StepsEndpoints {
       return null;
     }
 
+    if (step.Type == CommandStepTypeDto.TextInput) {
+      return CommandsEndpoints.ValidateTextInput(step.TextInput, CommandsEndpoints.HasTextTemplate(step.FieldTemplates));
+    }
+
     if (step.Type == CommandStepTypeDto.Swipe) {
       if (step.Swipe is null) {
         return "swipe is required for Swipe steps";
@@ -119,6 +123,7 @@ internal static class StepsEndpoints {
       CommandStepTypeDto.WaitForImage => CommandStepType.WaitForImage,
       CommandStepTypeDto.EnsureGameRunning => CommandStepType.EnsureGameRunning,
       CommandStepTypeDto.KeyInput => CommandStepType.KeyInput,
+      CommandStepTypeDto.TextInput => CommandStepType.TextInput,
       CommandStepTypeDto.Swipe => CommandStepType.Swipe,
       _ => CommandStepType.PrimitiveTap
     };
@@ -155,6 +160,9 @@ internal static class StepsEndpoints {
       KeyInput = type == CommandStepType.KeyInput && s.KeyInput is not null
         ? new KeyInputConfig { Key = s.KeyInput.Key }
         : null,
+      TextInput = type == CommandStepType.TextInput && s.TextInput is not null
+        ? new TextInputConfig { Text = s.TextInput.Text ?? string.Empty }
+        : null,
       Swipe = type == CommandStepType.Swipe && s.Swipe is not null
         ? new SwipeConfig {
           StartX = s.Swipe.StartX,
@@ -176,6 +184,10 @@ internal static class StepsEndpoints {
     // Feature 111: only a press and hold has holdMs, so the response of a tap does not change.
     if (outcome.HoldMs is { } holdMs) {
       response["holdMs"] = holdMs;
+    }
+    // Feature 192: only a TextInput step has typedLength.
+    if (outcome.TypedLength is { } typedLength) {
+      response["typedLength"] = typedLength;
     }
     return response;
   }

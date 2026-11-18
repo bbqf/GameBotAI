@@ -4,8 +4,10 @@ import {
   NUMERIC_TEXT_HINT,
   PLAIN_TEXT_HINT,
   PARAMETRIZABLE_PATHS,
+  TEXT_HINT,
   dropForeignTemplateKeys,
   isImagePath,
+  isTextPath,
   isParametrizablePath,
   parameterFit,
   templateParameterName,
@@ -20,9 +22,9 @@ const decl = (extra: Partial<ParameterDeclaration>): ParameterDeclaration => ({
 });
 
 describe('fieldTemplatePaths', () => {
-  it('lists 16 paths and 12 editor paths', () => {
-    expect(PARAMETRIZABLE_PATHS).toHaveLength(16);
-    expect(EDITOR_PATHS).toHaveLength(12);
+  it('lists 17 paths and 13 editor paths', () => {
+    expect(PARAMETRIZABLE_PATHS).toHaveLength(17);
+    expect(EDITOR_PATHS).toHaveLength(13);
     expect(EDITOR_PATHS.some((p) => p.startsWith('ensureGameRunning.'))).toBe(false);
   });
 
@@ -31,6 +33,10 @@ describe('fieldTemplatePaths', () => {
     expect(isImagePath('swipe.startX')).toBe(false);
     expect(isParametrizablePath('swipe.startX')).toBe(true);
     expect(isParametrizablePath('swipe.holdMs')).toBe(false);
+    // Feature 192: the text key.
+    expect(isParametrizablePath('textInput.text')).toBe(true);
+    expect(isTextPath('textInput.text')).toBe(true);
+    expect(isTextPath('swipe.startX')).toBe(false);
   });
 
   describe('parameterFit', () => {
@@ -56,6 +62,17 @@ describe('fieldTemplatePaths', () => {
       expect(parameterFit(decl({ type: 'text' }), path)).toEqual({ fits: false, hint: IMAGE_HINT });
       expect(parameterFit(decl({ type: 'number' }), path)).toEqual({ fits: false, hint: IMAGE_HINT });
       expect(parameterFit(decl({ kind: 'choice' }), path)).toEqual({ fits: false, hint: IMAGE_HINT });
+    });
+
+    it('fits text, number, and a single choice in the text field', () => {
+      const path = 'textInput.text';
+      expect(parameterFit(decl({ type: 'text' }), path)).toEqual({ fits: true });
+      expect(parameterFit(decl({ type: 'number' }), path)).toEqual({ fits: true });
+      expect(parameterFit(decl({ type: 'number', pattern: 'x{value}' }), path)).toEqual({ fits: true });
+      expect(parameterFit(decl({ type: 'text', pattern: 'x{value}' }), path)).toEqual({ fits: true });
+      expect(parameterFit(decl({ kind: 'choice' }), path)).toEqual({ fits: true });
+      expect(parameterFit(decl({ kind: 'choice', multiple: true }), path)).toEqual({ fits: false, hint: TEXT_HINT });
+      expect(parameterFit(decl({ kind: 'image' }), path)).toEqual({ fits: false, hint: TEXT_HINT });
     });
   });
 
@@ -91,6 +108,12 @@ describe('fieldTemplatePaths', () => {
     it('keeps all keys when the type is the same', () => {
       const same = { 'swipe.startX': '{{a}}', 'swipe.durationMs': '{{b}}' };
       expect(dropForeignTemplateKeys(same, 'Swipe')).toEqual(same);
+    });
+
+    it('drops the text key for another step type and keeps it for TextInput', () => {
+      const text = { 'textInput.text': '{{fighterBatch}}' };
+      expect(dropForeignTemplateKeys(text, 'Swipe')).toBeUndefined();
+      expect(dropForeignTemplateKeys(text, 'TextInput')).toEqual(text);
     });
 
     it('gives undefined when no key is left', () => {

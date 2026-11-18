@@ -115,6 +115,7 @@ public static class GamepackReferences {
         Swipe = step.Swipe,
         EnsureEmulatorRunning = step.EnsureEmulatorRunning,
         EnsureGameRunning = step.EnsureGameRunning,
+        TextInput = step.TextInput,
         Order = step.Order,
         FieldTemplates = step.FieldTemplates,
         ParameterBindings = step.ParameterBindings

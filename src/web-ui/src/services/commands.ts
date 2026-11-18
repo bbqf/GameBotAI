@@ -28,12 +28,13 @@ export type CommandCreate = {
 export type CommandUpdate = CommandCreate;
 
 export type CommandStepDto = {
-  type: 'Command' | 'PrimitiveTap' | 'WaitForImage' | 'EnsureGameRunning' | 'GoToHomeScreen' | 'KeyInput' | 'Swipe' | 'EnsureEmulatorRunning';
+  type: 'Command' | 'PrimitiveTap' | 'WaitForImage' | 'EnsureGameRunning' | 'GoToHomeScreen' | 'KeyInput' | 'Swipe' | 'EnsureEmulatorRunning' | 'TextInput';
   targetId?: string;
   order: number;
   primitiveTap?: PrimitiveTapConfigDto;
   waitForImage?: WaitForImageConfigDto;
   keyInput?: KeyInputConfigDto;
+  textInput?: TextInputConfigDto;
   swipe?: SwipeConfigDto;
   ensureEmulatorRunning?: EnsureEmulatorRunningConfigDto;
   /** Option of an EnsureGameRunning step (feature 129). */
@@ -62,6 +63,11 @@ export type EnsureEmulatorRunningConfigDto = {
 
 export type KeyInputConfigDto = {
   key: string;
+};
+
+/** The config of a TextInput step (feature 192). */
+export type TextInputConfigDto = {
+  text: string;
 };
 
 export type SwipeConfigDto = {

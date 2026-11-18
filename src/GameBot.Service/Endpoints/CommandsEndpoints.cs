@@ -32,6 +32,7 @@ internal static class CommandsEndpoints {
     CommandStepTypeDto.KeyInput => CommandStepType.KeyInput,
     CommandStepTypeDto.Swipe => CommandStepType.Swipe,
     CommandStepTypeDto.EnsureEmulatorRunning => CommandStepType.EnsureEmulatorRunning,
+    CommandStepTypeDto.TextInput => CommandStepType.TextInput,
     _ => CommandStepType.PrimitiveTap
   };
 
@@ -43,6 +44,7 @@ internal static class CommandsEndpoints {
     CommandStepType.KeyInput => CommandStepTypeDto.KeyInput,
     CommandStepType.Swipe => CommandStepTypeDto.Swipe,
     CommandStepType.EnsureEmulatorRunning => CommandStepTypeDto.EnsureEmulatorRunning,
+    CommandStepType.TextInput => CommandStepTypeDto.TextInput,
     _ => CommandStepTypeDto.PrimitiveTap
   };
 
@@ -107,6 +109,29 @@ internal static class CommandsEndpoints {
     holdMs is < PrimitiveTapConfig.MinHoldMs or > PrimitiveTapConfig.MaxHoldMs
       ? $"primitiveTap.holdMs must be between {PrimitiveTapConfig.MinHoldMs} and {PrimitiveTapConfig.MaxHoldMs}"
       : null;
+
+  /// <summary>
+  /// Feature 192: checks the config of a TextInput step. No config gives an error. A literal text (no
+  /// placeholder, and no <c>textInput.text</c> key in fieldTemplates) must pass
+  /// <see cref="TextInputRules.Check"/>. A text with a placeholder is checked at run time.
+  /// </summary>
+  /// <param name="config">The config of the step.</param>
+  /// <param name="hasTextTemplate">True when fieldTemplates has the key <c>textInput.text</c>.</param>
+  internal static string? ValidateTextInput(TextInputConfigDto? config, bool hasTextTemplate) {
+    const string required = "textInput.text is required for TextInput steps";
+    if (config is null) return required;
+    if (hasTextTemplate || GameBot.Domain.Utils.TemplateSubstitutor.ContainsPlaceholder(config.Text)) return null;
+    return TextInputRules.Check(config.Text) switch {
+      TextInputCheck.Empty => required,
+      TextInputCheck.TooLong => $"textInput.text must have {TextInputRules.MaxLength} characters or fewer",
+      TextInputCheck.UnsupportedCharacter => "textInput.text can have only the printable ASCII characters from space to ~",
+      _ => null
+    };
+  }
+
+  /// <summary>True when <paramref name="fieldTemplates"/> has the text key <c>textInput.text</c>.</summary>
+  internal static bool HasTextTemplate(IDictionary<string, string>? fieldTemplates) =>
+    fieldTemplates is not null && fieldTemplates.ContainsKey("textInput.text");
 
   private static string? ValidateStep(CommandStepDto step) {
     if (step.Type == CommandStepTypeDto.PrimitiveTap) {
@@ -174,6 +199,10 @@ internal static class CommandsEndpoints {
       return null;
     }
 
+    if (step.Type == CommandStepTypeDto.TextInput) {
+      return ValidateTextInput(step.TextInput, HasTextTemplate(step.FieldTemplates));
+    }
+
     if (step.Type == CommandStepTypeDto.Swipe) {
       if (step.Swipe is null) {
         return "swipe is required for Swipe steps";
@@ -199,6 +228,9 @@ internal static class CommandsEndpoints {
     Swipe = s.Type == CommandStepTypeDto.Swipe ? ToDomainSwipe(s.Swipe) : null,
     EnsureEmulatorRunning = s.Type == CommandStepTypeDto.EnsureEmulatorRunning ? ToDomainEnsureEmulator(s.EnsureEmulatorRunning) : null,
     EnsureGameRunning = s.Type == CommandStepTypeDto.EnsureGameRunning ? ToDomainEnsureGame(s.EnsureGameRunning) : null,
+    TextInput = s.Type == CommandStepTypeDto.TextInput && s.TextInput is not null
+        ? new TextInputConfig { Text = s.TextInput.Text ?? string.Empty }
+        : null,
     Order = s.Order,
     // Feature 078: normalize an empty map/list to null so an unparametrized step round-trips
     // byte-identically to its pre-feature JSON.
@@ -218,6 +250,9 @@ internal static class CommandsEndpoints {
     Swipe = s.Type == CommandStepType.Swipe ? ToResponseSwipe(s.Swipe) : null,
     EnsureEmulatorRunning = s.Type == CommandStepType.EnsureEmulatorRunning ? ToResponseEnsureEmulator(s.EnsureEmulatorRunning) : null,
     EnsureGameRunning = s.Type == CommandStepType.EnsureGameRunning ? ToResponseEnsureGame(s.EnsureGameRunning) : null,
+    TextInput = s.Type == CommandStepType.TextInput && s.TextInput is not null
+        ? new TextInputConfigDto { Text = s.TextInput.Text }
+        : null,
     Order = s.Order,
     FieldTemplates = s.FieldTemplates is { Count: > 0 } ? new Dictionary<string, string>(s.FieldTemplates) : null,
     ParameterBindings = ParameterDtoMapper.ToResponseBindings(s.ParameterBindings)
@@ -277,7 +312,8 @@ internal static class CommandsEndpoints {
     ExecutedPoint = ToResolvedPointDto(outcome.ExecutedPoint),
     TargetSwipe = ToSwipePointsDto(outcome.TargetSwipe),
     ExecutedSwipe = ToSwipePointsDto(outcome.ExecutedSwipe),
-    HoldMs = outcome.HoldMs
+    HoldMs = outcome.HoldMs,
+    TypedLength = outcome.TypedLength
   };
 
   private static ResolvedPointDto? ToResolvedPointDto(PrimitiveTapResolvedPoint? point) =>
@@ -375,6 +411,10 @@ internal static class CommandsEndpoints {
         id => declarationsById.TryGetValue(id ?? string.Empty, out var found) ? found : null,
         imageExists);
   }
+
+  /// <summary>Feature 192: the response of a command dry run that passed all checks.</summary>
+  private static IResult DryRunResult() =>
+    Results.Ok(new { valid = true, dryRun = true, errors = Array.Empty<string>() });
 
   private static bool IsParametersPath(string? path) =>
     path is not null
@@ -485,6 +525,9 @@ internal static class CommandsEndpoints {
         return Results.BadRequest(ParameterDtoMapper.ToErrorBody(parameterCheck.Errors));
       }
 
+      // Feature 192: a dry run stops after all checks and stores nothing.
+      if (req.DryRun == true) return DryRunResult();
+
       var createdDomain = await repo.AddAsync(command, ct).ConfigureAwait(false);
       return Results.Created($"{ApiRoutes.Commands}/{createdDomain.Id}", new CommandResponse {
         Id = createdDomain.Id,
@@ -590,6 +633,10 @@ internal static class CommandsEndpoints {
       if (!parameterCheck.IsValid) {
         return Results.BadRequest(ParameterDtoMapper.ToErrorBody(parameterCheck.Errors));
       }
+
+      // Feature 192: a dry run stops after all checks and stores nothing. The changes above apply
+      // only to a private copy: the repository reads a new instance from the file for each call.
+      if (req.DryRun == true) return DryRunResult();
 
       var updated = await repo.UpdateAsync(existing, ct).ConfigureAwait(false);
       if (updated is null) return Results.NotFound();

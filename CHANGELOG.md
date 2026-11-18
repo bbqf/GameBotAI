@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Add the TextInput command step (192-text-input-step, #400)
+  - **Change**: the new command step type `TextInput` types the full text of `textInput.text` into the input field that has the focus on the device. The text `250` types the three characters 2, 5, and 0, not the key code 250. The text can have only the printable ASCII characters from space to `~`, 1 to 500 characters.
+  - **Parameter**: the `fieldTemplates` key `textInput.text` (one whole placeholder, for example `{{fighterBatch}}`) gives the text from a text or number parameter. An inline placeholder in `textInput.text` also works.
+  - **Result**: the step outcome has `typedLength`. A text that the device cannot type gives `not_accepted` with `text_input_empty_text`, `text_input_too_long`, `text_input_unsupported_character`, or `text_input_not_accepted`. The execution log records the length, not the text.
+  - **API**: `POST /api/commands` and `PATCH /api/commands/{id}` accept `"dryRun": true`. The service runs all save checks and stores nothing. A dry run reports an unknown placeholder in `textInput.text`.
+  - **Web UI**: the command editor has the step type "Text Input", with "Use a parameter" for the text.
+  - **Not changed**: the `KeyInput` step, the other templated fields, and the session input route.
+  - **Perf note**: no performance effect on other steps. A number is one ADB command, the same as one `KeyInput` step.
+  - **Version**: the patch version is now 1.12.24.
+
 ### Security
 - Remove the vulnerable `minimatch` 9.x from the web UI tools (191-security-alerts-fix)
   - **Change**: an npm override (`"minimatch@9": "^11.0.1"` in `src/web-ui/package.json`) replaces `minimatch` 9.0.9 below `@typescript-eslint/typescript-estree` 7.18.0 with 11.x. This fixes GHSA-g3hv-75wg-m249 (Dependabot alert #79). `npm audit` in the web UI now reports 0 vulnerabilities (before: 6 moderate).
