@@ -750,9 +750,10 @@ public static class ParameterValidationService {
         continue;
       }
 
-      // Feature 114: the value of an image key must be one whole placeholder. The numeric keys get
-      // no check here, so that their behavior does not change (FR-013).
-      if (CommandStepFieldPaths.IsImagePath(path) && !IsWholePlaceholder(value)) {
+      // Features 114 and 192: the value of an image key or a text key must be one whole
+      // placeholder. The numeric keys get no check here, so that their behavior does not change.
+      if ((CommandStepFieldPaths.IsImagePath(path) || CommandStepFieldPaths.IsTextPath(path))
+          && !IsWholePlaceholder(value)) {
         errors.Add(new ParameterValidationIssue(
             ParameterValidationCodes.InvalidFieldTemplateValue,
             $"Step {step.Order}: the value of '{path}' must be one whole placeholder, for example {{{{name}}}}.",

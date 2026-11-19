@@ -382,6 +382,42 @@ internal sealed class CommandExecutor : ICommandExecutor {
     return totalAccepted;
   }
 
+  /// <summary>
+  /// Runs a TextInput step (feature 192). The service checks the resolved text before the send, so
+  /// that a text that the device cannot type gives a reason code and no input. The step result holds
+  /// the typed length, not the text.
+  /// </summary>
+  private async Task<(int Accepted, PrimitiveTapStepOutcome Outcome)> ExecuteTextInputAsync(
+      string sessionId,
+      CommandStep step,
+      CancellationToken ct) {
+    const string stepType = "text-input";
+    if (step.TextInput is null) {
+      return (0, new PrimitiveTapStepOutcome(step.Order, "skipped_invalid_config", TextInputRules.MissingConfigReason,
+        null, null, StepType: stepType));
+    }
+
+    var text = step.TextInput.Text;
+    var check = TextInputRules.Check(text);
+    if (check != TextInputCheck.Ok) {
+      return (0, new PrimitiveTapStepOutcome(step.Order, "not_accepted", TextInputRules.ReasonCode(check),
+        null, null, StepType: stepType, TypedLength: 0));
+    }
+
+    var textArgs = new Dictionary<string, object> { ["text"] = text };
+    var textAction = new GameBot.Emulator.Session.InputAction("text", textArgs, null, null);
+    var accepted = await _sessions.SendInputsAsync(sessionId, new[] { textAction }, ct).ConfigureAwait(false);
+    // The device path writes the typed length into the args. The stub path does not, so the text
+    // length applies there.
+    var typed = textArgs.TryGetValue("typedLength", out var raw)
+      ? Convert.ToInt32(raw, CultureInfo.InvariantCulture)
+      : (accepted > 0 ? text.Length : 0);
+    return accepted > 0
+      ? (accepted, new PrimitiveTapStepOutcome(step.Order, "executed", null, null, null, StepType: stepType, TypedLength: typed))
+      : (0, new PrimitiveTapStepOutcome(step.Order, "not_accepted", TextInputRules.NotAcceptedReason,
+        null, null, StepType: stepType, TypedLength: typed));
+  }
+
   private async Task<(int Accepted, PrimitiveTapStepOutcome Outcome)> ExecuteOneStepAsync(
       string sessionId,
       CommandStep step,
@@ -485,6 +521,10 @@ internal sealed class CommandExecutor : ICommandExecutor {
         _ => "key_input_not_accepted"
       };
       return (0, new PrimitiveTapStepOutcome(step.Order, "not_accepted", keyReason, null, null, StepType: "key"));
+    }
+
+    if (step.Type == CommandStepType.TextInput) {
+      return await ExecuteTextInputAsync(sessionId, step, ct).ConfigureAwait(false);
     }
 
     if (step.Type == CommandStepType.Swipe) {

@@ -103,6 +103,12 @@ internal sealed class CreateCommandRequest {
 
   /// <summary>The read-only owner (feature 143). A write request accepts it and ignores it.</summary>
   public GameBot.Service.Endpoints.Dto.GamepackOwnerDto? Owner { get; init; }
+
+  /// <summary>
+  /// When true (feature 192), the service runs all save checks and stores nothing. The response is
+  /// 200 with { valid: true, dryRun: true, errors: [] }. A failed check gives the same error as a save.
+  /// </summary>
+  public bool? DryRun { get; init; }
 }
 
 internal sealed class UpdateCommandRequest {
@@ -115,6 +121,12 @@ internal sealed class UpdateCommandRequest {
 
   /// <summary>The read-only owner (feature 143). A write request accepts it and ignores it.</summary>
   public GameBot.Service.Endpoints.Dto.GamepackOwnerDto? Owner { get; init; }
+
+  /// <summary>
+  /// When true (feature 192), the service runs all save checks and stores nothing. The response is
+  /// 200 with { valid: true, dryRun: true, errors: [] }. A failed check gives the same error as a save.
+  /// </summary>
+  public bool? DryRun { get; init; }
 
   private DetectionTargetDto? _detection;
 
@@ -161,7 +173,8 @@ internal enum CommandStepTypeDto {
   KeyInput,
   Swipe,
   GoToHomeScreen,
-  EnsureEmulatorRunning
+  EnsureEmulatorRunning,
+  TextInput
 }
 
 internal sealed class EnsureEmulatorRunningConfigDto {
@@ -172,6 +185,16 @@ internal sealed class EnsureEmulatorRunningConfigDto {
 
 internal sealed class KeyInputConfigDto {
   public required string Key { get; init; }
+}
+
+/// <summary>Config of a TextInput step (feature 192).</summary>
+internal sealed class TextInputConfigDto {
+  /// <summary>
+  /// The text to type into the focused input field. Only the printable ASCII characters from space
+  /// (U+0020) to ~ (U+007E), 1 to 500 characters. It can hold inline placeholders. It can be empty
+  /// when fieldTemplates has the key textInput.text.
+  /// </summary>
+  public required string Text { get; init; }
 }
 
 internal sealed class SwipeConfigDto {
@@ -216,13 +239,19 @@ internal sealed class CommandStepDto {
   public SwipeConfigDto? Swipe { get; init; }
   public EnsureEmulatorRunningConfigDto? EnsureEmulatorRunning { get; init; }
   public EnsureGameRunningConfigDto? EnsureGameRunning { get; init; }
+
+  /// <summary>Config of a TextInput step (feature 192). Not written when null.</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public TextInputConfigDto? TextInput { get; init; }
+
   public int Order { get; init; }
 
   /// <summary>
-  /// Placeholders for fields of this step, keyed by dotted path (features 078 and 114). The keys are
-  /// the numeric fields and the two image keys <c>primitiveTap.detectionTarget.referenceImageId</c>
-  /// and <c>waitForImage.detectionTarget.referenceImageId</c>. The value of an image key must be one
-  /// whole placeholder. Other text fields keep their placeholder inline.
+  /// Placeholders for fields of this step, keyed by dotted path (features 078, 114, and 192). The
+  /// keys are the numeric fields, the two image keys <c>primitiveTap.detectionTarget.referenceImageId</c>
+  /// and <c>waitForImage.detectionTarget.referenceImageId</c>, and the text key <c>textInput.text</c>.
+  /// The value of an image key or a text key must be one whole placeholder. Other text fields keep
+  /// their placeholder inline.
   /// </summary>
   [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
   public Dictionary<string, string>? FieldTemplates { get; init; }
@@ -265,6 +294,14 @@ internal sealed class StepExecutionOutcomeDto {
   /// <summary>Hold duration of a PrimitiveTap step that pressed and held (feature 111). Not written for other steps.</summary>
   [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
   public int? HoldMs { get; init; }
+
+  /// <summary>
+  /// The number of characters that a TextInput step typed (feature 192). For executed, the text
+  /// length. For not_accepted, the characters that the device accepted before the failure (0 when
+  /// the check of the text failed). Not written for other steps.
+  /// </summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public int? TypedLength { get; init; }
 }
 
 internal enum DetectionSelectionStrategyDto {

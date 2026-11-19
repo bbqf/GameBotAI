@@ -11,7 +11,7 @@ describe('ActionTypeSelector', () => {
     expect(options[0].value).toBe('');
   });
 
-  it('renders exactly Tap, Wait for Image, Ensure Game Running, Ensure Emulator Running, Go to Home Screen, Key Input, Swipe options', () => {
+  it('renders exactly Tap, Wait for Image, Ensure Game Running, Ensure Emulator Running, Go to Home Screen, Key Input, Text Input, Swipe options', () => {
     render(<ActionTypeSelector value="" onChange={() => {}} />);
     const select = screen.getByRole('combobox', { name: /action type/i });
     const options = Array.from((select as HTMLSelectElement).options).map((o) => ({
@@ -26,9 +26,19 @@ describe('ActionTypeSelector', () => {
       { value: 'EnsureEmulatorRunning', text: 'Ensure Emulator Running' },
       { value: 'GoToHomeScreen', text: 'Go to Home Screen' },
       { value: 'KeyInput', text: 'Key Input' },
+      { value: 'TextInput', text: 'Text Input' },
       { value: 'Swipe', text: 'Swipe' },
     ]);
-    expect(options).toHaveLength(8);
+    expect(options).toHaveLength(9);
+  });
+
+  it('onChange fires with TextInput when Text Input is selected', () => {
+    const onChange = jest.fn();
+    render(<ActionTypeSelector value="" onChange={onChange} />);
+    fireEvent.change(screen.getByRole('combobox', { name: /action type/i }), {
+      target: { value: 'TextInput' },
+    });
+    expect(onChange).toHaveBeenCalledWith('TextInput');
   });
 
   it('onChange fires with EnsureEmulatorRunning when Ensure Emulator Running is selected', () => {

@@ -15,6 +15,9 @@ internal interface IAdbSessionClient {
   /// <summary>Sends <c>input keyevent</c>.</summary>
   Task<(int ExitCode, string StdOut, string StdErr)> KeyEventAsync(int keyCode, CancellationToken ct = default);
 
+  /// <summary>Sends <c>input text</c> for one chunk with no space and no <c>%s</c> (feature 192).</summary>
+  Task<(int ExitCode, string StdOut, string StdErr)> InputTextAsync(string chunk, CancellationToken ct = default);
+
   /// <summary>Captures one PNG screenshot.</summary>
   Task<byte[]> GetScreenshotPngAsync(CancellationToken ct = default);
 }

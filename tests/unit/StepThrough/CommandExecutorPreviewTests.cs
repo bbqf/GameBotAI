@@ -190,6 +190,13 @@ public sealed class CommandExecutorPreviewTests {
     }
   }
 
+  [Fact]
+  public void ATextInputStepRunsInAStepThrough() {
+    // Feature 192 (FR-022): a text input step only uses the device, so a step-through runs it.
+    var step = new CommandStep { Type = CommandStepType.TextInput, TextInput = new TextInputConfig { Text = "250" } };
+    PreviewEffectRules.TryDescribe(step, out _).Should().BeFalse();
+  }
+
   // Feature 129: a restart stops the game on the device, so a step-through previews it.
   [Fact]
   public void AnEnsureGameRunningStepWithForceRestartIsPreviewed() {

@@ -50,6 +50,7 @@ const stepsFromDto = (dto: CommandDto): StepEntry[] => {
           }
           : undefined,
         keyInput: s.keyInput ? { key: s.keyInput.key } : undefined,
+        textInput: s.textInput ? { text: s.textInput.text } : undefined,
         swipe: s.swipe
           ? {
             startX: String(s.swipe.startX),
@@ -163,6 +164,11 @@ const stepToDto = (s: StepEntry, idx: number): CommandStepDto => {
 
   if (s.type === 'KeyInput') {
     return { type: 'KeyInput', order: idx, keyInput: { key: s.keyInput?.key ?? '' } };
+  }
+
+  if (s.type === 'TextInput') {
+    // Feature 192: the text goes as it is. A space at the start or the end is part of the text.
+    return { type: 'TextInput', order: idx, textInput: { text: s.textInput?.text ?? '' } };
   }
 
   if (s.type === 'Swipe') {

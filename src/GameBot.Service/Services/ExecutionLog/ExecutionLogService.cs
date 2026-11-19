@@ -190,6 +190,16 @@ internal sealed class ExecutionLogService : IExecutionLogService {
         }
         details.Add(new ExecutionDetailItem("tap", text, tapAttributes, "normal"));
       }
+      else if (string.Equals(outcome.Status, "executed", StringComparison.OrdinalIgnoreCase)
+          && string.Equals(outcome.StepType, "text-input", StringComparison.Ordinal)) {
+        // Feature 192 (FR-023): the item holds the typed length, not the typed text.
+        var typedLength = outcome.TypedLength ?? 0;
+        details.Add(new ExecutionDetailItem(
+          "text-input",
+          string.Create(System.Globalization.CultureInfo.InvariantCulture, $"Text input typed {typedLength} characters."),
+          new Dictionary<string, object?> { ["typedLength"] = typedLength },
+          "normal"));
+      }
       else if (string.Equals(outcome.Status, "executed", StringComparison.OrdinalIgnoreCase) && outcome.ExecutedSwipe is not null) {
         var target = outcome.TargetSwipe;
         var swipe = outcome.ExecutedSwipe;

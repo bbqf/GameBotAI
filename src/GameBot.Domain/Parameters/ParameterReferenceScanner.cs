@@ -80,6 +80,12 @@ public static class ParameterReferenceScanner {
     }
 
     AddFrom(found, step.KeyInput?.Key, "keyInput.key", label);
+    // Feature 192: the overlay key replaces the inline text, so the inline text is scanned only
+    // when the step has no overlay key for it.
+    if (step.FieldTemplates is null || !step.FieldTemplates.ContainsKey(TextInputTextPath)) {
+      AddFrom(found, step.TextInput?.Text, TextInputTextPath, label);
+    }
+
     AddFrom(found, step.EnsureEmulatorRunning?.AdbSerial, "ensureEmulatorRunning.adbSerial", label);
     AddFrom(found, step.EnsureEmulatorRunning?.InstanceName, "ensureEmulatorRunning.instanceName", label);
     AddFrom(found, step.PrimitiveTap?.DetectionTarget?.ReferenceImageId,
@@ -195,6 +201,7 @@ public static class ParameterReferenceScanner {
   }
 
   private const string WaitForImageImagePath = "waitForImage.detectionTarget.referenceImageId";
+  private const string TextInputTextPath = "textInput.text";
 
   /// <summary>Scans each item of a written image list (feature 180). An item is a single-value position.</summary>
   private static void AddItems(

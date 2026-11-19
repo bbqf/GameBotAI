@@ -219,6 +219,7 @@ Status vocabulary:
 | 189 | Smart Scheduling | Implemented |
 | 190 | Trace Noise Cleanup | Implemented |
 | 191 | Security Alerts Fix | Implemented |
+| 192 | TextInput Command Step | Implemented |
 
 ## Numbering notes
 

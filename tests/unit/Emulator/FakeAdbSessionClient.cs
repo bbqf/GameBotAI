@@ -51,7 +51,28 @@ internal sealed class FakeAdbSessionClient : IAdbSessionClient {
     lock (KeyCodes) {
       KeyCodes.Add(keyCode);
     }
+    lock (TextChunks) {
+      Calls.Add("key:" + keyCode.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    }
     return InputAsync(ct);
+  }
+
+  /// <summary>The text chunks that the fake received, in order, retries included (feature 192).</summary>
+  public List<string> TextChunks { get; } = new();
+
+  /// <summary>All input calls in order (feature 192): "text:&lt;chunk&gt;" or "key:&lt;code&gt;".</summary>
+  public List<string> Calls { get; } = new();
+
+  /// <summary>When set, each text call with this chunk returns exit code 1 (feature 192).</summary>
+  public string? FailTextChunk { get; set; }
+
+  public async Task<(int ExitCode, string StdOut, string StdErr)> InputTextAsync(string chunk, CancellationToken ct = default) {
+    lock (TextChunks) {
+      TextChunks.Add(chunk);
+      Calls.Add("text:" + chunk);
+    }
+    var result = await InputAsync(ct).ConfigureAwait(false);
+    return string.Equals(chunk, FailTextChunk, StringComparison.Ordinal) ? (1, string.Empty, "error") : result;
   }
 
   public async Task<byte[]> GetScreenshotPngAsync(CancellationToken ct = default) {

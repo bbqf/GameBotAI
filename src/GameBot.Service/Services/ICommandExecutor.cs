@@ -91,7 +91,8 @@ internal sealed record PrimitiveTapStepOutcome(
   IReadOnlyList<ResolvedParameter>? ResolvedParameters = null,
   int? HoldMs = null,
   int Depth = 0,
-  string? MatchedImageId = null);
+  string? MatchedImageId = null,
+  int? TypedLength = null);
 
 /// <summary>
 /// The options of one command run (feature 127).

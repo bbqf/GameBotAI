@@ -73,6 +73,8 @@ public static class CommandStepResolver {
       keyInput = new KeyInputConfig { Key = key! };
     }
 
+    if (!TryTextInput(step, context, scope, used, ref error, out var textInput)) return false;
+
     EnsureEmulatorRunningConfig? ensureEmulator = step.EnsureEmulatorRunning;
     if (step.EnsureEmulatorRunning is not null) {
       if (!TryText(step.EnsureEmulatorRunning.AdbSerial, "ensureEmulatorRunning.adbSerial",
@@ -145,6 +147,7 @@ public static class CommandStepResolver {
       Swipe = swipe,
       EnsureEmulatorRunning = ensureEmulator,
       EnsureGameRunning = ensureGame,
+      TextInput = textInput,
       Order = step.Order,
       FieldTemplates = step.FieldTemplates,
       ParameterBindings = step.ParameterBindings
@@ -183,12 +186,40 @@ public static class CommandStepResolver {
   private static bool HasInlinePlaceholder(CommandStep step) =>
       (step.Type != CommandStepType.Command && TemplateSubstitutor.ContainsPlaceholder(step.TargetId))
       || TemplateSubstitutor.ContainsPlaceholder(step.KeyInput?.Key)
+      || TemplateSubstitutor.ContainsPlaceholder(step.TextInput?.Text)
       || TemplateSubstitutor.ContainsPlaceholder(step.EnsureEmulatorRunning?.AdbSerial)
       || TemplateSubstitutor.ContainsPlaceholder(step.EnsureEmulatorRunning?.InstanceName)
       || TemplateSubstitutor.ContainsPlaceholder(step.PrimitiveTap?.DetectionTarget?.ReferenceImageId)
       || TemplateSubstitutor.ContainsPlaceholder(step.WaitForImage?.DetectionTarget?.ReferenceImageId)
       || (step.WaitForImage?.DetectionTarget?.ReferenceImageIds?.Any(TemplateSubstitutor.ContainsPlaceholder) ?? false)
       || TemplateSubstitutor.ContainsPlaceholder(step.EnsureGameRunning?.ReadinessImage?.ReferenceImageId);
+
+  /// <summary>
+  /// Resolves <c>textInput.text</c> (feature 192). When the overlay has the text key, its value
+  /// replaces the inline text, and the inline text is not resolved.
+  /// </summary>
+  private static bool TryTextInput(
+      CommandStep step,
+      IReadOnlyDictionary<string, string> context,
+      ParameterScope scope,
+      List<ResolvedParameter> used,
+      ref ParameterResolutionError? error,
+      out TextInputConfig? textInput) {
+    textInput = step.TextInput;
+    if (step.TextInput is null) return true;
+
+    const string textPath = "textInput.text";
+    string? text;
+    if (step.FieldTemplates is not null && step.FieldTemplates.ContainsKey(textPath)) {
+      if (!TryOverlayValue(step, textPath, scope, used, ref error, out text, isTextField: true)) return false;
+    }
+    else if (!TryText(step.TextInput.Text, textPath, context, scope, used, ref error, out text, singleValueField: true)) {
+      return false;
+    }
+
+    textInput = new TextInputConfig { Text = text ?? string.Empty };
+    return true;
+  }
 
   private static bool TryText(
       string? value,
