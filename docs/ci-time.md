@@ -48,6 +48,14 @@ required status check today, so a person must read this result.
 
 A compile failure stops the test jobs. A secret found by the scan stops the run.
 
+Measured times of the browser-test job (feature 194, 2026-11-19): `web-ui-e2e` took 160 s
+on the first run with no browser cache, and 114 s and 111 s with the cache. It runs in
+parallel with the .NET jobs, so it is not on the critical path of a code push. A
+web-UI-only push runs `changes` (about 15 s), `web-ui-e2e`, and `ci-gate` (about 11 s):
+about 2 min 20 s with the cache. The guard step adds less than 1 s to `changes`. The full
+runs of the branch took 321 s and 336 s; `analyze` (257 s and 274 s) was the longest job,
+as on `master` (median critical path 326 s over the last 6 runs).
+
 ### Path groups
 
 The trigger has no `paths` filter. A run must exist for every push, because the speckit
