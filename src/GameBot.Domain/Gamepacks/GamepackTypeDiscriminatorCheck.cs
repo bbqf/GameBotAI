@@ -41,6 +41,13 @@ internal static class GamepackTypeDiscriminatorCheck {
     ArgumentNullException.ThrowIfNull(target);
     ArgumentNullException.ThrowIfNull(options);
     ArgumentNullException.ThrowIfNull(path);
+    // Feature 194 (D-5): GetTypeInfo throws InvalidOperationException when the options have no type info resolver.
+    // The typed read adds the default resolver, but the check runs before the first typed read. Without this line,
+    // the check found no problem until a different read used the same options, so the result changed with the order.
+    if (!options.IsReadOnly) {
+      options.MakeReadOnly(populateMissingResolver: true);
+    }
+
     return Walk(element, target, options, path, 0);
   }
 

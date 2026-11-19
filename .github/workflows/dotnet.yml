@@ -45,6 +45,10 @@ jobs:
       - name: Security and secret scans
         shell: pwsh
         run: ./scripts/installer/run-security-scans.ps1
+      # A skipped, focused, or commented-out test fails the run (feature 194).
+      - name: Find disabled tests
+        shell: pwsh
+        run: ./scripts/ci/find-disabled-tests.ps1
       - name: Sort changed files into groups
         id: groups
         shell: pwsh
@@ -313,10 +317,51 @@ jobs:
         run: npm test -- --coverage --silent
         working-directory: src/web-ui
 
+  # The Playwright browser tests (feature 194). The job runs on Windows, because
+  # the pixel tests (row height, column width) need the Windows fonts. It needs
+  # no back end: the tests replace each service answer with page.route.
+  web-ui-e2e:
+    needs: changes
+    if: needs.changes.outputs.webui == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24.x'
+          cache: 'npm'
+          cache-dependency-path: 'src/web-ui/package-lock.json'
+      - name: Install dependencies
+        run: npm ci
+        working-directory: src/web-ui
+      - name: Cache Playwright browsers
+        uses: actions/cache@v5
+        with:
+          path: ~\AppData\Local\ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('src/web-ui/package-lock.json') }}
+      - name: Install the Playwright browser
+        run: npx playwright install chromium
+        working-directory: src/web-ui
+      - name: Run browser tests
+        run: npm run e2e
+        working-directory: src/web-ui
+        env:
+          CI: 'true'
+      - name: Upload the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: playwright-report
+          path: |
+            src/web-ui/playwright-report
+            src/web-ui/test-results
+          retention-days: 7
+
   # The one pass signal of the run. It runs on Linux, so it adds no Windows
   # start time. The coverage thresholds run here because the script takes 1 s.
   ci-gate:
-    needs: [ changes, compile, analyze, test-unit, test-integration, test-contract, web-ui-tests ]
+    needs: [ changes, compile, analyze, test-unit, test-integration, test-contract, web-ui-tests, web-ui-e2e ]
     if: always()
     runs-on: ubuntu-latest
     steps:

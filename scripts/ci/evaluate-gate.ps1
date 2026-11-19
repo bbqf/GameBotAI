@@ -4,7 +4,7 @@
 #   - The changes job must succeed.
 #   - A .NET job (compile, analyze, test-*) must succeed when dotnet=true.
 #     It may be skipped when dotnet=false (a path rule skipped it).
-#   - The web UI job must succeed when webui=true. It may be skipped when webui=false.
+#   - The web UI jobs (web-ui-tests, web-ui-e2e) must succeed when webui=true. They may be skipped when webui=false.
 #   - A job that failed, was cancelled, or produced no result always fails the gate.
 #   - A job skipped while its switch is true counts as a failure (an earlier job failed).
 #
@@ -33,7 +33,8 @@ $expectations = @(
   [PSCustomObject]@{ Job = "test-unit"; Required = ($Dotnet -eq "true") },
   [PSCustomObject]@{ Job = "test-integration"; Required = ($Dotnet -eq "true") },
   [PSCustomObject]@{ Job = "test-contract"; Required = ($Dotnet -eq "true") },
-  [PSCustomObject]@{ Job = "web-ui-tests"; Required = ($Webui -eq "true") }
+  [PSCustomObject]@{ Job = "web-ui-tests"; Required = ($Webui -eq "true") },
+  [PSCustomObject]@{ Job = "web-ui-e2e"; Required = ($Webui -eq "true") }
 )
 
 $failed = $false

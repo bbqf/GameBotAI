@@ -42,7 +42,7 @@ public sealed class DeviceNotLiveAlertTests {
 
     (await client.PostAsync(new Uri($"/api/queues/{id}/start", UriKind.Relative), null)).StatusCode.Should().Be(HttpStatusCode.OK);
     try {
-      await DeviceRecoveryHost.WaitForAsync(() => dispatcher.Count(QueueAlertKind.NotLive) >= 1);
+      await DeviceRecoveryHost.WaitForAsync(() => dispatcher.Count(QueueAlertKind.NotLive) >= 1, what: "the 'not live' message");
       dispatcher.Count(QueueAlertKind.NotLive).Should().Be(1);
 
       var health = await HealthAsync(client, id);
@@ -58,7 +58,7 @@ public sealed class DeviceNotLiveAlertTests {
       control.Reboots.Should().Be(0, "a queue with no deviceRecovery never reboots");
 
       devices.UnblockInstance(SimulatedDevices.InstanceOf(1));
-      await DeviceRecoveryHost.WaitForAsync(() => dispatcher.Count(QueueAlertKind.LiveAgain) >= 1);
+      await DeviceRecoveryHost.WaitForAsync(() => dispatcher.Count(QueueAlertKind.LiveAgain) >= 1, what: "the 'live again' message");
       await Task.Delay(500);
 
       dispatcher.Count(QueueAlertKind.LiveAgain).Should().Be(1);

@@ -231,9 +231,20 @@ internal static class DeviceRecoveryHost {
     return queue.Id;
   }
 
-  public static async Task WaitForAsync(Func<bool> condition, int timeoutMs = 15000) {
-    var end = DateTime.UtcNow.AddMilliseconds(timeoutMs);
-    while (!condition() && DateTime.UtcNow < end) await Task.Delay(25);
+  /// <summary>
+  /// Waits until the condition is true. A time-out throws <see cref="TimeoutException"/> with the name of the
+  /// condition (feature 194, item D-6), so that the next assertions do not run on a state that is not complete.
+  /// </summary>
+  public static async Task WaitForAsync(Func<bool> condition, int timeoutMs = 15000, string what = "the condition") {
+    var started = DateTime.UtcNow;
+    var end = started.AddMilliseconds(timeoutMs);
+    while (!condition()) {
+      if (DateTime.UtcNow >= end) {
+        throw new TimeoutException($"The wait for {what} did not end within {timeoutMs} ms.");
+      }
+
+      await Task.Delay(25);
+    }
   }
 
   public static JsonElement Parse(string body) => JsonDocument.Parse(body).RootElement.Clone();

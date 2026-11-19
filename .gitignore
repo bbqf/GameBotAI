@@ -98,3 +98,7 @@ PR_BODY*.md
 # Local Vite env overrides (feature 078: .env / *.env did not match .env.local)
 .env.local
 .env.*.local
+
+# Playwright output (feature 194)
+src/web-ui/test-results/
+src/web-ui/playwright-report/

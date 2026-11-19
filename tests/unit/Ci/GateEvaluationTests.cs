@@ -14,7 +14,7 @@ public class GateEvaluationTests {
   }
 
   private static Dictionary<string, string> AllJobs(string dotnetResult, string webuiResult) {
-    var results = new Dictionary<string, string> { ["changes"] = "success", ["web-ui-tests"] = webuiResult };
+    var results = new Dictionary<string, string> { ["changes"] = "success", ["web-ui-tests"] = webuiResult, ["web-ui-e2e"] = webuiResult };
     foreach (var job in DotnetJobs) {
       results[job] = dotnetResult;
     }
@@ -65,6 +65,18 @@ public class GateEvaluationTests {
     var results = AllJobs("skipped", "skipped");
     results["changes"] = "failure";
     Evaluate("", "", results).Should().Be(1);
+  }
+
+  [Fact]
+  public void AFailedBrowserTestJobFailsTheGate() {
+    var results = AllJobs("success", "success");
+    results["web-ui-e2e"] = "failure";
+    Evaluate("true", "true", results).Should().Be(1);
+  }
+
+  [Fact]
+  public void ABrowserTestJobSkippedByThePathRulePasses() {
+    Evaluate("true", "false", AllJobs("success", "skipped")).Should().Be(0);
   }
 
   [Fact]

@@ -223,12 +223,7 @@ public sealed class ConcurrentQueueRunTests {
     await StopAsync(client, healthy).ConfigureAwait(true);
   }
 
-  // NOTE: the session-capacity path (FR-015/FR-016) is covered at the unit level, where the limit can
-  // be set deterministically: SessionCapacityMessageTests proves the default and the message, and
-  // QueueExecutionServiceTests.ACapacityFailureIsRecordedWithTheActionableReason proves that message
-  // reaches the run's execution-log summary. Overriding Service:Sessions:MaxConcurrentSessions inside
-  // WebApplicationFactory did not take effect, so an integration variant would assert nothing.
-  [Fact(Skip = "Session limit cannot be overridden in the test host; covered by unit tests instead.")]
+  [Fact]
   public async Task ARunBlockedByTheSessionLimitRecordsAnActionableReason() {
     // UseSetting rather than an env var: it applies to this factory's configuration only, so the
     // squeezed limit cannot leak into another test in the collection.
