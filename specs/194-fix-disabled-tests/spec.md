@@ -2,7 +2,7 @@
 
 **Feature Branch**: `194-fix-disabled-tests`  
 **Created**: 2026-11-19  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: User description: "Let's clean up all the failing tests. There are a number of tests that are failing on the back-end side and on the front-end side that were disabled. Please enable all of the tests, validate which one of them are failing, and fix all the errors."
 
 ## Current State *(input for planning)*

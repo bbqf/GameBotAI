@@ -221,6 +221,7 @@ Status vocabulary:
 | 191 | Security Alerts Fix | Implemented |
 | 192 | TextInput Command Step | Implemented |
 | 193 | Parameter Condition | Implemented |
+| 194 | Fix Disabled Tests | Implemented |
 
 ## Numbering notes
 

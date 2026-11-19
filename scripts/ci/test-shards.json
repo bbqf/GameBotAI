@@ -6,7 +6,7 @@
     ],
     "shards": [
       { "name": "unit-1", "include": [ "GameBot.UnitTests.Sequences.", "GameBot.UnitTests.Ci.TestShardTests", "GameBot.UnitTests.Ci.ShardBalanceTests", "GameBot.UnitTests.Emulator." ] },
-      { "name": "unit-2", "include": [ "GameBot.UnitTests.Queues.","GameBot.UnitTests.BackgroundScreenCaptureServiceTests", "GameBot.UnitTests.Ci.ChangedGroupsTests", "GameBot.UnitTests.Ci.GateEvaluationTests" ] },
+      { "name": "unit-2", "include": [ "GameBot.UnitTests.Queues.","GameBot.UnitTests.BackgroundScreenCaptureServiceTests", "GameBot.UnitTests.Ci.ChangedGroupsTests", "GameBot.UnitTests.Ci.GateEvaluationTests", "GameBot.UnitTests.Ci.DisabledTestGuardTests" ] },
       { "name": "unit-3", "complement": true, "collectsCoverage": true }
     ]
   },

@@ -52,6 +52,13 @@ All notable changes to this project will be documented in this file.
   - **Version**: the patch version is now 1.12.19.
 
 ### Fixed
+- Turn on and repair the disabled tests (194-fix-disabled-tests)
+  - **Tests turned on**: `WaitForImageCaptureLoopTests.StepTimesOutWhenImageNotOnScreen` and `ConcurrentQueueRunTests.ARunBlockedByTheSessionLimitRecordsAnActionableReason` had a `Skip` marker. Both pass now with no product change. `TextMatchEvaluatorImagePipelineTests.CropsRegionToExpectedPixelSize` was in comments. Its 2 log assertions tested a log entry that the evaluator no longer writes. A size assertion (the OCR image is at least 100 pixels wide) replaces them.
+  - **Gamepack type check**: the type member check of a gamepack install found no problem when it ran before the first typed read in the process, because its JSON options had no type info resolver yet. Thus a bad type member could give 422 and not 400, and the result changed with the test order. The check now adds the default resolver first. A new unit test (`GamepackTypeCheckOrderTests`) covers it.
+  - **Device recovery tests**: the wait of the device recovery tests now fails with a message that names the condition on a time-out. Before, the wait ended with no error, and the next assertion failed with an unclear message.
+  - **CI**: the new job `web-ui-e2e` runs the 69 Playwright browser tests on each push that changes the web UI. `ci-gate` requires it. The new guard `scripts/ci/find-disabled-tests.ps1` runs in the `changes` job. A skip marker with no condition, a focus marker, or a test in comments fails the run.
+  - **Not changed**: the API, the web UI, and stored data.
+  - **Version**: the patch version is now 1.12.26.
 - Resolve parameter placeholders in an inline WaitForImage step (186-fix-waitforimage-placeholder, #386)
   - **Cause**: `SequenceRunner` did not resolve `{{name}}` in the image field of an inline WaitForImage step. The step kept the text and ended with `image_unavailable`. The step log also had no `matchedImageId`.
   - **Fix**: the step now resolves the placeholder against the scope of the step before the wait. A multi-value placeholder works as `referenceImageIds`. An unknown name fails the step with the unresolved-parameter message, also in a dry run. `detailAttributes` of the step log now has `matchedImageId`.

@@ -66,7 +66,7 @@ public sealed class DeviceRecoveryFlowTests {
 
     (await StartAsync(client, id)).StatusCode.Should().Be(HttpStatusCode.OK);
     try {
-      await DeviceRecoveryHost.WaitForAsync(() => dispatcher.Count(QueueAlertKind.LiveAgain) >= 1);
+      await DeviceRecoveryHost.WaitForAsync(() => dispatcher.Count(QueueAlertKind.LiveAgain) >= 1, what: "the 'live again' message");
 
       control.Reboots.Should().Be(1);
       control.Starts.Single().Name.Should().Be("LDPlayer-1");
@@ -79,7 +79,7 @@ public sealed class DeviceRecoveryFlowTests {
       await DeviceRecoveryHost.WaitForAsync(() => {
         var page = log.QueryAsync(new ExecutionLogQuery { ObjectType = "sequence", ObjectId = sequenceId, PageSize = 50 }).GetAwaiter().GetResult();
         return page.Items.Any(e => e.Summary != "device_not_live: capture_stalled");
-      });
+      }, what: "the run of the held firing");
       var entries = await log.QueryAsync(new ExecutionLogQuery { ObjectType = "sequence", ObjectId = sequenceId, PageSize = 50 });
       entries.Items.Should().Contain(e => e.Summary == "device_not_live: capture_stalled", "the firing was held first");
       entries.Items.Should().Contain(e => e.Summary != "device_not_live: capture_stalled", "the held firing ran after the recovery");
@@ -100,7 +100,7 @@ public sealed class DeviceRecoveryFlowTests {
     var client = NewClient(app);
     var id = await DeviceRecoveryHost.CreateQueueAsync(app, 1, Reboot);
     (await StartAsync(client, id)).StatusCode.Should().Be(HttpStatusCode.OK);
-    await DeviceRecoveryHost.WaitForAsync(() => control.Reboots == 1);
+    await DeviceRecoveryHost.WaitForAsync(() => control.Reboots == 1, what: "the first reboot");
     var runState = (await DetailAsync(client, id)).GetProperty("health").GetProperty("deviceLiveness").GetProperty("recoveryState").GetString();
     runState.Should().Be("running");
 
@@ -108,7 +108,7 @@ public sealed class DeviceRecoveryFlowTests {
 
     ((int)stop.StatusCode).Should().BeLessThan(500);
     var svc = app.Services.GetRequiredService<IQueueExecutionService>();
-    await DeviceRecoveryHost.WaitForAsync(() => !svc.IsRunning(id), 10000);
+    await DeviceRecoveryHost.WaitForAsync(() => !svc.IsRunning(id), 10000, "the end of the stopped run");
     svc.IsRunning(id).Should().BeFalse();
 
     // A second queue on another device can use the slot at once.
@@ -117,7 +117,7 @@ public sealed class DeviceRecoveryFlowTests {
     var id2 = await DeviceRecoveryHost.CreateQueueAsync(app, 2, Reboot);
     (await StartAsync(client, id2)).StatusCode.Should().Be(HttpStatusCode.OK);
     try {
-      await DeviceRecoveryHost.WaitForAsync(() => dispatcher.Count(QueueAlertKind.LiveAgain, id2) >= 1);
+      await DeviceRecoveryHost.WaitForAsync(() => dispatcher.Count(QueueAlertKind.LiveAgain, id2) >= 1, what: "the 'live again' message of the second queue");
       dispatcher.Count(QueueAlertKind.LiveAgain, id2).Should().Be(1);
     }
     finally {
@@ -154,7 +154,8 @@ public sealed class DeviceRecoveryFlowTests {
     (await StartAsync(client, queueB.Id)).StatusCode.Should().Be(HttpStatusCode.OK);
     try {
       await DeviceRecoveryHost.WaitForAsync(() =>
-        dispatcher.Count(QueueAlertKind.LiveAgain, idA) >= 1 && dispatcher.Count(QueueAlertKind.LiveAgain, queueB.Id) >= 1);
+        dispatcher.Count(QueueAlertKind.LiveAgain, idA) >= 1 && dispatcher.Count(QueueAlertKind.LiveAgain, queueB.Id) >= 1,
+        what: "the 'live again' messages of both queues");
 
       control.Reboots.Should().Be(1, "queues of one instance share one reboot");
       dispatcher.Count(QueueAlertKind.NotLive, idA).Should().Be(1);

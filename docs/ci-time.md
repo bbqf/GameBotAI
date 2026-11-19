@@ -32,13 +32,14 @@ and classify each failed run with `gh run view <id> --log-failed`.
 
 | Job | Runner | What it does |
 |-----|--------|--------------|
-| `changes` | Linux | Runs the secret scan. Sorts the changed files into groups. Writes the switches `dotnet` and `webui`. Lists the test shards |
+| `changes` | Linux | Runs the secret scan. Runs the disabled-test guard (`scripts/ci/find-disabled-tests.ps1`): a skipped, focused, or commented-out test fails the run. Sorts the changed files into groups. Writes the switches `dotnet` and `webui`. Lists the test shards |
 | `compile` | Windows | Restores. Builds with `-p:RunAnalyzers=false`. Uploads one artifact for each test project |
 | `analyze` | Windows | Builds with all analyzers and `-warnaserror`. A warning fails the job and the run. It does not stop the test jobs |
 | `test-unit` (3 shards) | Windows | Runs the unit tests. The pinned shard collects coverage |
 | `test-integration` (4 shards) | Windows | Runs the integration tests. The pinned shard collects coverage and runs the performance gate (`GAMEBOT_PERF_PROFILE: ci`) |
 | `test-contract` (6 shards) | Windows | Runs the contract tests. No coverage |
 | `web-ui-tests` | Windows | Runs `npm ci` and the Jest tests |
+| `web-ui-e2e` | Windows | Runs `npm ci`, installs Chromium (cached), and runs the Playwright browser tests (`npm run e2e`). Windows is necessary, because the pixel tests need the Windows fonts. On a failure, it uploads the artifact `playwright-report` |
 | `ci-gate` | Linux | Runs the five coverage thresholds. Gives the pass or fail result of the run |
 
 `ci-gate` is the merge signal. It always runs. It passes when each needed job passed,
@@ -53,7 +54,7 @@ The trigger has no `paths` filter. A run must exist for every push, because the 
 pipeline waits for a run of the head commit. The `changes` job switches jobs off instead.
 `scripts/ci/get-changed-groups.ps1` holds the rules. A skipped job counts as a pass.
 
-| Group | Paths | .NET jobs | Web UI job |
+| Group | Paths | .NET jobs | Web UI jobs |
 |-------|-------|-----------|------------|
 | `docs` | `specs/**`, `docs/**`, `**/*.md`, `.specify/**`, `.claude/**`, `.github/agents/**`, `.github/prompts/**` | skip | skip |
 | `webui` | `src/web-ui/**` | skip | run |
@@ -61,7 +62,7 @@ pipeline waits for a run of the head commit. The `changes` job switches jobs off
 | `shared` | `.github/workflows/**`, `scripts/**`, root build files, project files, lock files | run | run |
 | unknown | Any path that no group names | run | run |
 
-The result is the union over all changed files. An empty file list, a manual run, and a
+The web UI jobs are `web-ui-tests` and `web-ui-e2e`. The result is the union over all changed files. An empty file list, a manual run, and a
 force push run all jobs.
 
 ### Test shards
@@ -165,5 +166,5 @@ move to Linux needs product changes, so the idea is dropped. See
 - `scripts/ci/measure-ci.ps1`: reads past runs.
 - `scripts/ci/measure-shards.ps1`: runs the shards on your PC and checks the balance rule.
 - `scripts/ci/get-changed-groups.ps1`, `scripts/ci/get-test-shard-filter.ps1`,
-  `scripts/ci/evaluate-gate.ps1`: the scripts that the workflow calls.
+  `scripts/ci/evaluate-gate.ps1`, `scripts/ci/find-disabled-tests.ps1`: the scripts that the workflow calls.
 - `specs/134-ci-duration-reduction/`: the spec, the plan, and the measurements.

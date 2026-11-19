@@ -54,7 +54,7 @@ public sealed class DeviceRecoveryStaggerTests {
     (await client.PostAsync(new Uri($"/api/queues/{idB}/start", UriKind.Relative), null)).StatusCode.Should().Be(HttpStatusCode.OK);
     try {
       await DeviceRecoveryHost.WaitForAsync(() =>
-        dispatcher.Count(QueueAlertKind.LiveAgain, idA) >= 1 && dispatcher.Count(QueueAlertKind.LiveAgain, idB) >= 1, 30000);
+        dispatcher.Count(QueueAlertKind.LiveAgain, idA) >= 1 && dispatcher.Count(QueueAlertKind.LiveAgain, idB) >= 1, 30000, "the 'live again' messages of both queues");
 
       control.Reboots.Should().Be(2);
       var starts = control.Starts.Select(s => s.StartedAt).OrderBy(t => t).ToArray();

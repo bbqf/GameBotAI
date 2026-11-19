@@ -47,50 +47,37 @@ public class TextMatchEvaluatorImagePipelineTests {
     return bmp;
   }
 
-  // [Fact]
-  // public void CropsRegionToExpectedPixelSize()
-  // {
-  //     using var screen = MakeScreen(200, 100);
-  //     var screenSource = new SingleBitmapScreenSource(() => new Bitmap(screen));
-  //     var ocr = new CapturingOcr();
-  //     using var provider = new TestLoggerProvider(LogLevel.Debug);
-  //     using var factory = LoggerFactory.Create(b => { b.SetMinimumLevel(LogLevel.Debug); b.AddProvider(provider); });
-  //     var logger = factory.CreateLogger<TextMatchEvaluator>();
-  //     var eval = new TextMatchEvaluator(ocr, screenSource, logger);
+  [Fact]
+  public void CropsRegionToExpectedPixelSize() {
+    using var screen = MakeScreen(200, 100);
+    var screenSource = new SingleBitmapScreenSource(() => new Bitmap(screen));
+    var ocr = new CapturingOcr();
+    var eval = new TextMatchEvaluator(ocr, screenSource, NullLogger<TextMatchEvaluator>.Instance);
 
-  //     var trig = new Trigger
-  //     {
-  //         Id = "t1",
-  //         Type = TriggerType.TextMatch,
-  //         Enabled = true,
-  //         Params = new TextMatchParams
-  //         {
-  //             Target = "HELLO",
-  //             Region = new GameBot.Domain.Triggers.Region { X = 0.25, Y = 0.20, Width = 0.50, Height = 0.50 },
-  //             ConfidenceThreshold = 0.10,
-  //             Mode = "found",
-  //             Language = null
-  //         }
-  //     };
+    var trig = new Trigger {
+      Id = "t1",
+      Type = TriggerType.TextMatch,
+      Enabled = true,
+      Params = new TextMatchParams {
+        Target = "HELLO",
+        Region = new GameBot.Domain.Triggers.Region { X = 0.25, Y = 0.20, Width = 0.50, Height = 0.50 },
+        ConfidenceThreshold = 0.10,
+        Mode = "found",
+        Language = null
+      }
+    };
 
-  //     var res = eval.Evaluate(trig, DateTimeOffset.UtcNow);
-  //     res.Status.Should().Be(TriggerStatus.Satisfied);
+    var res = eval.Evaluate(trig, DateTimeOffset.UtcNow);
+    res.Status.Should().Be(TriggerStatus.Satisfied);
 
-  //     // Expected crop: 200*0.5 x 100*0.5 = 100 x 50 before preprocessing
-  //     // OCR sees preprocessed image, but width should scale proportionally; height may upscale to >= 50*Scale
-  //     ocr.LastWidth.Should().BeGreaterThan(0);
-  //     ocr.LastHeight.Should().BeGreaterThan(0);
-  //     // Since preprocessing uses integer scaling, assert aspect ratio preserved roughly
-  //     (ocr.LastWidth / (double)ocr.LastHeight).Should().BeApproximately(100 / 50.0, 0.05);
-
-  //     // Assert the cropped size log is present and not 1x1
-  //     provider.Entries.Should().Contain(e =>
-  //         e.Category.Contains("TextMatchEvaluator") &&
-  //         e.Message.Contains("Cropped image size"));
-  //     provider.Entries.Should().NotContain(e =>
-  //         e.Category.Contains("TextMatchEvaluator") &&
-  //         e.Message.Contains("Cropped image size 1x1"));
-  // }
+    // The crop is 200*0.5 x 100*0.5 = 100 x 50 before the preprocessing.
+    // The preprocessing can only make the image larger, so the OCR image is at least 100 pixels wide.
+    // This also makes sure that the crop is not 1 x 1.
+    ocr.LastWidth.Should().BeGreaterOrEqualTo(100);
+    ocr.LastHeight.Should().BeGreaterThan(0);
+    // The preprocessing uses integer scaling, so the aspect ratio stays approximately the same.
+    (ocr.LastWidth / (double)ocr.LastHeight).Should().BeApproximately(100 / 50.0, 0.05);
+  }
 
   [Fact]
   public void UpscalesSmallCropToAtLeastMinHeight() {
