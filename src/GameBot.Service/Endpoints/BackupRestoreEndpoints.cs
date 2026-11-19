@@ -33,7 +33,7 @@ internal static class BackupRestoreEndpoints {
       IFormCollection form;
       try { form = await request.ReadFormAsync(ct).ConfigureAwait(false); }
       catch (InvalidOperationException) { return Results.BadRequest(new { error = "Missing 'archive' file field." }); }
-      if (!form.Files.Any()) {
+      if (form.Files.Count == 0) {
         return Results.BadRequest(new { error = "Missing 'archive' file field." });
       }
 
@@ -59,7 +59,7 @@ internal static class BackupRestoreEndpoints {
       IFormCollection form;
       try { form = await request.ReadFormAsync(ct).ConfigureAwait(false); }
       catch (InvalidOperationException) { return Results.BadRequest(new { error = "Missing 'archive' file field." }); }
-      if (!form.Files.Any()) {
+      if (form.Files.Count == 0) {
         return Results.BadRequest(new { error = "Missing 'archive' file field." });
       }
 

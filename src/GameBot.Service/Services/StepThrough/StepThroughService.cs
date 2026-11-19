@@ -403,7 +403,8 @@ internal sealed class StepThroughService : IStepThroughService {
 
     // The queue resumes after the step stops, so the queue cannot start a firing while a step still runs.
     if (runTask is not null) {
-      await Task.WhenAny(runTask, Task.Delay(CancelWait)).ConfigureAwait(false);
+      // WaitAsync stops its timer when the step ends. SuppressThrowing ignores the time-out and a fault of the step.
+      await runTask.WaitAsync(CancelWait).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
     }
 
     if (pausedQueueId is not null) _guard.Resume(pausedQueueId);
