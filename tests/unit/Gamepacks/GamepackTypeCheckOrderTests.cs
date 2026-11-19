@@ -49,7 +49,8 @@ public sealed class GamepackTypeCheckOrderTests {
   [Fact]
   public void ParseGivesTheSameResultInBothOrders() {
     var forward = ParseAll(BadTypes);
-    var reverse = ParseAll(BadTypes.Reverse());
+    // Enumerable.Reverse: with C# 14, BadTypes.Reverse() selects the span method, which returns void.
+    var reverse = ParseAll(Enumerable.Reverse(BadTypes));
 
     foreach (var (kind, _, reason) in BadTypes) {
       forward[kind].InvalidType.Should().BeTrue($"the case '{kind}' has a bad type member (forward order)");
