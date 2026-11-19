@@ -220,6 +220,7 @@ Status vocabulary:
 | 190 | Trace Noise Cleanup | Implemented |
 | 191 | Security Alerts Fix | Implemented |
 | 192 | TextInput Command Step | Implemented |
+| 193 | Parameter Condition | Implemented |
 
 ## Numbering notes
 

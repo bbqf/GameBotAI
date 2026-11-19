@@ -2073,7 +2073,8 @@ namespace GameBot.Domain.Services {
 
     /// <summary>
     /// Resolves each placeholder in <c>imageVisible.imageId</c> (feature 114), <c>ocrText.pattern</c>, and
-    /// <c>ocrText.expected</c> (feature 165) of <paramref name="condition"/> against <paramref name="scope"/>.
+    /// <c>ocrText.expected</c> (feature 165), and the run value of each <c>parameter</c> leaf (feature 193),
+    /// of <paramref name="condition"/> against <paramref name="scope"/>.
     /// Throws <see cref="ConditionEvaluationException"/> with
     /// <see cref="ConditionEvaluationFailureKind.ParameterUnresolved"/> when a name has no value or the full
     /// result is empty. Throws with <see cref="ConditionEvaluationFailureKind.ParameterValueInvalid"/> when a
@@ -2096,12 +2097,16 @@ namespace GameBot.Domain.Services {
 
     /// <summary>
     /// Gives the failure kind for a <see cref="ParameterResolutionReasons"/> value (feature 165).
-    /// <see cref="ParameterResolutionReasons.InvalidPattern"/> gives
+    /// <see cref="ParameterResolutionReasons.InvalidPattern"/>, <see cref="ParameterResolutionReasons.ListInSingleField"/>,
+    /// and <see cref="ParameterResolutionReasons.NotANumber"/> (a <c>parameter</c> condition on a <c>number</c>
+    /// parameter whose run value is not a whole number, feature 193) give
     /// <see cref="ConditionEvaluationFailureKind.ParameterValueInvalid"/>. All other reasons give
     /// <see cref="ConditionEvaluationFailureKind.ParameterUnresolved"/>.
     /// </summary>
     internal static ConditionEvaluationFailureKind ToFailureKind(string reason) =>
-        reason == ParameterResolutionReasons.InvalidPattern || reason == ParameterResolutionReasons.ListInSingleField
+        reason == ParameterResolutionReasons.InvalidPattern
+            || reason == ParameterResolutionReasons.ListInSingleField
+            || reason == ParameterResolutionReasons.NotANumber
             ? ConditionEvaluationFailureKind.ParameterValueInvalid
             : ConditionEvaluationFailureKind.ParameterUnresolved;
 
@@ -2146,6 +2151,8 @@ namespace GameBot.Domain.Services {
         return (lastRun.Type, SequenceStepConditionEvaluator.Describe(lastRun));
       if (condition is OcrTextStepCondition ocrText)
         return (ocrText.Type, SequenceStepConditionEvaluator.Describe(ocrText));
+      if (condition is ParameterStepCondition parameter)
+        return (parameter.Type, SequenceStepConditionEvaluator.Describe(parameter));
       return (condition.GetType().Name, $"{negatePrefix}{condition.GetType().Name}");
     }
 

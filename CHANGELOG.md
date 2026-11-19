@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Add the parameter condition (193-parameter-condition, #401, FR-046)
+  - **Change**: the new sequence condition `parameter` compares the run value of a declared sequence parameter with a fixed value: `{ "type": "parameter", "name": "fighterBatch", "operator": "equals", "value": 0 }`. The operators are `equals`, `notEquals`, `greaterThan`, and `lessThan`. `negate` works as for the other conditions. The condition works in each condition slot and as a child of `all`, `any`, and `none`.
+  - **Compare**: a `number` parameter compares as a whole number (also a `choice` parameter of the type `number`, and a number with a `pattern`: the compare uses the entered number). A `text` parameter (kinds `text`, `choice`, `image`) compares as text, ordinal and case-insensitive, with no trim.
+  - **API**: the save, the update, the patch, and their `dryRun` refuse an unknown name (`unknown_condition_parameter`), an unknown operator, no value, a value that is not a string or a number, a value that is not a whole number for a `number` parameter (`invalid_condition_value`), and a multi-value parameter (`list_in_single_field`). A read returns `value` with the JSON kind that the author wrote. The OpenAPI document has the schema `ParameterCondition`.
+  - **Run**: no run value fails the step with the parameter resolution failure. A run value that is not a whole number for a `number` parameter fails the step with `ParameterValueInvalid`. The execution log has one line for each evaluation, for example `parameter(name=fighterBatch, operator=equals, value=0) actual=0 compare=number`.
+  - **Web UI**: the condition fields of the sequence editor have the kind `parameter`, with a select of the declared parameters, a select of the operators, and a value field.
+  - **Not changed**: the other condition kinds, the `imageVisible` parameter behaviour, and stored sequences.
+  - **Perf note**: no performance effect on other conditions. One evaluation is one lookup in the parameter scope and one compare.
+  - **Version**: the patch version is now 1.12.25.
 - Add the TextInput command step (192-text-input-step, #400)
   - **Change**: the new command step type `TextInput` types the full text of `textInput.text` into the input field that has the focus on the device. The text `250` types the three characters 2, 5, and 0, not the key code 250. The text can have only the printable ASCII characters from space to `~`, 1 to 500 characters.
   - **Parameter**: the `fieldTemplates` key `textInput.text` (one whole placeholder, for example `{{fighterBatch}}`) gives the text from a text or number parameter. An inline placeholder in `textInput.text` also works.

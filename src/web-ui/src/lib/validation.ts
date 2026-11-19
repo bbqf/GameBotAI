@@ -3,10 +3,11 @@ import type { ConditionExpression, SequenceFlowUpsertRequest } from '../types/se
 import type {
   CommandStepOutcomeStepCondition,
   MatchedImageStepCondition,
+  ParameterStepCondition,
   SequenceLinearStep,
   SequenceStepCondition
 } from '../types/sequenceFlow';
-import { COMMAND_STEP_OUTCOME_STATES } from '../types/sequenceFlow';
+import { COMMAND_STEP_OUTCOME_STATES, PARAMETER_CONDITION_OPERATORS } from '../types/sequenceFlow';
 
 export type ParsedValidation = {
   byField: Record<string, string[]>;
@@ -367,7 +368,65 @@ const validateMatchedImageCondition = (
   return errors;
 };
 
-export const validatePerStepConditions = (steps: SequenceLinearStep[]): string[] => {
+/** The operator names of a parameter condition, as one text for the messages (feature 193). */
+const PARAMETER_OPERATORS_TEXT = PARAMETER_CONDITION_OPERATORS.join(', ');
+
+/** A declared parameter of the sequence, as the parameter condition rules need it (feature 193). */
+export type ConditionParameterDeclaration = { name: string; type: 'text' | 'number'; multiple?: boolean | null };
+
+const WHOLE_NUMBER_TEXT = /^\s*[+-]?\d+\s*$/;
+
+const isParameterValue = (value: unknown): value is string | number =>
+  typeof value === 'string' || typeof value === 'number';
+
+/**
+ * Feature 193: the rules for a parameter condition. The messages are the same as the service messages.
+ * The shape rules use the path `$`. The declaration rules use the slot path, for example `if.condition`.
+ * The declaration rules run only when `parameters` is given.
+ */
+export const validateParameterCondition = (
+  condition: ParameterStepCondition,
+  stepLabel: string,
+  slotPath: string,
+  parameters?: ConditionParameterDeclaration[]
+): string[] => {
+  const errors: string[] = [];
+  const shapePrefix = `Step '${stepLabel}' condition at $: `;
+  const name = condition.name?.trim() ?? '';
+  if (!name) {
+    errors.push(`${shapePrefix}parameter condition requires name.`);
+  }
+  if (!(PARAMETER_CONDITION_OPERATORS as readonly string[]).includes(condition.operator)) {
+    errors.push(`${shapePrefix}parameter operator must be one of ${PARAMETER_OPERATORS_TEXT}.`);
+  }
+  if (condition.value === undefined || condition.value === null || (typeof condition.value === 'string' && condition.value === '')) {
+    errors.push(`${shapePrefix}parameter condition requires value.`);
+  } else if (!isParameterValue(condition.value)) {
+    errors.push(`Step '${stepLabel}' condition parameter value must be a string or a number.`);
+  }
+
+  if (!name || parameters === undefined) {
+    return errors;
+  }
+
+  const prefix = `Step '${stepLabel}' condition at ${slotPath}: parameter '${condition.name}'`;
+  const declaration = parameters.find((p) => p.name === condition.name);
+  if (!declaration) {
+    errors.push(`${prefix} is not a parameter of this sequence.`);
+  } else if (declaration.multiple) {
+    errors.push(`${prefix} holds a list, and a parameter condition needs one value.`);
+  } else if (declaration.type === 'number' && isParameterValue(condition.value) && condition.value !== ''
+    && !WHOLE_NUMBER_TEXT.test(String(condition.value))) {
+    errors.push(`${prefix} is a number parameter, and value '${String(condition.value)}' is not a whole number.`);
+  }
+
+  return errors;
+};
+
+export const validatePerStepConditions = (
+  steps: SequenceLinearStep[],
+  parameters?: ConditionParameterDeclaration[]
+): string[] => {
   const errors: string[] = [];
   const seenStepIds = new Set<string>();
 
@@ -441,6 +500,12 @@ export const validatePerStepConditions = (steps: SequenceLinearStep[]): string[]
       step.if?.condition,
       step.loop && 'condition' in step.loop ? step.loop.condition : undefined
     ];
+    const slotPaths = ['condition', 'breakCondition', 'if.condition', 'loop.condition'];
+    slots.forEach((slot, slotIndex) => {
+      if (slot?.type === 'parameter') {
+        errors.push(...validateParameterCondition(slot, stepLabel, slotPaths[slotIndex], parameters));
+      }
+    });
     for (const slot of slots) {
       if (slot?.type === 'commandStepOutcome') {
         errors.push(...validateCommandStepOutcomeCondition(slot, stepLabel, position, positionByStepId, stepsByStepId));

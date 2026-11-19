@@ -75,7 +75,7 @@ export type ConditionEvaluationTrace = {
   operatorSteps?: Array<Record<string, unknown>>;
 };
 
-export type PerStepConditionType = 'imageVisible' | 'commandOutcome' | 'commandStepOutcome' | 'matchedImage';
+export type PerStepConditionType = 'imageVisible' | 'commandOutcome' | 'commandStepOutcome' | 'matchedImage' | 'parameter';
 
 export type ImageVisibleStepCondition = {
   type: 'imageVisible';
@@ -132,11 +132,35 @@ export type MatchedImageStepCondition = {
   negate?: boolean;
 };
 
+/** The operators of a `parameter` condition (feature 193), in the order the service names them. */
+export type ParameterConditionOperator = 'equals' | 'notEquals' | 'greaterThan' | 'lessThan';
+
+/** The operators of a `parameter` condition, in the order the service names them. */
+export const PARAMETER_CONDITION_OPERATORS: readonly ParameterConditionOperator[] = [
+  'equals',
+  'notEquals',
+  'greaterThan',
+  'lessThan'
+];
+
+/**
+ * Compares the run value of a declared sequence parameter with a fixed value (feature 193). A `number`
+ * parameter compares as a whole number. A `text` parameter compares as text, ordinal and case-insensitive.
+ */
+export type ParameterStepCondition = {
+  type: 'parameter';
+  name: string;
+  operator: ParameterConditionOperator;
+  value: string | number;
+  negate?: boolean;
+};
+
 export type SequenceStepCondition =
   | ImageVisibleStepCondition
   | CommandOutcomeStepCondition
   | CommandStepOutcomeStepCondition
-  | MatchedImageStepCondition;
+  | MatchedImageStepCondition
+  | ParameterStepCondition;
 
 export type SequenceActionPayload = {
   type: string;

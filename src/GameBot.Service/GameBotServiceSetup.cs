@@ -179,6 +179,8 @@ internal static class GameBotServiceSetup {
       options.SchemaFilter<OcrTextConditionSchemaFilter>();
       options.SchemaFilter<CommandStepOutcomeConditionSchemaFilter>();
       options.SchemaFilter<MatchedImageConditionSchemaFilter>();
+      // Feature 193: the parameter condition, its operator enum, and value as a string or an integer.
+      options.SchemaFilter<ParameterConditionSchemaFilter>();
       options.SchemaFilter<TemplateTimerTimeOfDaySchemaFilter>();
       options.SchemaFilter<StepThroughSchemaFilter>();
       options.SchemaFilter<OcrReadSchemaFilter>();

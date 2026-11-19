@@ -24,8 +24,10 @@ import { PrimitiveActionFields, summarizePrimitiveAction } from '../components/s
 import { QUIZ_LEARN_TYPE, QUIZ_LOOKUP_TYPE, createDefaultQuizAction } from '../components/sequences/QuizActionFields';
 import { createDefaultWaitForStillAction } from '../components/sequences/WaitForStillFields';
 import type { ActionStepEntry, LoopStepEntry, BreakStepEntry, IfStepEntry, StepEntry } from '../types/stepEntry';
-import type { SequenceLinearStep, LoopConfigDto, IfConfigDto, SequencePrimitiveActionPayload, SequenceCommandReference, CommandStepOutcomeExpectedState, CommandOutcomeExpectedState } from '../types/sequenceFlow';
-import { COMMAND_STEP_OUTCOME_STATES } from '../types/sequenceFlow';
+import type { SequenceLinearStep, LoopConfigDto, IfConfigDto, SequencePrimitiveActionPayload, SequenceCommandReference, CommandStepOutcomeExpectedState, CommandOutcomeExpectedState, ParameterConditionOperator, ParameterStepCondition, SequenceStepCondition } from '../types/sequenceFlow';
+import { COMMAND_STEP_OUTCOME_STATES, PARAMETER_CONDITION_OPERATORS } from '../types/sequenceFlow';
+import { ConditionParametersContext, toParameterConditionValue } from '../components/sequences/ConditionFields';
+import type { ConditionParameter } from '../components/sequences/ConditionFields';
 import { ImageSelectorDropdown } from '../components/images/ImageSelectorDropdown';
 import { StepThroughPanel } from '../components/stepthrough/StepThroughPanel';
 
@@ -52,8 +54,14 @@ type SequenceStep = {
   waitUntil?: 'present' | 'absent';
   /** Feature 175: consecutive captures without the image, as typed. Empty means the default (2). */
   waitAbsentCaptures?: string;
-  conditionType: 'none' | 'imageVisible' | 'commandOutcome' | 'commandStepOutcome' | 'matchedImage';
+  conditionType: 'none' | 'imageVisible' | 'commandOutcome' | 'commandStepOutcome' | 'matchedImage' | 'parameter';
   conditionNegate: boolean;
+  /** Feature 193: the name of the sequence parameter (conditionType parameter). */
+  parameterName?: string;
+  /** Feature 193: the operator of the parameter condition. */
+  parameterOperator?: ParameterConditionOperator;
+  /** Feature 193: the value as typed. The save sends a number for a number parameter and a whole number. */
+  parameterValue?: string;
   imageId: string;
   minSimilarity: string;
   outcomeStepRef: string;
@@ -389,7 +397,7 @@ const linearBodyToStepEntries = (body: SequenceLinearStep[]): StepEntry[] => {
         : typeof child.action?.parameters?.commandId === 'string'
           ? child.action.parameters.commandId
           : child.stepId;
-    return {
+    return withParameterConditionFields<ActionStepEntry>({
       type: 'Action',
       id: makeId(),
       stepId: child.stepId,
@@ -411,7 +419,7 @@ const linearBodyToStepEntries = (body: SequenceLinearStep[]): StepEntry[] => {
         || child.condition?.type === 'matchedImage'
         ? child.condition.stepRef : '',
       expectedState: child.condition?.type === 'commandOutcome' ? child.condition.expectedState : 'success'
-    };
+    }, child.condition);
   });
 };
 
@@ -443,9 +451,53 @@ const loopDtoToEntry = (step: SequenceLinearStep): LoopStepEntry => {
 const toStepEntriesFromLinear = (steps: SequenceLinearStep[]): SequenceStep[] =>
   // The label is attached here rather than in each branch below so no future branch can forget it.
   steps.map((step) => ({
-    ...withMatchedImageFields(withCommandStepOutcomeFields(linearStepToFormStep(step), step), step),
+    ...withParameterConditionFields(
+      withMatchedImageFields(withCommandStepOutcomeFields(linearStepToFormStep(step), step), step),
+      step.condition),
     label: step.label
   }));
+
+/**
+ * Feature 193: copies a parameter step condition into the form fields. A step form and a body step entry
+ * have the same field names, so both use this method.
+ */
+const withParameterConditionFields = <T extends {
+  conditionType: string;
+  conditionNegate?: boolean;
+  parameterName?: string;
+  parameterOperator?: ParameterConditionOperator;
+  parameterValue?: string;
+}>(formStep: T, condition: SequenceStepCondition | null | undefined): T => {
+  if (condition?.type !== 'parameter') {
+    return formStep;
+  }
+  return {
+    ...formStep,
+    conditionType: 'parameter',
+    conditionNegate: condition.negate ?? false,
+    parameterName: condition.name,
+    parameterOperator: condition.operator,
+    parameterValue: String(condition.value)
+  };
+};
+
+/**
+ * Feature 193: the parameter condition of a step form or a body step entry. The value is a number when the
+ * parameter is a number parameter and the text is a whole number, else the text. The service checks the rest.
+ */
+const buildParameterConditionPayload = (
+  step: { parameterName?: string; parameterOperator?: ParameterConditionOperator; parameterValue?: string; conditionNegate?: boolean },
+  parameters: ConditionParameter[] | undefined
+): ParameterStepCondition => {
+  const name = (step.parameterName ?? '').trim();
+  return {
+    type: 'parameter',
+    name,
+    operator: step.parameterOperator ?? 'equals',
+    value: toParameterConditionValue(step.parameterValue ?? '', name, parameters),
+    negate: step.conditionNegate || undefined
+  };
+};
 
 /** Feature 181: copies a matchedImage step condition into the form fields, for every step kind. */
 const withMatchedImageFields = (formStep: SequenceStep, step: SequenceLinearStep): SequenceStep => {
@@ -749,7 +801,10 @@ const buildCommandReferencePayload = (commandId: string, commandReference: Seque
   };
 };
 
-const buildConditionPayload = (step: SequenceStep) => {
+const buildConditionPayload = (step: SequenceStep, parameters?: ConditionParameter[]) => {
+  if (step.conditionType === 'parameter') {
+    return buildParameterConditionPayload(step, parameters);
+  }
   if (step.conditionType === 'imageVisible') {
     return {
       type: 'imageVisible' as const,
@@ -817,16 +872,16 @@ const buildLoopConfigPayload = (loop: LoopStepEntry): LoopConfigDto | null => {
 const buildIfConfigPayload = (ifEntry: IfStepEntry): IfConfigDto | null =>
   ifEntry.condition ? { condition: ifEntry.condition } : null;
 
-const ifEntryToPayloadStep = (ifEntry: IfStepEntry, stepId: string): SequenceLinearStep => ({
+const ifEntryToPayloadStep = (ifEntry: IfStepEntry, stepId: string, parameters?: ConditionParameter[]): SequenceLinearStep => ({
   stepId: stepId.trim(),
   label: ifEntry.label,
   stepType: 'If',
   if: buildIfConfigPayload(ifEntry),
-  body: ifEntry.body.map(bodyEntryToPayloadStep),
-  elseBody: ifEntry.elseBody === undefined ? null : ifEntry.elseBody.map(bodyEntryToPayloadStep)
+  body: ifEntry.body.map((entry) => bodyEntryToPayloadStep(entry, parameters)),
+  elseBody: ifEntry.elseBody === undefined ? null : ifEntry.elseBody.map((entry) => bodyEntryToPayloadStep(entry, parameters))
 });
 
-const bodyEntryToPayloadStep = (entry: StepEntry): SequenceLinearStep => {
+const bodyEntryToPayloadStep = (entry: StepEntry, parameters?: ConditionParameter[]): SequenceLinearStep => {
   if (entry.type === 'Break') {
     const br = entry as BreakStepEntry;
     return {
@@ -837,7 +892,7 @@ const bodyEntryToPayloadStep = (entry: StepEntry): SequenceLinearStep => {
     };
   }
   if (entry.type === 'If') {
-    return ifEntryToPayloadStep(entry, entry.stepId);
+    return ifEntryToPayloadStep(entry, entry.stepId, parameters);
   }
   // Action body step
   const a = entry as ActionStepEntry;
@@ -849,7 +904,9 @@ const bodyEntryToPayloadStep = (entry: StepEntry): SequenceLinearStep => {
         ? buildCommandStepOutcomePayload({ ...a, conditionNegate: a.conditionNegate ?? false })
         : a.conditionType === 'matchedImage'
           ? buildMatchedImagePayload({ ...a, conditionNegate: a.conditionNegate ?? false })
-          : null;
+          : a.conditionType === 'parameter'
+            ? buildParameterConditionPayload(a, parameters)
+            : null;
 
   // An inline action goes back exactly as it came in, apart from the slots edited in the form.
   if (a.primitiveAction) {
@@ -872,7 +929,7 @@ const bodyEntryToPayloadStep = (entry: StepEntry): SequenceLinearStep => {
   };
 };
 
-const toLinearPayloadSteps = (steps: SequenceStep[]): SequenceLinearStep[] => {
+const toLinearPayloadSteps = (steps: SequenceStep[], parameters?: ConditionParameter[]): SequenceLinearStep[] => {
   return steps.map((step) => {
     if (step.stepType === 'Loop' && step.loopEntry) {
       return {
@@ -880,12 +937,12 @@ const toLinearPayloadSteps = (steps: SequenceStep[]): SequenceLinearStep[] => {
         label: step.label,
         stepType: 'Loop' as const,
         loop: buildLoopConfigPayload(step.loopEntry),
-        body: step.loopEntry.body.map(bodyEntryToPayloadStep)
+        body: step.loopEntry.body.map((entry) => bodyEntryToPayloadStep(entry, parameters))
       };
     }
 
     if (step.stepType === 'If' && step.ifEntry) {
-      return { ...ifEntryToPayloadStep(step.ifEntry, step.stepId), label: step.label };
+      return { ...ifEntryToPayloadStep(step.ifEntry, step.stepId, parameters), label: step.label };
     }
 
     if (step.stepType === 'Break') {
@@ -903,7 +960,7 @@ const toLinearPayloadSteps = (steps: SequenceStep[]): SequenceLinearStep[] => {
         label: step.label,
         stepType: 'Action' as const,
         primitiveAction: step.primitiveAction,
-        condition: buildConditionPayload(step)
+        condition: buildConditionPayload(step, parameters)
       };
     }
 
@@ -923,7 +980,7 @@ const toLinearPayloadSteps = (steps: SequenceStep[]): SequenceLinearStep[] => {
         label: step.label,
         stepType: 'Action' as const,
         primitiveAction: { type: 'reschedule-self', schemaVersion: '1', payload },
-        condition: buildConditionPayload(step)
+        condition: buildConditionPayload(step, parameters)
       };
     }
 
@@ -954,7 +1011,7 @@ const toLinearPayloadSteps = (steps: SequenceStep[]): SequenceLinearStep[] => {
               : {})
           }
         },
-        condition: buildConditionPayload(step)
+        condition: buildConditionPayload(step, parameters)
       };
     }
 
@@ -970,7 +1027,7 @@ const toLinearPayloadSteps = (steps: SequenceStep[]): SequenceLinearStep[] => {
         }
       },
       commandReference: buildCommandReferencePayload(step.commandId, step.commandReference),
-      condition: buildConditionPayload(step),
+      condition: buildConditionPayload(step, parameters),
       // Feature 078: only send rows that actually bind something. A row left on "inherit" carries a
       // null value and is dropped here, so an unparametrized step stays byte-identical on the wire.
       ...buildParameterBindingsPayload(step.parameterBindings)
@@ -1503,7 +1560,10 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                     ? candidate.outcomeStepRef : '',
                   expectedState: value === 'commandOutcome' ? candidate.expectedState : 'success',
                   stepOutcomeOrder: value === 'commandStepOutcome' ? candidate.stepOutcomeOrder : '',
-                  stepOutcomeState: value === 'commandStepOutcome' ? candidate.stepOutcomeState : ''
+                  stepOutcomeState: value === 'commandStepOutcome' ? candidate.stepOutcomeState : '',
+                  parameterName: value === 'parameter' ? candidate.parameterName ?? '' : undefined,
+                  parameterOperator: value === 'parameter' ? candidate.parameterOperator ?? 'equals' : undefined,
+                  parameterValue: value === 'parameter' ? candidate.parameterValue ?? '' : undefined
                 }
                 : candidate)
             }));
@@ -1516,6 +1576,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
           <option value="commandOutcome">commandOutcome</option>
           <option value="commandStepOutcome">commandStepOutcome</option>
           <option value="matchedImage">matchedImage</option>
+          <option value="parameter">parameter</option>
         </select>
       </div>
 
@@ -1634,6 +1695,72 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                 setForm((prev) => ({
                   ...prev,
                   steps: prev.steps.map((candidate) => candidate.id === step.id ? { ...candidate, imageId: id } : candidate)
+                }));
+                setDirty(true);
+              }}
+              disabled={submitting || loading}
+            />
+          </div>
+        </div>
+      )}
+
+      {step.conditionType === 'parameter' && (
+        <div className="sequence-step-condition-pair">
+          <div className="sequence-step-condition-field sequence-step-condition-field--parameter-name">
+            <label htmlFor={`step-parameter-name-${step.id}`}>Parameter</label>
+            <select
+              id={`step-parameter-name-${step.id}`}
+              value={step.parameterName ?? ''}
+              onChange={(event) => {
+                setForm((prev) => ({
+                  ...prev,
+                  steps: prev.steps.map((candidate) => candidate.id === step.id ? { ...candidate, parameterName: event.target.value } : candidate)
+                }));
+                setDirty(true);
+              }}
+              disabled={submitting || loading}
+            >
+              <option value="">Select parameter</option>
+              {form.parameters.map((parameter) => (
+                <option key={parameter.name} value={parameter.name}>{parameter.name}</option>
+              ))}
+              {(step.parameterName ?? '') !== '' && !form.parameters.some((parameter) => parameter.name === step.parameterName) && (
+                <option value={step.parameterName}>{step.parameterName}</option>
+              )}
+            </select>
+          </div>
+
+          <div className="sequence-step-condition-field sequence-step-condition-field--parameter-operator">
+            <label htmlFor={`step-parameter-operator-${step.id}`}>Operator</label>
+            <select
+              id={`step-parameter-operator-${step.id}`}
+              value={step.parameterOperator ?? 'equals'}
+              onChange={(event) => {
+                setForm((prev) => ({
+                  ...prev,
+                  steps: prev.steps.map((candidate) => candidate.id === step.id
+                    ? { ...candidate, parameterOperator: event.target.value as ParameterConditionOperator }
+                    : candidate)
+                }));
+                setDirty(true);
+              }}
+              disabled={submitting || loading}
+            >
+              {PARAMETER_CONDITION_OPERATORS.map((op) => (
+                <option key={op} value={op}>{op}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="sequence-step-condition-field sequence-step-condition-field--parameter-value">
+            <label htmlFor={`step-parameter-value-${step.id}`}>Value</label>
+            <input
+              id={`step-parameter-value-${step.id}`}
+              value={step.parameterValue ?? ''}
+              onChange={(event) => {
+                setForm((prev) => ({
+                  ...prev,
+                  steps: prev.steps.map((candidate) => candidate.id === step.id ? { ...candidate, parameterValue: event.target.value } : candidate)
                 }));
                 setDirty(true);
               }}
@@ -2103,14 +2230,14 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
             const linearPayload = {
               name: form.name.trim(),
               version: 1,
-              steps: toLinearPayloadSteps(form.steps),
+              steps: toLinearPayloadSteps(form.steps, form.parameters),
               interStepDelayRangeMs: form.useCustomDelayRange
                 ? { min: Number(form.delayMin), max: Number(form.delayMax) }
                 : null
             };
 
             if (linearPayload) {
-              const linearErrors = validatePerStepConditions(linearPayload.steps);
+              const linearErrors = validatePerStepConditions(linearPayload.steps, form.parameters);
               if (linearErrors.length > 0) {
                 setErrors({ form: linearErrors[0] });
                 return;
@@ -2281,6 +2408,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
           </FormSection>
 
           <FormSection title="Steps" description="Add commands in the order they should run and configure conditions inline." id="sequence-steps">
+            <ConditionParametersContext.Provider value={form.parameters}>
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenterToCursor}
@@ -2301,6 +2429,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                 emptyMessage="No steps added yet."
               />
             </DndContext>
+            </ConditionParametersContext.Provider>
 
             <hr className="sequence-steps-separator" />
 
@@ -2422,14 +2551,14 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
               const linearPayload = {
                 name: form.name.trim(),
                 version: loadedVersion,
-                steps: toLinearPayloadSteps(form.steps),
+                steps: toLinearPayloadSteps(form.steps, form.parameters),
                 interStepDelayRangeMs: form.useCustomDelayRange
                   ? { min: Number(form.delayMin), max: Number(form.delayMax) }
                   : null
               };
 
               if (linearPayload) {
-                const linearErrors = validatePerStepConditions(linearPayload.steps);
+                const linearErrors = validatePerStepConditions(linearPayload.steps, form.parameters);
                 if (linearErrors.length > 0) {
                   setErrors({ form: linearErrors[0] });
                   return;
@@ -2606,6 +2735,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
             </FormSection>
 
             <FormSection title="Steps" description="Add commands in the order they should run and configure conditions inline." id="sequence-edit-steps">
+              <ConditionParametersContext.Provider value={form.parameters}>
               <DndContext
                 sensors={sensors}
                 collisionDetection={closestCenterToCursor}
@@ -2626,6 +2756,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                   emptyMessage="No steps added yet."
                 />
               </DndContext>
+              </ConditionParametersContext.Provider>
 
               <hr className="sequence-steps-separator" />
 
