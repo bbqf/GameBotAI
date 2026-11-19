@@ -443,6 +443,11 @@ internal static class GameBotServiceSetup {
     var dailyRetryAttemptsEnv = Environment.GetEnvironmentVariable("GAMEBOT_QUEUE_DAILY_RETRY_MAX_ATTEMPTS");
     var dailyRetryAttempts = int.TryParse(dailyRetryAttemptsEnv, out var draParsed) && draParsed >= 0 ? draParsed : 3;
 
+    // Feature 195: the pause between two characters of a TextInput step (0 to 2000, default 100).
+    var charDelayEnv = Environment.GetEnvironmentVariable("GAMEBOT_TEXT_INPUT_CHAR_DELAY_MS");
+    var charDelay = GameBot.Domain.Config.AppConfig.NormalizeTextInputCharDelayMs(
+      int.TryParse(charDelayEnv, out var cdParsed) ? cdParsed : null);
+
     return new GameBot.Domain.Config.AppConfig {
       LoopMaxIterations = loopMax,
       CaptureIntervalMs = captureInterval,
@@ -451,6 +456,7 @@ internal static class GameBotServiceSetup {
       TapJitterRadiusPx = tapJitterRadius,
       AdbRetries = adbRetries,
       AdbRetryDelayMs = adbRetryDelay,
+      TextInputCharDelayMs = charDelay,
       EmulatorProbeTimeoutMs = probeTimeout,
       EmulatorBootWaitMs = bootWait,
       EmulatorPollIntervalMs = pollInterval,

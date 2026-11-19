@@ -308,6 +308,7 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
       ["GAMEBOT_ADB_PATH"] = null,
       ["GAMEBOT_ADB_RETRIES"] = 2,
       ["GAMEBOT_ADB_RETRY_DELAY_MS"] = 100,
+      ["GAMEBOT_TEXT_INPUT_CHAR_DELAY_MS"] = 100,
       ["GAMEBOT_LDCONSOLE_PATH"] = null,
       ["GAMEBOT_EMULATOR_PROBE_TIMEOUT_MS"] = 10000,
       ["GAMEBOT_EMULATOR_BOOT_WAIT_MS"] = 300000,

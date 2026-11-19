@@ -34,11 +34,11 @@ public sealed class AdbClient : IAdbSessionClient {
   }
 
   /// <summary>
-  /// Sends <c>input text</c> for one chunk (feature 192). The chunk goes in single quotes for the
-  /// device shell, and <see cref="ProcessStartInfo.ArgumentList"/> does the quotes for the Windows
-  /// command line. Thus no character of the chunk can start a shell function on the device.
+  /// Sends <c>input text</c> for one character (feature 192 and 195). The character goes in single
+  /// quotes for the device shell, and <see cref="ProcessStartInfo.ArgumentList"/> does the quotes for
+  /// the Windows command line. Thus the character cannot start a shell function on the device.
   /// </summary>
-  /// <param name="chunk">One chunk from <see cref="AdbTextEncoder.Split"/>: no space and no <c>%s</c>.</param>
+  /// <param name="chunk">One character from <see cref="AdbTextEncoder.SplitCharacters"/> that is not a space.</param>
   /// <param name="ct">Cancels the command and kills the adb process.</param>
   public Task<(int ExitCode, string StdOut, string StdErr)> InputTextAsync(string chunk, CancellationToken ct = default) {
     ArgumentNullException.ThrowIfNull(chunk);

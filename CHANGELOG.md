@@ -52,6 +52,13 @@ All notable changes to this project will be documented in this file.
   - **Version**: the patch version is now 1.12.19.
 
 ### Fixed
+- The TextInput step types all characters (195-fix-text-input-chars, #404)
+  - **Problem**: a `TextInput` step sent a number such as `250` as one ADB command. Many game input fields accepted only the first character of this burst and dropped some of the others (for example `20` or `2` in place of `250`). But the step result was `executed` with `typedLength` 3.
+  - **Change**: the step sends one input command for each character, with a pause between two characters. A space stays key event 62. The new setting `GAMEBOT_TEXT_INPUT_CHAR_DELAY_MS` sets the pause (default 100 ms, range 0 to 2000, 0 = no pause). A change of the setting applies at run time. The fix applies to a literal text and to a text from a placeholder (`{{fighterBatch}}` or the `fieldTemplates` key `textInput.text`).
+  - **Result**: `typedLength` counts the characters that the device accepted. The step stops at the first character that the device does not accept. Then the result is `not_accepted` with `text_input_not_accepted`. The ADB retries apply to each character, with no pause between two retries.
+  - **Not changed**: the `KeyInput` step, the OCR endpoint, the placeholder resolution, the stored command format, and the web UI.
+  - **Perf note**: a text of n characters takes n ADB commands and n - 1 pauses. For `250` with the default pause: 350 to 650 ms (before: 50 to 150 ms). No effect on other step types.
+  - **Version**: the patch version is now 1.12.27.
 - Turn on and repair the disabled tests (194-fix-disabled-tests)
   - **Tests turned on**: `WaitForImageCaptureLoopTests.StepTimesOutWhenImageNotOnScreen` and `ConcurrentQueueRunTests.ARunBlockedByTheSessionLimitRecordsAnActionableReason` had a `Skip` marker. Both pass now with no product change. `TextMatchEvaluatorImagePipelineTests.CropsRegionToExpectedPixelSize` was in comments. Its 2 log assertions tested a log entry that the evaluator no longer writes. A size assertion (the OCR image is at least 100 pixels wide) replaces them.
   - **Gamepack type check**: the type member check of a gamepack install found no problem when it ran before the first typed read in the process, because its JSON options had no type info resolver yet. Thus a bad type member could give 422 and not 400, and the result changed with the test order. The check now adds the default resolver first. A new unit test (`GamepackTypeCheckOrderTests`) covers it.
