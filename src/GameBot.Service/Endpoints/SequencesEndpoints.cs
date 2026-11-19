@@ -789,6 +789,14 @@ internal static class SequencesEndpoints {
         parser = ocrText.Parser,
         negate = ocrText.Negate
       },
+      // Feature 193: the converter of ParameterConditionValue writes a JSON number or a JSON string, the kind that the author wrote.
+      ParameterStepCondition parameter => new {
+        type = "parameter",
+        name = parameter.Name,
+        @operator = parameter.Operator,
+        value = parameter.Value,
+        negate = parameter.Negate
+      },
       // Feature 088: the rule is the discriminator, and children are emitted in evaluation order.
       CompositeStepCondition composite => new {
         type = composite.Type,
@@ -1590,6 +1598,12 @@ internal static class SequencesEndpoints {
           errors.Add($"{path} ocrText parser '{ocrText.Parser}' is not known. Supported parsers: {string.Join(", ", OcrTextParsers.Names)}.");
         }
         break;
+      case ParameterConditionContract parameter
+          when parameter.Value is { } value
+            && value.ValueKind is not (JsonValueKind.String or JsonValueKind.Number or JsonValueKind.Null or JsonValueKind.Undefined):
+        // Feature 193 (FR-007): a JSON null is "no value", and the domain shape check reports it.
+        errors.Add($"{path} parameter value must be a string or a number.");
+        break;
       case CompositeConditionContract composite when composite.Children is not null:
         for (var index = 0; index < composite.Children.Count; index++) {
           CollectConditionRegionErrors(composite.Children[index], $"{path}.children[{index}]", errors);
@@ -1643,6 +1657,13 @@ internal static class SequencesEndpoints {
           ? null
           : OcrTextParsers.TryGetName(ocrText.Parser, out var canonicalParser) ? canonicalParser : ocrText.Parser.Trim(),
         Negate = ocrText.Negate
+      },
+      // Feature 193: a JSON string or a JSON number keeps its kind. No value or a JSON null gives null.
+      ParameterConditionContract parameter => new ParameterStepCondition {
+        Name = parameter.Name ?? string.Empty,
+        Operator = parameter.Operator ?? string.Empty,
+        Value = parameter.Value is { } element ? ParameterConditionValue.FromJsonElement(element) : null,
+        Negate = parameter.Negate
       },
       // Feature 088: a composite maps to the domain type matching its rule, recursing through
       // children. Child order is preserved because it is the evaluation order the author chose.

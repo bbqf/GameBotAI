@@ -1,6 +1,7 @@
 import type {
   CommandOutcomeExpectedState,
   CommandStepOutcomeExpectedState,
+  ParameterConditionOperator,
   SequenceCommandReference,
   SequencePrimitiveActionPayload,
   SequenceStepCondition
@@ -27,7 +28,7 @@ export type ActionStepEntry = {
    * still round-trips, and its scalar slots stay parametrizable.
    */
   primitiveAction?: SequencePrimitiveActionPayload;
-  conditionType: 'none' | 'imageVisible' | 'commandOutcome' | 'commandStepOutcome' | 'matchedImage';
+  conditionType: 'none' | 'imageVisible' | 'commandOutcome' | 'commandStepOutcome' | 'matchedImage' | 'parameter';
   conditionNegate?: boolean;
   imageId: string;
   minSimilarity: string;
@@ -37,6 +38,12 @@ export type ActionStepEntry = {
   stepOutcomeOrder?: string;
   /** Feature 167: the state of the step inside the command. Empty means no state is chosen. */
   stepOutcomeState?: CommandStepOutcomeExpectedState | '';
+  /** Feature 193: the name of the sequence parameter. Used when conditionType is parameter. */
+  parameterName?: string;
+  /** Feature 193: the operator of the parameter condition. */
+  parameterOperator?: ParameterConditionOperator;
+  /** Feature 193: the value as typed. The save sends a number for a number parameter and a whole number. */
+  parameterValue?: string;
 };
 
 export type LoopStepEntry = {

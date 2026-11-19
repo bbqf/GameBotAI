@@ -15,7 +15,8 @@ namespace GameBot.Domain.Parameters;
 /// image field of a command step. Feature 165 adds <see cref="OcrTextStepCondition.Pattern"/> and
 /// <see cref="OcrTextStepCondition.Expected"/> with the same rule. A resolved pattern that is not a valid
 /// regular expression gives the reason <see cref="ParameterResolutionReasons.InvalidPattern"/>.
-/// Other leaves do not change. The stored condition does not change:
+/// Feature 193 adds the <see cref="ParameterStepCondition"/> leaf: the resolver sets its run value and its
+/// compare kind from the declaration. Other leaves do not change. The stored condition does not change:
 /// the result is a new tree when a leaf has a placeholder, and the same instance when no leaf has one.
 /// </para>
 /// <para>
@@ -70,6 +71,8 @@ public static class SequenceStepConditionResolver {
     MatchedImageStepCondition matched => TemplateSubstitutor.ContainsPlaceholder(matched.ImageId),
     OcrTextStepCondition ocr => TemplateSubstitutor.ContainsPlaceholder(ocr.Pattern)
         || TemplateSubstitutor.ContainsPlaceholder(ocr.Expected),
+    // Feature 193: a parameter leaf always reads its run value from the scope.
+    ParameterStepCondition => true,
     CompositeStepCondition composite => composite.Children is not null && AnyChildHasPlaceholder(composite.Children),
     _ => false
   };
@@ -109,6 +112,9 @@ public static class SequenceStepConditionResolver {
 
       case OcrTextStepCondition ocr when HasPlaceholder(ocr):
         return TryResolveOcrText(ocr, scope, context, fieldPath, used, ref error, out resolved);
+
+      case ParameterStepCondition parameter:
+        return TryResolveParameter(parameter, scope, fieldPath, used, ref error, out resolved);
 
       case CompositeStepCondition composite when HasPlaceholder(composite):
         var children = new List<SequenceStepCondition>(composite.Children.Count);
@@ -236,6 +242,46 @@ public static class SequenceStepConditionResolver {
       Pattern = pattern,
       Parser = ocr.Parser,
       Negate = ocr.Negate
+    };
+    return true;
+  }
+
+  /// <summary>
+  /// Reads the run value of a <c>parameter</c> leaf (feature 193). The value is the value that the person
+  /// entered, before a number <c>pattern</c>. No declaration or no value gives the reason
+  /// <see cref="ParameterResolutionReasons.Unresolved"/>. A <c>number</c> declaration with a value that is
+  /// not a whole number gives the reason <see cref="ParameterResolutionReasons.NotANumber"/>. The declared
+  /// type selects the compare, also for a <c>choice</c> parameter. The method makes a new leaf.
+  /// </summary>
+  private static bool TryResolveParameter(
+      ParameterStepCondition parameter,
+      ParameterScope scope,
+      string fieldPath,
+      List<ResolvedParameter> used,
+      ref ParameterResolutionError? error,
+      out SequenceStepCondition resolved) {
+    resolved = parameter;
+    var namePath = $"{fieldPath}.name";
+    if (!scope.TryFindDeclaration(parameter.Name, out var declaration)
+        || !scope.TryResolveEntered(parameter.Name, out var value)) {
+      error = new ParameterResolutionError(parameter.Name, namePath, ParameterResolutionReasons.Unresolved);
+      return false;
+    }
+
+    var compareAsNumber = declaration.Type == ParameterValueType.Number;
+    if (compareAsNumber && !ParameterConditionRules.TryParseWhole(value.Text, out _)) {
+      error = new ParameterResolutionError(parameter.Name, namePath, ParameterResolutionReasons.NotANumber, value.Text);
+      return false;
+    }
+
+    used.Add(new ResolvedParameter(parameter.Name, value.Text, value.OriginLayer, value.Label));
+    resolved = new ParameterStepCondition {
+      Name = parameter.Name,
+      Operator = parameter.Operator,
+      Value = parameter.Value,
+      Negate = parameter.Negate,
+      ResolvedValue = value.Text,
+      CompareAsNumber = compareAsNumber
     };
     return true;
   }

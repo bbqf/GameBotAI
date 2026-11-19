@@ -454,6 +454,15 @@ namespace GameBot.Domain.Commands {
 
           return;
 
+        case ParameterStepCondition parameterCondition:
+          // Feature 193: the last guard only. The save path gives a 400 before this point.
+          var parameterErrors = ParameterConditionRules.ValidateShape(parameterCondition);
+          if (parameterErrors.Count > 0) {
+            throw new InvalidOperationException($"Step '{stepId}' {parameterErrors[0]}");
+          }
+
+          return;
+
         default:
           return;
       }

@@ -86,6 +86,17 @@ public static class ParameterValidationCodes {
 
   /// <summary>The list of a multi-value parameter has fewer items than its minimum or more than its maximum (feature 179).</summary>
   public const string ListOutOfLimits = "parameter_list_out_of_limits";
+
+  /// <summary>
+  /// The <c>name</c> of a <c>parameter</c> condition is not a declared parameter of the sequence (feature 193).
+  /// </summary>
+  public const string UnknownConditionParameter = "unknown_condition_parameter";
+
+  /// <summary>
+  /// A <c>parameter</c> condition on a <c>number</c> parameter has a <c>value</c> that is not a whole number
+  /// (feature 193).
+  /// </summary>
+  public const string InvalidConditionValue = "invalid_condition_value";
 }
 
 /// <summary>One piece of parameter validation feedback.</summary>
@@ -216,6 +227,7 @@ public static class ParameterValidationService {
 
     AddResolvedPatternIssues(references, sequence.Parameters, errors);
     AddStepResultReferenceIssues(references, sequence, errors);
+    AddParameterConditionIssues(sequence, errors);
 
     foreach (var step in FlattenSteps(sequence.Steps)) {
       if (step.ParameterBindings is not { Count: > 0 }) continue;
@@ -910,6 +922,90 @@ public static class ParameterValidationService {
       string.IsNullOrWhiteSpace(step.StepId)
           ? step.Order.ToString(System.Globalization.CultureInfo.InvariantCulture)
           : step.StepId;
+
+  /// <summary>
+  /// Feature 193: checks each <c>parameter</c> condition of the sequence against the declarations. The walk
+  /// covers each step (also nested bodies), each condition slot, and each composite child. An unknown name,
+  /// a multi-value parameter, and a value that is not a whole number for a <c>number</c> parameter are errors.
+  /// The shape problems (empty name, unknown operator, no value) are reported by
+  /// <see cref="CompositeConditionValidator"/>, so this method skips a condition with an empty name.
+  /// </summary>
+  private static void AddParameterConditionIssues(CommandSequence sequence, List<ParameterValidationIssue> errors) {
+    var declarations = new Dictionary<string, ParameterDeclaration>(StringComparer.Ordinal);
+    foreach (var declaration in sequence.Parameters) {
+      if (declaration?.Name is not null) declarations.TryAdd(declaration.Name, declaration);
+    }
+
+    foreach (var step in FlattenSteps(sequence.Steps)) {
+      var label = StepLabel(step);
+      AddParameterConditionIssues(step.Condition, "condition", label, declarations, errors);
+      AddParameterConditionIssues(step.If?.Condition, "if.condition", label, declarations, errors);
+      var loopCondition = step.Loop switch {
+        WhileLoopConfig whileLoop => whileLoop.Condition,
+        RepeatUntilLoopConfig repeatUntil => repeatUntil.Condition,
+        _ => null
+      };
+      AddParameterConditionIssues(loopCondition, "loop.condition", label, declarations, errors);
+      AddParameterConditionIssues(step.BreakCondition, "breakCondition", label, declarations, errors);
+    }
+  }
+
+  private static void AddParameterConditionIssues(
+      SequenceStepCondition? condition,
+      string fieldPath,
+      string stepLabel,
+      IReadOnlyDictionary<string, ParameterDeclaration> declarations,
+      List<ParameterValidationIssue> errors) {
+    switch (condition) {
+      case ParameterStepCondition parameter when !string.IsNullOrWhiteSpace(parameter.Name):
+        AddParameterConditionIssue(parameter, fieldPath, stepLabel, declarations, errors);
+        break;
+      case CompositeStepCondition composite when composite.Children is not null:
+        for (var index = 0; index < composite.Children.Count; index++) {
+          AddParameterConditionIssues(composite.Children[index],
+              string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{fieldPath}.children[{index}]"),
+              stepLabel, declarations, errors);
+        }
+
+        break;
+    }
+  }
+
+  private static void AddParameterConditionIssue(
+      ParameterStepCondition parameter,
+      string fieldPath,
+      string stepLabel,
+      IReadOnlyDictionary<string, ParameterDeclaration> declarations,
+      List<ParameterValidationIssue> errors) {
+    var prefix = $"Step '{stepLabel}' condition at {fieldPath}: parameter '{parameter.Name}'";
+    if (!declarations.TryGetValue(parameter.Name, out var declaration)) {
+      errors.Add(new ParameterValidationIssue(
+          ParameterValidationCodes.UnknownConditionParameter,
+          $"{prefix} is not a parameter of this sequence.",
+          fieldPath,
+          parameter.Name));
+      return;
+    }
+
+    if (declaration.Multiple) {
+      errors.Add(new ParameterValidationIssue(
+          ParameterValidationCodes.ListInSingleField,
+          $"{prefix} holds a list, and a parameter condition needs one value.",
+          fieldPath,
+          parameter.Name));
+      return;
+    }
+
+    if (declaration.Type == ParameterValueType.Number
+        && parameter.Value is { } value
+        && !ParameterConditionRules.TryParseWhole(value.Text, out _)) {
+      errors.Add(new ParameterValidationIssue(
+          ParameterValidationCodes.InvalidConditionValue,
+          $"{prefix} is a number parameter, and value '{value.Text}' is not a whole number.",
+          fieldPath,
+          parameter.Name));
+    }
+  }
 
   private static IEnumerable<SequenceStep> FlattenSteps(IEnumerable<SequenceStep> steps) {
     foreach (var step in steps) {

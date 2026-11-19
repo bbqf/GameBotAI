@@ -73,7 +73,8 @@ public static class CompositeConditionValidator {
     // gate covers all six slots and no message is written two times.
     // Feature 167: the same is true for a commandStepOutcome leaf.
     if (condition is not CompositeStepCondition and not LastRunStepCondition and not OcrTextStepCondition
-        and not CommandStepOutcomeStepCondition and not MatchedImageStepCondition && !validateLeafAtRoot) {
+        and not CommandStepOutcomeStepCondition and not MatchedImageStepCondition
+        and not ParameterStepCondition && !validateLeafAtRoot) {
       return;
     }
 
@@ -150,6 +151,10 @@ public static class CompositeConditionValidator {
           errors.Add($"Step '{stepLabel}' condition at {path}: {problem}");
         }
 
+        break;
+
+      case ParameterStepCondition parameter:
+        ValidateParameter(parameter, stepLabel, path, errors);
         break;
 
       default:
@@ -255,6 +260,16 @@ public static class CompositeConditionValidator {
   /// </summary>
   private static void ValidateLastRun(LastRunStepCondition lastRun, string stepLabel, string path, ICollection<string> errors) {
     foreach (var problem in LastRunConditionRules.Validate(lastRun)) {
+      errors.Add($"Step '{stepLabel}' condition at {path}: {problem}");
+    }
+  }
+
+  /// <summary>
+  /// Feature 193: adds each shape problem of a <c>parameter</c> leaf with the path. The declaration checks
+  /// (unknown name, number value, multi-value parameter) are in <see cref="ParameterValidationService"/>.
+  /// </summary>
+  private static void ValidateParameter(ParameterStepCondition parameter, string stepLabel, string path, ICollection<string> errors) {
+    foreach (var problem in ParameterConditionRules.ValidateShape(parameter)) {
       errors.Add($"Step '{stepLabel}' condition at {path}: {problem}");
     }
   }

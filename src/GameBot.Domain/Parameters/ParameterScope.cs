@@ -313,6 +313,33 @@ public sealed class ParameterScope {
   }
 
   /// <summary>
+  /// Resolves <paramref name="name"/> with the same layers as <see cref="TryResolve"/> (bound values, then
+  /// declaration defaults), but does not apply the number <c>pattern</c> of the declaration (feature 193).
+  /// The result is the value that the person entered. A bound value that is already mapped stays as it is.
+  /// </summary>
+  /// <param name="name">Parameter name, matched case-sensitively.</param>
+  /// <param name="value">The entered value and its originating layer when found.</param>
+  /// <returns><c>true</c> when some layer supplied the name; otherwise <c>false</c>.</returns>
+  public bool TryResolveEntered(string name, out ParameterValue value) {
+    for (var scope = this; scope is not null; scope = scope.Parent) {
+      if (scope._values.TryGetValue(name, out var bound)) {
+        value = WithOptionLabel(name, bound);
+        return true;
+      }
+    }
+
+    for (var scope = this; scope is not null; scope = scope.Parent) {
+      if (scope._declarations.TryGetValue(name, out var declaration) && declaration.Default is not null) {
+        value = WithOptionLabel(name, new ParameterValue(declaration.Default, ParameterScopeLayers.Default));
+        return true;
+      }
+    }
+
+    value = default;
+    return false;
+  }
+
+  /// <summary>
   /// Finds the innermost declaration of <paramref name="name"/> in the chain (feature 168). Used to read
   /// the number pattern and the option label of a parameter.
   /// </summary>

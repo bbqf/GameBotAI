@@ -153,6 +153,7 @@ internal sealed record WaitForImagePayloadContract {
 [JsonDerivedType(typeof(NoneConditionContract), typeDiscriminator: "none")]
 [JsonDerivedType(typeof(LastRunConditionContract), typeDiscriminator: "lastRun")]
 [JsonDerivedType(typeof(OcrTextConditionContract), typeDiscriminator: "ocrText")]
+[JsonDerivedType(typeof(ParameterConditionContract), typeDiscriminator: "parameter")]
 internal abstract record SequenceStepConditionContract {
   public bool Negate { get; init; }
 }
@@ -222,6 +223,22 @@ internal sealed record OcrTextConditionContract : SequenceStepConditionContract 
   public string? Expected { get; init; }
   public string? Pattern { get; init; }
   public string? Parser { get; init; }
+}
+
+/// <summary>
+/// A condition on the run value of a declared sequence parameter (feature 193). All fields are optional in
+/// JSON, so an absent field gives a 400 from validation and not a JSON read error. <see cref="Value"/> is a
+/// <see cref="JsonElement"/>, so that a read gives the JSON kind (string or number) that the author wrote.
+/// </summary>
+internal sealed record ParameterConditionContract : SequenceStepConditionContract {
+  /// <summary>The bare name of a declared parameter of the sequence.</summary>
+  public string? Name { get; init; }
+
+  /// <summary>One of <c>equals</c>, <c>notEquals</c>, <c>greaterThan</c>, <c>lessThan</c>.</summary>
+  public string? Operator { get; init; }
+
+  /// <summary>The fixed value: a JSON string or a JSON number.</summary>
+  public JsonElement? Value { get; init; }
 }
 
 /// <summary>

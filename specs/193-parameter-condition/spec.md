@@ -2,7 +2,7 @@
 
 **Feature Branch**: `193-parameter-condition`  
 **Created**: 2026-11-19  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: User description: "A sequence condition on the value of a sequence parameter (FR-046). GitHub issue #401: https://github.com/bbqf/GameBotAI/issues/401. Closes #401"
 
 ## Background

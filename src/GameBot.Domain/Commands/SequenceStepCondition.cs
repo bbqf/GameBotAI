@@ -14,6 +14,7 @@ namespace GameBot.Domain.Commands;
 [JsonDerivedType(typeof(NoneStepCondition), typeDiscriminator: "none")]
 [JsonDerivedType(typeof(LastRunStepCondition), typeDiscriminator: "lastRun")]
 [JsonDerivedType(typeof(OcrTextStepCondition), typeDiscriminator: "ocrText")]
+[JsonDerivedType(typeof(ParameterStepCondition), typeDiscriminator: "parameter")]
 public abstract class SequenceStepCondition {
   public abstract string Type { get; }
   public bool Negate { get; set; }
@@ -141,6 +142,37 @@ public sealed class OcrTextStepCondition : SequenceStepCondition {
   /// <summary>The optional parser name. Today only <c>hh:mm:ss</c>. The compare then uses the parsed text.</summary>
   [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
   public string? Parser { get; set; }
+}
+
+/// <summary>
+/// Compares the run value of a declared sequence parameter with a fixed value (feature 193, issue #401).
+/// A <c>number</c> parameter compares as a whole number. A <c>text</c> parameter compares as text, ordinal
+/// and case-insensitive. <see cref="ParameterConditionRules"/> holds the operators and the compare rules.
+/// </summary>
+public sealed class ParameterStepCondition : SequenceStepCondition {
+  [JsonIgnore]
+  public override string Type => "parameter";
+
+  /// <summary>The bare name of a declared parameter of the sequence. Case-sensitive.</summary>
+  public string Name { get; set; } = string.Empty;
+
+  /// <summary>One of <see cref="ParameterConditionRules.Operators"/>. Case-sensitive.</summary>
+  public string Operator { get; set; } = string.Empty;
+
+  /// <summary>The fixed value. A JSON string or a JSON number. A read gives the same JSON kind.</summary>
+  public ParameterConditionValue? Value { get; set; }
+
+  /// <summary>
+  /// The run value of the parameter. The resolver sets it immediately before the evaluation. It is not stored.
+  /// </summary>
+  [JsonIgnore]
+  public string? ResolvedValue { get; set; }
+
+  /// <summary>
+  /// True when the declaration has the type <c>number</c>. The resolver sets it. It is not stored.
+  /// </summary>
+  [JsonIgnore]
+  public bool CompareAsNumber { get; set; }
 }
 
 /// <summary>

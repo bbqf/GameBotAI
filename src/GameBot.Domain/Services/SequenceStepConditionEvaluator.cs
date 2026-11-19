@@ -255,6 +255,9 @@ public static class SequenceStepConditionEvaluator {
       case MatchedImageStepCondition matchedImage:
         return EvaluateMatchedImage(matchedImage);
 
+      case ParameterStepCondition parameter:
+        return EvaluateParameter(parameter);
+
       case CommandStepOutcomeStepCondition stepOutcome:
         return EvaluateCommandStepOutcome(stepOutcome, evaluators);
 
@@ -297,6 +300,39 @@ public static class SequenceStepConditionEvaluator {
       CultureInfo.InvariantCulture,
       "matchedImage(stepRef={0}, expected={1}) actual={2}",
       condition.StepRef, condition.ImageId, actualText));
+    return result;
+  }
+
+  /// <summary>
+  /// Feature 193: evaluates a <c>parameter</c> leaf. The resolver must set the run value first. No run value
+  /// gives a <see cref="ConditionEvaluationException"/> and not false. <c>negate</c> is applied by the caller.
+  /// Each evaluation writes one log line to the ambient scope.
+  /// </summary>
+  private static bool EvaluateParameter(ParameterStepCondition condition) {
+    if (condition.ResolvedValue is null || condition.Value is null) {
+      throw new ConditionEvaluationException(
+        ConditionEvaluationFailureKind.ParameterUnresolved,
+        condition.Name,
+        $"parameter condition on '{condition.Name}' has no run value.");
+    }
+
+    bool result;
+    try {
+      result = ParameterConditionRules.Compare(
+        condition.ResolvedValue, condition.CompareAsNumber, condition.Value, condition.Operator);
+    }
+    catch (FormatException ex) {
+      throw new ConditionEvaluationException(ConditionEvaluationFailureKind.ParameterValueInvalid, condition.Name, ex.Message);
+    }
+    catch (ArgumentException ex) {
+      throw new ConditionEvaluationException(ConditionEvaluationFailureKind.UnsupportedCondition, condition.Name, ex.Message);
+    }
+
+    CommandStepStateScope.Current?.AddLog(string.Format(
+      CultureInfo.InvariantCulture,
+      "parameter(name={0}, operator={1}, value={2}) actual={3} compare={4}",
+      condition.Name, condition.Operator, condition.Value.Text, condition.ResolvedValue,
+      condition.CompareAsNumber ? "number" : "text"));
     return result;
   }
 
@@ -422,6 +458,9 @@ public static class SequenceStepConditionEvaluator {
 
       case MatchedImageStepCondition matchedImage:
         return $"{negatePrefix}matchedImage(stepRef={matchedImage.StepRef}, imageId={matchedImage.ImageId})";
+
+      case ParameterStepCondition parameter:
+        return $"{negatePrefix}parameter(name={parameter.Name}, operator={parameter.Operator}, value={parameter.Value?.Text})";
 
       case LastRunStepCondition lastRun:
         var window = lastRun.Since is not null ? $"since={lastRun.Since}" : $"within={lastRun.Within}";
