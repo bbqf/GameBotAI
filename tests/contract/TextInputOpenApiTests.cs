@@ -48,6 +48,8 @@ public sealed class TextInputOpenApiTests {
     description.Should().Contain("text_input_empty_text").And.Contain("text_input_too_long")
       .And.Contain("text_input_unsupported_character").And.Contain("text_input_not_accepted")
       .And.Contain("text_input_missing_config");
+    // Feature 195: the text names the character pause setting.
+    description.Should().Contain("one character at a time").And.Contain("GAMEBOT_TEXT_INPUT_CHAR_DELAY_MS");
     text.GetProperty("example").GetString().Should().Be("250");
   }
 
@@ -56,7 +58,8 @@ public sealed class TextInputOpenApiTests {
     var root = await ReadDocumentAsync().ConfigureAwait(false);
 
     Schema(root, "StepExecutionOutcomeDto").GetProperty("properties").GetProperty("typedLength")
-      .GetProperty("description").GetString().Should().Contain("TextInput");
+      .GetProperty("description").GetString().Should().Contain("TextInput")
+      .And.Contain("characters of a TextInput step that the device accepted");
   }
 
   [Fact]

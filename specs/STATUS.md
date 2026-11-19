@@ -219,9 +219,10 @@ Status vocabulary:
 | 189 | Smart Scheduling | Implemented |
 | 190 | Trace Noise Cleanup | Implemented |
 | 191 | Security Alerts Fix | Implemented |
-| 192 | TextInput Command Step | Implemented |
+| 192 | TextInput Command Step | Implemented (iterated by 195) |
 | 193 | Parameter Condition | Implemented |
 | 194 | Fix Disabled Tests | Implemented |
+| 195 | Fix TextInput Characters | Implemented |
 
 ## Numbering notes
 

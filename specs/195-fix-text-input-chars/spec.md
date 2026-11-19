@@ -2,7 +2,7 @@
 
 **Feature Branch**: `195-fix-text-input-chars`
 **Created**: 2026-11-19
-**Status**: Draft
+**Status**: Implemented
 **Input**: GitHub issue #404, "B-042: TextInput reports executed but the game field receives only 1-2 of 3 characters". Closes #404.
 
 ## Problem *(context)*

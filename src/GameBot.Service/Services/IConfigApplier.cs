@@ -55,6 +55,7 @@ internal sealed class ConfigApplier : IConfigApplier {
     _appConfig.TapJitterRadiusPx = GetInt(snapshot, "GAMEBOT_TAP_JITTER_RADIUS_PX", 5) is var jitter && jitter >= 0 ? jitter : 5;
     _appConfig.AdbRetries = Math.Max(0, GetInt(snapshot, "GAMEBOT_ADB_RETRIES", 2));
     _appConfig.AdbRetryDelayMs = Math.Max(0, GetInt(snapshot, "GAMEBOT_ADB_RETRY_DELAY_MS", 100));
+    _appConfig.TextInputCharDelayMs = AppConfig.NormalizeTextInputCharDelayMs(GetNullableInt(snapshot, "GAMEBOT_TEXT_INPUT_CHAR_DELAY_MS"));
     _appConfig.EmulatorProbeTimeoutMs = Math.Max(1, GetInt(snapshot, "GAMEBOT_EMULATOR_PROBE_TIMEOUT_MS", 10000));
     _appConfig.EmulatorBootWaitMs = Math.Max(_appConfig.EmulatorProbeTimeoutMs, GetInt(snapshot, "GAMEBOT_EMULATOR_BOOT_WAIT_MS", 300000));
     _appConfig.EmulatorPollIntervalMs = Math.Max(100, GetInt(snapshot, "GAMEBOT_EMULATOR_POLL_INTERVAL_MS", 3000));
@@ -83,6 +84,11 @@ internal sealed class ConfigApplier : IConfigApplier {
   private static int GetInt(ConfigurationSnapshot snap, string key, int @default) {
     return snap.Parameters.TryGetValue(key, out var p) && p.Value is not null && int.TryParse(p.Value.ToString(), out var v)
         ? v : @default;
+  }
+  /// <summary>The integer value of <paramref name="key"/>, or null when the key is absent or is not an integer.</summary>
+  private static int? GetNullableInt(ConfigurationSnapshot snap, string key) {
+    return snap.Parameters.TryGetValue(key, out var p) && p.Value is not null && int.TryParse(p.Value.ToString(), out var v)
+        ? v : null;
   }
   private static double GetDouble(ConfigurationSnapshot snap, string key, double @default) {
     return snap.Parameters.TryGetValue(key, out var p) && p.Value is not null &&

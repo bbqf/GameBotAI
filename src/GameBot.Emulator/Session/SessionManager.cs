@@ -96,6 +96,13 @@ public sealed class SessionManager : ISessionManager, ISessionRemovalNotifier {
     Log.SessionManagerStarted(_logger, _options.MaxConcurrentSessions, _options.IdleTimeoutSeconds);
   }
 
+  /// <summary>
+  /// The pause between two characters of the input action <c>text</c> (feature 195). The arguments
+  /// are the pause in milliseconds and the cancellation token. The unit tests replace it to record
+  /// the pause.
+  /// </summary>
+  internal Func<int, CancellationToken, Task> CharacterPause { get; set; } = static (ms, ct) => Task.Delay(ms, ct);
+
   /// <summary>The ADB client of one device. Tests replace it through the internal constructor.</summary>
   private IAdbSessionClient CreateDeviceClient(string serial) => _clientFactory(serial);
 
@@ -298,27 +305,37 @@ public sealed class SessionManager : ISessionManager, ISessionRemovalNotifier {
   }
 
   /// <summary>
-  /// Sends the input action <c>text</c> (feature 192). Each part from <see cref="AdbTextEncoder.Split"/>
-  /// is one recorded input with the ADB retries: a chunk goes as <c>input text</c>, and a space goes
-  /// as key event 62. The send stops at the first part that fails. The number of characters that the
-  /// device accepted goes into <c>Args["typedLength"]</c>.
+  /// Sends the input action <c>text</c> (feature 192 and 195). The text goes to the device one
+  /// character at a time, because game input fields drop characters of a burst. Each character is
+  /// one recorded input with the ADB retries: a space goes as key event 62, and each other character
+  /// goes as <c>input text</c>. Between two characters, the send waits
+  /// <c>GAMEBOT_TEXT_INPUT_CHAR_DELAY_MS</c> milliseconds through <see cref="CharacterPause"/>. The
+  /// send stops at the first character that fails. The number of characters that the device
+  /// accepted goes into <c>Args["typedLength"]</c>. A cancellation goes up to the caller.
   /// </summary>
-  /// <returns>True when the device accepted all parts.</returns>
+  /// <returns>True when the device accepted all characters.</returns>
   private async Task<bool> SendTextAsync(string id, InputAction a, IAdbSessionClient adb, CancellationToken ct) {
     if (!a.Args.TryGetValue("text", out var raw)) throw new KeyNotFoundException("text is required for text action");
     var text = raw is JsonElement je && je.ValueKind == JsonValueKind.String ? je.GetString() : raw?.ToString();
+    var parts = AdbTextEncoder.SplitCharacters(text ?? string.Empty);
+    // The pause is read at each send, so a change at run time applies to the next step.
+    var pause = Math.Clamp(_appConfig.TextInputCharDelayMs, 0, GameBot.Domain.Config.AppConfig.MaxTextInputCharDelayMs);
     var typed = 0;
-    var ok = true;
-    foreach (var part in AdbTextEncoder.Split(text ?? string.Empty)) {
-      ok = AdbTextEncoder.IsSpace(part)
+    for (var i = 0; i < parts.Count; i++) {
+      if (i > 0 && pause > 0) await CharacterPause(pause, ct).ConfigureAwait(false);
+      var part = parts[i];
+      var ok = AdbTextEncoder.IsSpace(part)
         ? await SendRecordedInputAsync(id, "key", t => adb.KeyEventAsync(AdbTextEncoder.SpaceKeyCode, t), ct).ConfigureAwait(false)
         : await SendRecordedInputAsync(id, "text", t => adb.InputTextAsync(part, t), ct).ConfigureAwait(false);
-      if (!ok) break;
-      typed += part.Length;
+      if (!ok) {
+        a.Args["typedLength"] = typed;
+        return false;
+      }
+      typed += 1;
     }
 
     a.Args["typedLength"] = typed;
-    return ok;
+    return true;
   }
 
   // B-001: unlike SendInputsAsync's stub-mode branch (which never parses action args at all),

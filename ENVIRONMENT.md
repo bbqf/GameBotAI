@@ -188,6 +188,11 @@ Examples:
   - Used in: `SessionManager`
   - Default: `100`
 
+- GAMEBOT_TEXT_INPUT_CHAR_DELAY_MS
+  - Purpose: Pause (ms) between two characters of a TextInput step. The step sends one ADB input command for each character. The value 0 sends the characters with no pause. The range is 0 to 2000: a negative value or a value that is not a number gives 100, and a value larger than 2000 gives 2000. A change applies at run time, with no restart.
+  - Used in: `SessionManager`
+  - Default: `100`
+
 - GAMEBOT_LDCONSOLE_PATH
   - Purpose: Override path to LDPlayer's `ldconsole.exe` (a.k.a. `dnconsole.exe`), used by the
     `ensure-emulator-running` action (feature 070) to query/start/restart instances.

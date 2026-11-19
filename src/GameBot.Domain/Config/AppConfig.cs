@@ -60,6 +60,29 @@ public sealed class AppConfig {
   /// </summary>
   public int AdbRetryDelayMs { get; set; } = 100;
 
+  /// <summary>The default of <see cref="TextInputCharDelayMs"/> (feature 195).</summary>
+  public const int DefaultTextInputCharDelayMs = 100;
+
+  /// <summary>The maximum of <see cref="TextInputCharDelayMs"/> (feature 195).</summary>
+  public const int MaxTextInputCharDelayMs = 2000;
+
+  /// <summary>
+  /// The pause in milliseconds between two characters of a <c>TextInput</c> step (feature 195).
+  /// Maps to <c>GAMEBOT_TEXT_INPUT_CHAR_DELAY_MS</c>. Default 100. The range is 0 to 2000.
+  /// The value 0 sends the characters with no pause.
+  /// </summary>
+  public int TextInputCharDelayMs { get; set; } = DefaultTextInputCharDelayMs;
+
+  /// <summary>
+  /// Puts a value of <c>GAMEBOT_TEXT_INPUT_CHAR_DELAY_MS</c> into the range 0 to 2000 (feature 195).
+  /// Null or a negative value gives the default 100. A value larger than 2000 gives 2000.
+  /// </summary>
+  /// <param name="value">The value from the configuration, or null when it is absent or not a number.</param>
+  public static int NormalizeTextInputCharDelayMs(int? value) {
+    if (value is not { } v || v < 0) return DefaultTextInputCharDelayMs;
+    return Math.Min(v, MaxTextInputCharDelayMs);
+  }
+
   /// <summary>
   /// Timeout in milliseconds for a single emulator responsiveness probe
   /// (<c>getprop sys.boot_completed</c>) used by the ensure-emulator-running action (feature 070).

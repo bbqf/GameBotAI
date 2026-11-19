@@ -384,8 +384,10 @@ internal sealed class CommandExecutor : ICommandExecutor {
 
   /// <summary>
   /// Runs a TextInput step (feature 192). The service checks the resolved text before the send, so
-  /// that a text that the device cannot type gives a reason code and no input. The step result holds
-  /// the typed length, not the text.
+  /// that a text that the device cannot type gives a reason code and no input. The device path types
+  /// one character at a time, with the pause from <c>GAMEBOT_TEXT_INPUT_CHAR_DELAY_MS</c> between two
+  /// characters (feature 195). The step result holds the typed length (the number of characters that
+  /// the device accepted), not the text.
   /// </summary>
   private async Task<(int Accepted, PrimitiveTapStepOutcome Outcome)> ExecuteTextInputAsync(
       string sessionId,

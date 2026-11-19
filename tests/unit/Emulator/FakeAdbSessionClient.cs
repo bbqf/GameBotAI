@@ -60,8 +60,18 @@ internal sealed class FakeAdbSessionClient : IAdbSessionClient {
   /// <summary>The text chunks that the fake received, in order, retries included (feature 192).</summary>
   public List<string> TextChunks { get; } = new();
 
-  /// <summary>All input calls in order (feature 192): "text:&lt;chunk&gt;" or "key:&lt;code&gt;".</summary>
+  /// <summary>
+  /// All input calls in order (feature 192): "text:&lt;chunk&gt;" or "key:&lt;code&gt;". With
+  /// <see cref="SeamSessionManager.RecordPauses"/>, also "pause:&lt;ms&gt;" (feature 195).
+  /// </summary>
   public List<string> Calls { get; } = new();
+
+  /// <summary>Adds <paramref name="call"/> to <see cref="Calls"/> under the lock of the input calls.</summary>
+  public void RecordCall(string call) {
+    lock (TextChunks) {
+      Calls.Add(call);
+    }
+  }
 
   /// <summary>When set, each text call with this chunk returns exit code 1 (feature 192).</summary>
   public string? FailTextChunk { get; set; }
@@ -97,15 +107,34 @@ internal static class SeamSessionManager {
     FakeAdbSessionClient device,
     IDeviceLivenessTracker? tracker,
     DeviceLivenessOptions? options = null,
-    int adbRetries = 0) =>
+    int adbRetries = 0,
+    int textInputCharDelayMs = 0) =>
     new(
       Options.Create(new SessionOptions()),
       NullLogger<SessionManager>.Instance,
       NullLogger<AdbClient>.Instance,
-      new GameBot.Domain.Config.AppConfig { AdbRetries = adbRetries, AdbRetryDelayMs = 0, TapJitterRadiusPx = 0 },
+      new GameBot.Domain.Config.AppConfig {
+        AdbRetries = adbRetries,
+        AdbRetryDelayMs = 0,
+        TapJitterRadiusPx = 0,
+        TextInputCharDelayMs = textInputCharDelayMs,
+      },
       tracker,
       Options.Create(options ?? new DeviceLivenessOptions()),
       _ => device);
+
+  /// <summary>
+  /// Replaces the character pause of <paramref name="manager"/> (feature 195). The new pause does not
+  /// wait. It adds "pause:&lt;ms&gt;" to <see cref="FakeAdbSessionClient.Calls"/>, or throws
+  /// <see cref="OperationCanceledException"/> when the token is cancelled.
+  /// </summary>
+  public static void RecordPauses(SessionManager manager, FakeAdbSessionClient device) {
+    manager.CharacterPause = (ms, ct) => {
+      ct.ThrowIfCancellationRequested();
+      device.RecordCall("pause:" + ms.ToString(System.Globalization.CultureInfo.InvariantCulture));
+      return Task.CompletedTask;
+    };
+  }
 
   /// <summary>Creates a session and binds it to a fake device serial.</summary>
   public static string CreateDeviceSession(SessionManager manager, string? serial = "fake-serial") {
