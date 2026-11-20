@@ -19,7 +19,7 @@ internal sealed class TestLoggerProvider : ILoggerProvider {
 
   public IReadOnlyCollection<LogEntry> Entries => _entries.ToArray();
 
-  internal readonly record struct LogEntry(string Category, LogLevel Level, string Message);
+  internal readonly record struct LogEntry(string Category, LogLevel Level, string Message, int EventId = 0);
 
   private sealed class TestLogger : ILogger {
     private readonly string _category;
@@ -33,7 +33,7 @@ internal sealed class TestLoggerProvider : ILoggerProvider {
     public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) {
       if (!IsEnabled(logLevel)) return;
       var msg = formatter(state, exception);
-      _entries.Add(new LogEntry(_category, logLevel, msg));
+      _entries.Add(new LogEntry(_category, logLevel, msg, eventId.Id));
     }
 
     private sealed class NullScope : IDisposable { public static readonly NullScope Instance = new(); public void Dispose() { } }

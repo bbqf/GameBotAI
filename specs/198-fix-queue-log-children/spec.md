@@ -2,7 +2,7 @@
 
 **Feature Branch**: `198-fix-queue-log-children`  
 **Created**: 2026-11-20  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: GitHub issue #408, "B-044: The execution log of a long-running queue stops growing near 120 children; later runs are in no log". Closes #408.
 
 ## Background
