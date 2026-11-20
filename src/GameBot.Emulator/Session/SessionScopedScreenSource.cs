@@ -46,6 +46,8 @@ public sealed class SessionScopedScreenSource : IScreenSource {
   internal static Bitmap? DecodeCachedFrame(BackgroundScreenCaptureService captureService, string sessionId) {
     var frame = captureService.GetCachedFrame(sessionId);
     if (frame is null) return null;
+    // Feature 197 (FR-004): in a sequence run, a stale frame is no frame. With no scope, no change.
+    if (!GameBot.Domain.Sessions.FrameReadScope.Admit(frame)) return null;
 
     using var ms = new MemoryStream(frame.PngBytes, writable: false);
     using var tmp = new Bitmap(ms);

@@ -266,6 +266,47 @@ public sealed class CommandExecutorWaitForImageTests {
     line.Should().Contain("best score none");
   }
 
+  [Fact]
+  public async Task WaitForImageOnAStaleFrameInAFrameScopeIsNotADetection() {
+    // Feature 197 (contract section 5a): in a sequence run, a command WaitForImage gets no frame when the
+    // frame in memory is stale. The pass is a pass with no frame.
+    using var bmp = CreateOneByOneBitmap();
+    var t0 = new DateTimeOffset(2026, 11, 20, 12, 0, 0, TimeSpan.Zero);
+    var command = CreateWaitCommand(config: new WaitForImageConfig {
+      TimeoutMs = 60,
+      DetectionTarget = new DetectionTarget("img-1", 0.9, 0, 0, DetectionSelectionStrategy.HighestConfidence)
+    });
+    var staleFrame = new CachedFrame(new byte[] { 1 }, bmp, t0.AddSeconds(-10), 1, 1);
+    var executor = new CommandExecutor(
+      new CommandRepoStub(command),
+      new SessionManagerStub(),
+      new TriggerRepoStub(),
+      new TriggerEvaluationService(Array.Empty<ITriggerEvaluator>()),
+      NullLogger<CommandExecutor>.Instance,
+      new ReferenceImageStoreStub(("img-1", bmp)),
+      new AdmittingScreenSource(staleFrame, bmp),
+      new TemplateMatcherStub(new[] { new TemplateMatch(new BoundingBox(0, 0, 1, 1), 0.95) }),
+      new SessionContextCache(),
+      new AppConfig { CaptureIntervalMs = 10 });
+
+    var scope = new FrameReadScope(5000, new GameBot.UnitTests.Queues.FakeTimeProvider(t0));
+    CommandForceExecutionResult result;
+    using (FrameReadScope.Push(scope)) {
+      result = await executor.ForceExecuteDetailedAsync("sess-1", command.Id, CancellationToken.None).ConfigureAwait(false);
+    }
+
+    result.StepOutcomes[0].Reason.Should().Be("timeout_elapsed");
+    scope.LastRead!.Stale.Should().BeTrue();
+  }
+
+  /// <summary>A screen source that reads one cached frame through the frame read gate, as the real sources do.</summary>
+  private sealed class AdmittingScreenSource : IScreenSource {
+    private readonly CachedFrame _frame;
+    private readonly Bitmap _bitmap;
+    public AdmittingScreenSource(CachedFrame frame, Bitmap bitmap) { _frame = frame; _bitmap = bitmap; }
+    public Bitmap? GetLatestScreenshot() => FrameReadScope.Admit(_frame) ? new Bitmap(_bitmap) : null;
+  }
+
   private sealed class SlowNullScreenSource : IScreenSource {
     private readonly int _passMs;
     private readonly Stopwatch _clock = new();

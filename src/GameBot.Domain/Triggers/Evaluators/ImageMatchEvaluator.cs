@@ -52,12 +52,15 @@ public sealed class ImageMatchEvaluator : ITriggerEvaluator {
   /// </summary>
   private double ComputeSimilarity(ImageMatchParams p) {
     if (!Images.ReferenceImageSetLoader.TryLoad(_store, _alternates, p.ReferenceImageId, out var set) || set is null) return 0d;
+    // Feature 197: clear the last frame read, so that a pass with no frame does not show an old read.
+    var frameScope = GameBot.Domain.Sessions.FrameReadScope.Current;
+    if (frameScope is not null) frameScope.LastRead = null;
     using var screenBmp = _screen.GetLatestScreenshot();
     // Feature 166 (FR-012): a WaitForImage wait keeps the last pass for its timeout log line. With no
     // scope, nothing is written, so triggers and imageVisible conditions do not change.
     var passScope = ImageDetectionPassScope.Current;
     if (screenBmp is null) {
-      if (passScope is not null) passScope.LastPass = new ImageDetectionPass(false, null);
+      if (passScope is not null) passScope.LastPass = new ImageDetectionPass(false, null, frameScope?.LastRead);
       return 0d;
     }
 
@@ -77,7 +80,7 @@ public sealed class ImageMatchEvaluator : ITriggerEvaluator {
         ImageMatchLog.AlternateMatched(_logger, p.ReferenceImageId, bestAlternate, best, null);
       }
     }
-    if (passScope is not null) passScope.LastPass = new ImageDetectionPass(true, best);
+    if (passScope is not null) passScope.LastPass = new ImageDetectionPass(true, best, frameScope?.LastRead);
     return best;
   }
 

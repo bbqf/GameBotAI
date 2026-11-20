@@ -17,7 +17,8 @@ internal sealed class DeviceLivenessSchemaFilter : ISchemaFilter {
 
   internal const string ReasonDescription =
     "Why the device is not live. Null when the state is not 'not_live'. 'capture_stalled': no capture completed for "
-    + "longer than CaptureStallLimitMs. 'input_timeout': an input did not complete in InputTimeoutMs. "
+    + "longer than CaptureStallLimitMs. A stale repeat (the same bytes again after a failed capture) is not a "
+    + "completed capture. 'input_timeout': an input did not complete in InputTimeoutMs. "
     + "'no_change_after_input': the frame did not change for StaleLimitMs after an input. "
     + "'transport_not_ready': adb get-state did not report 'device'.";
 
@@ -87,7 +88,9 @@ internal sealed class DeviceLivenessSchemaFilter : ISchemaFilter {
     + "('device_not_live: <reason>'). When the device stays not live for longer than QueueGracePeriodMs, the queue "
     + "records one failed cycle for the episode. The queue never stops by itself. The queue can reboot the "
     + "instance when deviceRecovery is on. The service sends one 'device not live' alert after AlertAfterMs, and "
-    + "one 'device live again' message after the device is live.";
+    + "one 'device live again' message after the device is live. The queue checks the liveness every "
+    + "QueueCheckIntervalMs for the whole run, also while a step runs. A step does not use a frame older than "
+    + "max(FrameMaxAgeMs, 2 x capture interval): it waits for a fresh frame, or it fails with stale_frame.";
 
   internal const string AlertSentDescription =
     "True when the 'device not live' alert was sent for the open episode (feature 121). False when no episode is open.";

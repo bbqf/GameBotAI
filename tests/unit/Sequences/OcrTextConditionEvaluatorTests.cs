@@ -102,6 +102,56 @@ public sealed class OcrTextConditionEvaluatorTests {
     }
   }
 
+  // ---- Feature 197: stale frames and frame data ----
+
+  private static readonly System.DateTimeOffset T0 = new(2026, 11, 20, 12, 0, 0, System.TimeSpan.Zero);
+
+  /// <summary>A frame scope whose wait always ends with a stale frame.</summary>
+  private static GameBot.Domain.Sessions.FrameReadScope StaleScope() {
+    GameBot.Domain.Sessions.FrameReadScope? scope = null;
+    scope = new GameBot.Domain.Sessions.FrameReadScope(5000, new GameBot.UnitTests.Queues.FakeTimeProvider(T0), _ => {
+      scope!.LastRead = new GameBot.Domain.Sessions.FrameReadInfo("old", 9000, true);
+      return Task.FromResult(false);
+    });
+    return scope;
+  }
+
+  [Fact]
+  public async Task AFrameThatStaysStaleAddsOneStaleRecordAndFails() {
+    var scope = TextScope("250");
+    using (OcrTextEvaluationScope.Push(scope))
+    using (GameBot.Domain.Sessions.FrameReadScope.Push(StaleScope())) {
+      var act = () => EvaluateAsync(Expect("250", negate: true));
+
+      var ex = (await act.Should().ThrowAsync<ConditionEvaluationException>()).Which;
+      ex.Kind.Should().Be(ConditionEvaluationFailureKind.StaleFrame);
+      ex.Message.Should().Contain("stale_frame");
+    }
+
+    var record = scope.Drain().Should().ContainSingle().Subject;
+    record.Reason.Should().Be(OcrTextFailureReasons.StaleFrame);
+    record.ToLogLine().Should().Be("ocrText: read='' expected='250' result=false reason=stale-frame capture=old ageMs=9000");
+  }
+
+  [Fact]
+  public async Task AFreshFrameGivesTheCurrentResultAndTheFrameData() {
+    var scope = new OcrTextEvaluationScope((_, _) => Task.FromResult(new OcrTextReadResult("250", null, null, "f1", 420)));
+    var frames = new GameBot.Domain.Sessions.FrameReadScope(5000, waitForFresh: _ => Task.FromResult(true));
+    using (OcrTextEvaluationScope.Push(scope))
+    using (GameBot.Domain.Sessions.FrameReadScope.Push(frames)) {
+      (await EvaluateAsync(Expect("250"))).Value.Should().BeTrue();
+    }
+
+    scope.Drain().Should().ContainSingle().Subject.ToLogLine()
+      .Should().Be("ocrText: read='250' expected='250' result=true capture=f1 ageMs=420");
+  }
+
+  [Fact]
+  public void WithNoFrameDataTheLineDoesNotChange() {
+    new OcrTextEvaluationRecord("3", "3", "0", null, null, false, null, null).ToLogLine()
+      .Should().Be("ocrText: read='3' expected='0' result=false");
+  }
+
   [Fact]
   public void TheDescriptionShowsTheRegionAndTheMatch() {
     SequenceStepConditionEvaluator.Describe(Expect("0", negate: true)).Should().StartWith("NOT ocrText(").And.Contain("expected=0");

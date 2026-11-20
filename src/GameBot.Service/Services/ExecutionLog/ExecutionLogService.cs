@@ -1110,7 +1110,27 @@ internal sealed class ExecutionLogService : IExecutionLogService {
       TryGetDouble(attributes, "confidence"),
       TryGetString(attributes, "exitCondition") ?? reasonCode,
       TryGetString(attributes, "imageLoadStatus"),
-      TryGetString(attributes, "matchedImageId"));
+      TryGetString(attributes, "matchedImageId"),
+      TryGetString(attributes, "captureId"),
+      TryGetLong(attributes, "frameAgeMs"),
+      TryGetDouble(attributes, "bestScore"),
+      TryGetInt(attributes, "passCount"),
+      TryGetInt(attributes, "stalePassCount"),
+      TryGetString(attributes, "staleReason"));
+  }
+
+  private static long? TryGetLong(Dictionary<string, object?>? attributes, string key) {
+    if (attributes is null || !attributes.TryGetValue(key, out var value) || value is null) {
+      return null;
+    }
+
+    return value switch {
+      long longValue => longValue,
+      int intValue => intValue,
+      JsonElement { ValueKind: JsonValueKind.Number } element when element.TryGetInt64(out var parsed) => parsed,
+      string text when long.TryParse(text, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var parsed) => parsed,
+      _ => null
+    };
   }
 
   private static Dictionary<string, object?> BuildWaitForImageDetailAttributeMap(PrimitiveTapStepOutcome outcome) {

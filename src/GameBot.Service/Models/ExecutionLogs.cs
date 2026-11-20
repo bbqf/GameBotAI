@@ -168,6 +168,30 @@ internal sealed class ExecutionLogWaitForImageDetailAttributesDto {
   /// <summary>The id of the image that matched (issue 386). Omitted from the JSON when null.</summary>
   [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
   public string? MatchedImageId { get; init; }
+
+  /// <summary>The frame id of the frame of the last pass (feature 197). Omitted from the JSON when null.</summary>
+  [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+  public string? CaptureId { get; init; }
+
+  /// <summary>The age of that frame at the read, in milliseconds (feature 197). Omitted from the JSON when null.</summary>
+  [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+  public long? FrameAgeMs { get; init; }
+
+  /// <summary>The best score of the last pass (feature 197). Omitted from the JSON when null.</summary>
+  [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+  public double? BestScore { get; init; }
+
+  /// <summary>The number of passes (feature 197). Omitted from the JSON when null.</summary>
+  [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+  public int? PassCount { get; init; }
+
+  /// <summary>The number of passes on a stale frame (feature 197). Omitted from the JSON when null.</summary>
+  [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+  public int? StalePassCount { get; init; }
+
+  /// <summary><c>stale_frame</c> when the step timed out on a stale frame (feature 197). Omitted from the JSON when null.</summary>
+  [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+  public string? StaleReason { get; init; }
 }
 
 internal sealed class AuthoringDeepLinkDto {

@@ -75,6 +75,14 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
   // Feature 174: the WaitForStill step. Optional, so the hand-built test instances keep compiling; without a
   // handler the step waits for nothing and gives the outcome timeout_elapsed.
   private readonly GameBot.Service.Services.WaitForStill.WaitForStillHandler? _waitForStill;
+  // Feature 197: the frame freshness gate of a run. All three are optional, so the hand-built test
+  // instances keep compiling; without the capture service a run has no gate.
+  private readonly Microsoft.Extensions.Options.IOptions<GameBot.Domain.Sessions.DeviceLivenessOptions>? _livenessOptions;
+  private readonly GameBot.Domain.Config.AppConfig? _appConfig;
+  private readonly BackgroundScreenCaptureService? _captureService;
+
+  /// <summary>The capture interval when the service has no <see cref="GameBot.Domain.Config.AppConfig"/>.</summary>
+  private const int DefaultCaptureIntervalMs = 500;
 
   public SequenceExecutionService(
     SequenceRunner runner,
@@ -105,7 +113,13 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
     GameBot.Service.Services.Ocr.IOcrTextConditionReader? ocrTextReader = null,
     GameBot.Service.Services.Notifications.INotificationDispatcher? notificationDispatcher = null,
     TimeSpan? textSendGuard = null,
-    GameBot.Service.Services.WaitForStill.WaitForStillHandler? waitForStill = null) {
+    GameBot.Service.Services.WaitForStill.WaitForStillHandler? waitForStill = null,
+    Microsoft.Extensions.Options.IOptions<GameBot.Domain.Sessions.DeviceLivenessOptions>? livenessOptions = null,
+    GameBot.Domain.Config.AppConfig? appConfig = null,
+    BackgroundScreenCaptureService? captureService = null) {
+    _livenessOptions = livenessOptions;
+    _appConfig = appConfig;
+    _captureService = captureService;
     _waitForStill = waitForStill;
     _notificationDispatcher = notificationDispatcher;
     _textSendGuard = textSendGuard
@@ -286,6 +300,51 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
       (condition, token) => reader.ReadAsync(condition, session, token)));
   }
 
+  /// <summary>
+  /// Feature 197: makes the frame freshness gate of this run ambient. A run gets a gate when it is not a
+  /// dry-run, a session is known, and the capture service is available. The limit is
+  /// <c>max(FrameMaxAgeMs, 2 × capture interval)</c>; the service reads the capture interval at each run.
+  /// </summary>
+  [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+  private IDisposable? PushFrameReadScope(string? sessionId, bool dryRun) {
+    if (dryRun || _captureService is null) return null;
+    if (!TryResolveSessionId(sessionId, "frame", out var resolved, out _) || string.IsNullOrWhiteSpace(resolved)) return null;
+    var options = (_livenessOptions?.Value ?? new GameBot.Domain.Sessions.DeviceLivenessOptions()).Normalized();
+    var intervalMs = Math.Max(1, _appConfig?.CaptureIntervalMs ?? DefaultCaptureIntervalMs);
+    var maxAgeMs = GameBot.Domain.Sessions.FrameFreshness.EffectiveLimitMs(options.FrameMaxAgeMs, intervalMs);
+    var captureService = _captureService;
+    GameBot.Domain.Sessions.FrameReadScope? scope = null;
+    // The capture loop stamps each frame with the system clock, so the gate uses the system clock too.
+    scope = new GameBot.Domain.Sessions.FrameReadScope(maxAgeMs, TimeProvider.System,
+      token => WaitForFreshFrameAsync(captureService, resolved, scope!, intervalMs, token));
+    return GameBot.Domain.Sessions.FrameReadScope.Push(scope);
+  }
+
+  /// <summary>
+  /// Feature 197 (research R-006): reads the frame in memory at each capture interval until it is fresh,
+  /// no frame exists, or <see cref="GameBot.Domain.Sessions.FrameReadScope.MaxAgeMs"/> passed. Returns
+  /// false only when the frame is still stale at the end. A stale frame is recorded in the scope.
+  /// </summary>
+  [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+  private static async Task<bool> WaitForFreshFrameAsync(
+      BackgroundScreenCaptureService captureService,
+      string sessionId,
+      GameBot.Domain.Sessions.FrameReadScope scope,
+      int intervalMs,
+      CancellationToken ct) {
+    var start = scope.Clock.GetUtcNow();
+    while (true) {
+      var frame = captureService.GetCachedFrame(sessionId);
+      if (frame is null) return true;
+      var now = scope.Clock.GetUtcNow();
+      var info = GameBot.Domain.Sessions.FrameFreshness.Describe(frame, now, scope.MaxAgeMs);
+      if (!info.Stale) return true;
+      scope.LastRead = info;
+      if ((now - start).TotalMilliseconds >= scope.MaxAgeMs) return false;
+      await Task.Delay(Math.Max(50, intervalMs), ct).ConfigureAwait(false);
+    }
+  }
+
   private async Task<SequenceExecutionResult> ExecuteCoreAsync(
       string sequenceId,
       string? sessionId,
@@ -308,6 +367,8 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
       _ = TryResolveSessionId(sessionId, "ocrText", out ocrSessionId, out _);
     }
     using var ocrScope = PushOcrScope(_ocrTextReader, ocrSessionId, dryRun);
+    // Feature 197: the steps of this run do not use a stale frame.
+    using var frameScope = OperatingSystem.IsWindows() ? PushFrameReadScope(sessionId, dryRun) : null;
 
     // Create the in-progress root entry up front so invoked commands can be linked to it
     // (and the sequence shows as a single top-level entry while it runs). When a parent
@@ -659,6 +720,13 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
           ["confidence"] = waitDetails?.Confidence ?? waitConfig?.DetectionTarget?.Confidence,
           ["exitCondition"] = isWaitForImageStep ? (waitDetails?.ExitCondition ?? actionOutcome) : null,
           ["imageLoadStatus"] = imageLoadStatus,
+          // Feature 197 (FR-007): the frame data of the last pass and the pass counts of a WaitForImage step.
+          ["captureId"] = waitDetails?.CaptureId,
+          ["frameAgeMs"] = waitDetails?.FrameAgeMs,
+          ["bestScore"] = waitDetails?.BestScore,
+          ["passCount"] = waitDetails?.PassCount,
+          ["stalePassCount"] = waitDetails?.StalePassCount,
+          ["staleReason"] = waitDetails?.StaleReason,
           // Feature 181: the matched image of an image check. Both are null when no image matched.
           ["matchedImageId"] = waitDetails?.MatchedImageId ?? step.MatchedImageId,
           ["matchedImageConfidence"] = waitDetails?.MatchedImageId is not null

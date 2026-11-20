@@ -77,6 +77,14 @@ public sealed class DeviceLivenessOptionsTests {
   }
 
   [Fact]
+  public void FrameMaxAgeHasTheDefaultAndTheMinimum() {
+    // Feature 197: default 5000 ms, minimum 1000 ms.
+    new DeviceLivenessOptions().FrameMaxAgeMs.Should().Be(5000);
+    new DeviceLivenessOptions { FrameMaxAgeMs = 10 }.Normalized().FrameMaxAgeMs.Should().Be(1000);
+    new DeviceLivenessOptions { FrameMaxAgeMs = 7000 }.Normalized().FrameMaxAgeMs.Should().Be(7000);
+  }
+
+  [Fact]
   public void NormalizedDoesNotChangeTheSource() {
     var source = new DeviceLivenessOptions { InputTimeoutMs = 1 };
 

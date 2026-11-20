@@ -1176,6 +1176,7 @@ namespace GameBot.Domain.Services {
       if (untilAbsent) {
         var absentNeeded = Math.Max(1, effectiveConfig.AbsentCaptures ?? WaitForImageUntil.DefaultAbsentCaptures);
         var absentPoll = await PollAbsentConditionAsync(condition, conditionEvaluator, deadline, absentNeeded, ct).ConfigureAwait(false);
+        FillPassDetails(detail, absentPoll, ImageDetectionPassScope.Current?.LastPass);
         if (absentPoll.Result == WaitPollResult.Detected) {
           detail.ExitCondition = "image_absent";
           return new WaitForImageStepOutcome("image_absent", detail);
@@ -1187,12 +1188,15 @@ namespace GameBot.Domain.Services {
           return new WaitForImageStepOutcome("image_unavailable", detail);
         }
 
-        LogWaitForImageTimeout(sequenceId, stepKey, detectionTarget, absentPoll.PassCount, ImageDetectionPassScope.Current?.LastPass);
+        LogWaitForImageTimeout(sequenceId, stepKey, detectionTarget, absentPoll, ImageDetectionPassScope.Current?.LastPass);
         detail.ExitCondition = "timeout_elapsed";
+        detail.StaleReason = StaleReasonOf(ImageDetectionPassScope.Current?.LastPass);
         return new WaitForImageStepOutcome("timeout_elapsed", detail);
       }
 
-      var (pollResult, passCount) = await PollImageConditionAsync(condition, conditionEvaluator, deadline, ct).ConfigureAwait(false);
+      var presentPoll = await PollImageConditionAsync(condition, conditionEvaluator, deadline, ct).ConfigureAwait(false);
+      var pollResult = presentPoll.Result;
+      FillPassDetails(detail, presentPoll, ImageDetectionPassScope.Current?.LastPass);
       if (pollResult == WaitPollResult.Detected) {
         detail.ExitCondition = "image_detected";
         // Feature 181: report the matched image. A single image is its own match.
@@ -1207,36 +1211,68 @@ namespace GameBot.Domain.Services {
         return new WaitForImageStepOutcome("image_unavailable", detail);
       }
 
-      LogWaitForImageTimeout(sequenceId, stepKey, detectionTarget, passCount, ImageDetectionPassScope.Current?.LastPass);
+      LogWaitForImageTimeout(sequenceId, stepKey, detectionTarget, presentPoll, ImageDetectionPassScope.Current?.LastPass);
       detail.ExitCondition = "timeout_elapsed";
+      detail.StaleReason = StaleReasonOf(ImageDetectionPassScope.Current?.LastPass);
       return new WaitForImageStepOutcome("timeout_elapsed", detail);
     }
 
     private enum WaitPollResult { Detected, Unavailable, TimedOut }
 
+    /// <summary>The result of a poll loop: the result, the number of passes, and the number of stale passes (feature 197).</summary>
+    private readonly record struct WaitPollStats(WaitPollResult Result, int PassCount, int StalePassCount);
+
+    /// <summary>The value of <c>staleReason</c> (feature 197): <c>stale_frame</c> when the last pass was on a stale frame.</summary>
+    internal const string StaleFrameReason = "stale_frame";
+
+    private static string? StaleReasonOf(ImageDetectionPass? lastPass) =>
+      lastPass?.Frame is { Stale: true } ? StaleFrameReason : null;
+
+    /// <summary>True when the last pass that the evaluator wrote was on a stale frame (feature 197).</summary>
+    private static bool LastPassWasStale() =>
+      ImageDetectionPassScope.Current?.LastPass?.Frame is { Stale: true };
+
+    /// <summary>
+    /// Feature 197 (FR-007): writes the frame data of the last pass and the pass counts into the step details.
+    /// </summary>
+    private static void FillPassDetails(WaitForImageStepResultDetails detail, WaitPollStats stats, ImageDetectionPass? lastPass) {
+      detail.PassCount = stats.PassCount;
+      detail.StalePassCount = stats.StalePassCount;
+      detail.CaptureId = lastPass?.Frame?.FrameId;
+      detail.FrameAgeMs = lastPass?.Frame?.AgeMs;
+      detail.BestScore = lastPass?.BestScore;
+    }
+
     /// <summary>
     /// Evaluates the image condition of a <c>WaitForImage</c> step until it is true or the time ends
     /// (feature 166, FR-010). The first evaluation runs at once. No evaluation starts at or after the
     /// deadline, and the last wait ends 50 ms before the deadline (<see cref="WaitForImageSchedule"/>).
-    /// Returns the result and the number of evaluations.
+    /// Returns the result, the number of evaluations, and the number of evaluations on a stale frame
+    /// (feature 197). A pass on a stale frame has no frame, so it is false and the wait continues.
     /// </summary>
-    private async Task<(WaitPollResult Result, int PassCount)> PollImageConditionAsync(
+    private async Task<WaitPollStats> PollImageConditionAsync(
         Condition condition,
         Func<Condition, CancellationToken, Task<bool>> conditionEvaluator,
         DateTimeOffset deadline,
         CancellationToken ct) {
       var pollInterval = TimeSpan.FromMilliseconds(Math.Max(1, _config.CaptureIntervalMs));
       var passCount = 0;
+      var staleCount = 0;
       var isLastPass = false;
       while (true) {
         passCount++;
+        // Clear the last pass, so that the pass of an earlier capture is never read for this one.
+        var scope = ImageDetectionPassScope.Current;
+        if (scope is not null) scope.LastPass = null;
         try {
-          if (await conditionEvaluator(condition, ct).ConfigureAwait(false)) {
-            return (WaitPollResult.Detected, passCount);
+          var seen = await conditionEvaluator(condition, ct).ConfigureAwait(false);
+          if (LastPassWasStale()) staleCount++;
+          if (seen) {
+            return new WaitPollStats(WaitPollResult.Detected, passCount, staleCount);
           }
         }
         catch {
-          return (WaitPollResult.Unavailable, passCount);
+          return new WaitPollStats(WaitPollResult.Unavailable, passCount, staleCount);
         }
 
         if (isLastPass) break;
@@ -1247,7 +1283,7 @@ namespace GameBot.Domain.Services {
         if (DateTimeOffset.UtcNow >= deadline) break;
         isLastPass = next.IsLastWait;
       }
-      return (WaitPollResult.TimedOut, passCount);
+      return new WaitPollStats(WaitPollResult.TimedOut, passCount, staleCount);
     }
 
     /// <summary>
@@ -1257,7 +1293,7 @@ namespace GameBot.Domain.Services {
     /// A pass with no frame, or with no pass written, is <see cref="PassKind.Failed"/> and never counts as absent.
     /// <see cref="AbsentCaptureCounter"/> holds the count rule. The result <c>Detected</c> means the image is gone.
     /// </summary>
-    private async Task<(WaitPollResult Result, int PassCount)> PollAbsentConditionAsync(
+    private async Task<WaitPollStats> PollAbsentConditionAsync(
         Condition condition,
         Func<Condition, CancellationToken, Task<bool>> conditionEvaluator,
         DateTimeOffset deadline,
@@ -1266,6 +1302,7 @@ namespace GameBot.Domain.Services {
       var pollInterval = TimeSpan.FromMilliseconds(Math.Max(1, _config.CaptureIntervalMs));
       var counter = new AbsentCaptureCounter(absentNeeded);
       var passCount = 0;
+      var staleCount = 0;
       var isLastPass = false;
       while (true) {
         passCount++;
@@ -1275,6 +1312,8 @@ namespace GameBot.Domain.Services {
         PassKind kind;
         try {
           var seen = await conditionEvaluator(condition, ct).ConfigureAwait(false);
+          // Feature 197: a stale frame is no frame, so a stale pass is Failed and never absent.
+          if (LastPassWasStale()) staleCount++;
           kind = seen
             ? PassKind.Seen
             : scope?.LastPass is { FrameAvailable: true } ? PassKind.Absent : PassKind.Failed;
@@ -1283,11 +1322,11 @@ namespace GameBot.Domain.Services {
           throw;
         }
         catch {
-          return (WaitPollResult.Unavailable, passCount);
+          return new WaitPollStats(WaitPollResult.Unavailable, passCount, staleCount);
         }
 
         if (counter.Observe(kind)) {
-          return (WaitPollResult.Detected, passCount);
+          return new WaitPollStats(WaitPollResult.Detected, passCount, staleCount);
         }
 
         if (isLastPass) break;
@@ -1297,20 +1336,20 @@ namespace GameBot.Domain.Services {
         if (DateTimeOffset.UtcNow >= deadline) break;
         isLastPass = next.IsLastWait;
       }
-      return (WaitPollResult.TimedOut, passCount);
+      return new WaitPollStats(WaitPollResult.TimedOut, passCount, staleCount);
     }
 
     /// <summary>
     /// Writes one debug line when an inline <c>WaitForImage</c> step times out (feature 166, FR-012). The
     /// frame state is <c>unknown</c> when no evaluator wrote a pass. The API response does not change.
     /// </summary>
-    private void LogWaitForImageTimeout(string sequenceId, string stepKey, DetectionTarget detectionTarget, int passCount, ImageDetectionPass? lastPass) {
+    private void LogWaitForImageTimeout(string sequenceId, string stepKey, DetectionTarget detectionTarget, WaitPollStats stats, ImageDetectionPass? lastPass) {
       if (_logger is null || !_logger.IsEnabled(LogLevel.Debug)) return;
       var frameState = lastPass is null ? "unknown" : (lastPass.FrameAvailable ? "true" : "false");
       var bestScore = lastPass?.BestScore is { } score ? score.ToString("0.000", CultureInfo.InvariantCulture) : "none";
       var confidence = detectionTarget.Confidence.ToString(CultureInfo.InvariantCulture);
       var referenceImageId = detectionTarget.ReferenceImageId;
-      SequenceRunnerLog.WaitForImageTimedOut(_logger, sequenceId, stepKey, referenceImageId, confidence, passCount, frameState, bestScore);
+      SequenceRunnerLog.WaitForImageTimedOut(_logger, sequenceId, stepKey, referenceImageId, confidence, stats.PassCount, stats.StalePassCount, frameState, bestScore);
     }
 
     private static async Task WaitUntilDeadlineAsync(DateTimeOffset deadline, CancellationToken ct) {
@@ -3053,6 +3092,33 @@ namespace GameBot.Domain.Services {
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? MatchedImageId { get; set; }
+
+    /// <summary>The frame id of the frame of the last pass (feature 197). Null when the last pass had no frame data.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? CaptureId { get; set; }
+
+    /// <summary>The age of the frame of the last pass at the read, in milliseconds (feature 197).</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public long? FrameAgeMs { get; set; }
+
+    /// <summary>The best score of the last pass (feature 197). Null when the last pass had no frame.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public double? BestScore { get; set; }
+
+    /// <summary>The number of passes (feature 197).</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public int? PassCount { get; set; }
+
+    /// <summary>The number of passes on a stale frame (feature 197).</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public int? StalePassCount { get; set; }
+
+    /// <summary>
+    /// <c>stale_frame</c> when the exit condition is <c>timeout_elapsed</c> and the last pass was on a stale
+    /// frame (feature 197). Null in all other cases.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? StaleReason { get; set; }
   }
 
   internal sealed record WaitForImageStepOutcome(string ExitCondition, WaitForImageStepResultDetails Detail);
@@ -3066,7 +3132,7 @@ namespace GameBot.Domain.Services {
 
   /// <summary>Log lines of <see cref="SequenceRunner"/> with more values than <c>LoggerMessage.Define</c> accepts.</summary>
   internal static partial class SequenceRunnerLog {
-    [LoggerMessage(EventId = 51013, Level = LogLevel.Debug, Message = "WaitForImage step {StepKey} of sequence {SequenceId} timed out for image {ReferenceImageId} at confidence {Confidence}: {PassCount} passes, last pass frame available {FrameAvailable}, best score {BestScore}.")]
-    public static partial void WaitForImageTimedOut(ILogger logger, string SequenceId, string StepKey, string ReferenceImageId, string Confidence, int PassCount, string FrameAvailable, string BestScore);
+    [LoggerMessage(EventId = 51013, Level = LogLevel.Debug, Message = "WaitForImage step {StepKey} of sequence {SequenceId} timed out for image {ReferenceImageId} at confidence {Confidence}: {PassCount} passes ({StalePassCount} on a stale frame), last pass frame available {FrameAvailable}, best score {BestScore}.")]
+    public static partial void WaitForImageTimedOut(ILogger logger, string SequenceId, string StepKey, string ReferenceImageId, string Confidence, int PassCount, int StalePassCount, string FrameAvailable, string BestScore);
   }
 }

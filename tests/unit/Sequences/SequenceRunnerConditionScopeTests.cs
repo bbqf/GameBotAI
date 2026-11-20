@@ -180,7 +180,8 @@ public sealed class SequenceRunnerConditionScopeTests {
 
     run.ImageIds.Should().Equal("option-b");
     run.Result.Steps.Should().Contain(s => s.StepId == null && s.CommandId == "brk"
-        && s.Message == "Break triggered: imageVisible(imageId=option-b, minSimilarity=default) evaluated to true");
+        // Feature 197 (FR-008): each image check adds its log line with the frame data.
+        && s.Message == "Break triggered: imageVisible(imageId=option-b, minSimilarity=default) evaluated to true [imageVisible(option-b) capture=none score=none]");
   }
 
   // ── Unresolved name ───────────────────────────────────────────────────────

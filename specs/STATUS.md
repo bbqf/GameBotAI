@@ -140,7 +140,7 @@ Status vocabulary:
 | 103 | Retest the condition-model ceiling and document the outcome | Implemented |
 | 104 | Queue sessions survive idle gaps between scheduled runs | Implemented |
 | 105 | Per-sequence run statistics per queue and the `lastRun` condition | Implemented |
-| 106 | Make a wedged emulator visible to the API | Implemented |
+| 106 | Make a wedged emulator visible to the API | Implemented (iterated by 121, 197) |
 | 107 | Log each command step under its own step ID | Implemented |
 | 108 | Detect does not report a time-limited measurement as an absence | Implemented |
 | 109 | A reschedule-self time of day that has passed books the next day | Implemented |
@@ -224,6 +224,7 @@ Status vocabulary:
 | 194 | Fix Disabled Tests | Implemented |
 | 195 | Fix TextInput Characters | Implemented |
 | 196 | Booked run uses the current entry parameter values | Implemented |
+| 197 | Do not read a stale capture frame in a step | Implemented |
 
 ## Numbering notes
 

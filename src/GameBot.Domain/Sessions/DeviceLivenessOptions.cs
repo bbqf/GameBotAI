@@ -39,6 +39,15 @@ public sealed class DeviceLivenessOptions {
   /// <summary>Minimum of <see cref="RebootReadyTimeoutMs"/>.</summary>
   public const int MinRebootReadyTimeoutMs = 1000;
 
+  /// <summary>Minimum of <see cref="FrameMaxAgeMs"/>.</summary>
+  public const int MinFrameMaxAgeMs = 1000;
+
+  /// <summary>
+  /// A step does not use a frame that is older than <c>max(FrameMaxAgeMs, 2 × capture interval)</c>
+  /// (feature 197). It is also the longest time of a stale repeat run of the capture loop. Default 5000 (5 s).
+  /// </summary>
+  public int FrameMaxAgeMs { get; set; } = 5000;
+
   /// <summary>
   /// The service sends the "device not live" alert when one episode is older than this value.
   /// Default 300000 (5 min).
@@ -103,6 +112,7 @@ public sealed class DeviceLivenessOptions {
     QueueCheckIntervalMs = Math.Max(MinQueueCheckIntervalMs, QueueCheckIntervalMs),
     AlertAfterMs = Math.Max(MinAlertAfterMs, AlertAfterMs),
     RecoveryStaggerMs = Math.Max(MinRecoveryStaggerMs, RecoveryStaggerMs),
-    RebootReadyTimeoutMs = Math.Max(MinRebootReadyTimeoutMs, RebootReadyTimeoutMs)
+    RebootReadyTimeoutMs = Math.Max(MinRebootReadyTimeoutMs, RebootReadyTimeoutMs),
+    FrameMaxAgeMs = Math.Max(MinFrameMaxAgeMs, FrameMaxAgeMs)
   };
 }

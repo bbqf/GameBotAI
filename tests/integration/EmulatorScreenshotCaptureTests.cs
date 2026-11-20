@@ -30,7 +30,13 @@ public sealed class EmulatorScreenshotCaptureTests {
     TestEnvironment.PrepareCleanDataDir();
   }
 
-  private static WebApplicationFactory<Program> CreateApp(WebApplicationFactory<Program> baseFactory, ScreenshotFakeSessionManager sessions, bool withCaptureLoop = false) {
+  private static WebApplicationFactory<Program> CreateApp(
+      WebApplicationFactory<Program> baseFactory,
+      ScreenshotFakeSessionManager sessions,
+      bool withCaptureLoop = false,
+      IAdbScreenCaptureProvider? provider = null,
+      DeviceLivenessOptions? loopOptions = null,
+      int? frameMaxAgeMs = null) {
     var dataRoot = Environment.GetEnvironmentVariable("GAMEBOT_DATA_DIR")!;
     return baseFactory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services => {
       services.RemoveAll<ISessionManager>();
@@ -40,15 +46,154 @@ public sealed class EmulatorScreenshotCaptureTests {
       services.PostConfigure<DeviceLivenessOptions>(o => {
         o.CaptureTimeoutMs = CaptureTimeoutMs;
         o.StaleLimitMs = 60000;
+        if (frameMaxAgeMs is { } limit) o.FrameMaxAgeMs = limit;
       });
       if (withCaptureLoop) {
         // A capture loop with a fake device, so that the endpoint serves a cached frame.
         services.RemoveAll<BackgroundScreenCaptureService>();
         services.AddSingleton(sp => new BackgroundScreenCaptureService(
-          _ => new FixedFrameProvider(), 50, NullLogger<BackgroundScreenCaptureService>.Instance,
-          sp.GetRequiredService<IDeviceLivenessTracker>(), new DeviceLivenessOptions { CaptureTimeoutMs = 2000 }));
+          _ => provider ?? new FixedFrameProvider(), 50, NullLogger<BackgroundScreenCaptureService>.Instance,
+          sp.GetRequiredService<IDeviceLivenessTracker>(), loopOptions ?? new DeviceLivenessOptions { CaptureTimeoutMs = 2000 }));
       }
     }));
+  }
+
+  private static async Task WaitForAsync(Func<bool> condition, int timeoutMs = 5000) {
+    var sw = Stopwatch.StartNew();
+    while (!condition() && sw.ElapsedMilliseconds < timeoutMs) {
+      await Task.Delay(25).ConfigureAwait(true);
+    }
+  }
+
+  private static Task<HttpResponseMessage> ShotAsync(HttpClient client, string serial) =>
+    client.GetAsync(new Uri($"/api/emulator/screenshot?serial={serial}", UriKind.Relative));
+
+  // ---- Feature 197: the frame id and the stale flag of a cached frame ----
+
+  [Fact]
+  public async Task TwoCallsWithTheSameFrameGiveTheSameCaptureId() {
+    // Before the fix, each call gave a new id for the same frame.
+    var sessions = new ScreenshotFakeSessionManager();
+    var session = sessions.Add("emu-197-same");
+    using var baseFactory = new WebApplicationFactory<Program>();
+    using var app = CreateApp(baseFactory, sessions, withCaptureLoop: true, provider: new OneFrameProvider());
+    var client = Client(app);
+    var capture = app.Services.GetRequiredService<BackgroundScreenCaptureService>();
+    capture.StartCapture(session.Id, "emu-197-same");
+    try {
+      await WaitForAsync(() => capture.GetCachedFrame(session.Id) is not null).ConfigureAwait(true);
+
+      var first = await ShotAsync(client, "emu-197-same").ConfigureAwait(true);
+      var second = await ShotAsync(client, "emu-197-same").ConfigureAwait(true);
+
+      Header(first, "X-Capture-Id").Should().Be(capture.GetCachedFrame(session.Id)!.FrameId);
+      Header(second, "X-Capture-Id").Should().Be(Header(first, "X-Capture-Id"));
+    }
+    finally {
+      capture.StopCapture(session.Id);
+    }
+  }
+
+  [Fact]
+  public async Task ANewFrameGivesANewCaptureId() {
+    var sessions = new ScreenshotFakeSessionManager();
+    var session = sessions.Add("emu-197-new");
+    using var baseFactory = new WebApplicationFactory<Program>();
+    using var app = CreateApp(baseFactory, sessions, withCaptureLoop: true);
+    var client = Client(app);
+    var capture = app.Services.GetRequiredService<BackgroundScreenCaptureService>();
+    capture.StartCapture(session.Id, "emu-197-new");
+    try {
+      await WaitForAsync(() => capture.GetCachedFrame(session.Id) is not null).ConfigureAwait(true);
+      var first = Header(await ShotAsync(client, "emu-197-new").ConfigureAwait(true), "X-Capture-Id");
+      await WaitForAsync(() => capture.GetCachedFrame(session.Id)?.FrameId != first).ConfigureAwait(true);
+
+      var second = Header(await ShotAsync(client, "emu-197-new").ConfigureAwait(true), "X-Capture-Id");
+
+      second.Should().NotBe(first);
+    }
+    finally {
+      capture.StopCapture(session.Id);
+    }
+  }
+
+  [Fact]
+  public async Task AFrameOlderThanTheLimitIsStale() {
+    var sessions = new ScreenshotFakeSessionManager();
+    var session = sessions.Add("emu-197-old");
+    using var baseFactory = new WebApplicationFactory<Program>();
+    using var app = CreateApp(baseFactory, sessions, withCaptureLoop: true, provider: new OneFrameProvider(), frameMaxAgeMs: 1000);
+    var client = Client(app);
+    var capture = app.Services.GetRequiredService<BackgroundScreenCaptureService>();
+    var appConfig = app.Services.GetRequiredService<GameBot.Domain.Config.AppConfig>();
+    var limitMs = FrameFreshness.EffectiveLimitMs(1000, appConfig.CaptureIntervalMs);
+    capture.StartCapture(session.Id, "emu-197-old");
+    try {
+      await WaitForAsync(() => capture.GetCachedFrame(session.Id) is not null).ConfigureAwait(true);
+      await Task.Delay(limitMs + 300).ConfigureAwait(true);
+
+      var resp = await ShotAsync(client, "emu-197-old").ConfigureAwait(true);
+
+      resp.StatusCode.Should().Be(HttpStatusCode.OK);
+      Header(resp, "X-Capture-Stale").Should().Be("true");
+      long.Parse(Header(resp, "X-Capture-Age-Ms"), CultureInfo.InvariantCulture).Should().BeGreaterThan(limitMs);
+    }
+    finally {
+      capture.StopCapture(session.Id);
+    }
+  }
+
+  [Fact]
+  public async Task AStaleRepeatFrameIsStaleAndKeepsItsId() {
+    var sessions = new ScreenshotFakeSessionManager();
+    var session = sessions.Add("emu-197-repeat");
+    using var baseFactory = new WebApplicationFactory<Program>();
+    var loopOptions = new DeviceLivenessOptions { CaptureTimeoutMs = 200, CaptureStallLimitMs = 1000, FrameMaxAgeMs = 60000 };
+    using var app = CreateApp(baseFactory, sessions, withCaptureLoop: true, provider: new TimeoutOnceProvider(), loopOptions: loopOptions);
+    var client = Client(app);
+    var capture = app.Services.GetRequiredService<BackgroundScreenCaptureService>();
+    capture.StartCapture(session.Id, "emu-197-repeat");
+    try {
+      await WaitForAsync(() => capture.GetCachedFrame(session.Id) is not null).ConfigureAwait(true);
+      var firstId = capture.GetCachedFrame(session.Id)!.FrameId;
+      await WaitForAsync(() => capture.GetCachedFrame(session.Id)?.StaleRepeat == true, timeoutMs: 8000).ConfigureAwait(true);
+
+      var resp = await ShotAsync(client, "emu-197-repeat").ConfigureAwait(true);
+
+      Header(resp, "X-Capture-Id").Should().Be(firstId);
+      Header(resp, "X-Capture-Stale").Should().Be("true");
+    }
+    finally {
+      capture.StopCapture(session.Id);
+    }
+  }
+
+  [Fact]
+  public async Task ACropWithTheFrameIdWorks() {
+    var sessions = new ScreenshotFakeSessionManager();
+    var session = sessions.Add("emu-197-crop");
+    using var baseFactory = new WebApplicationFactory<Program>();
+    using var app = CreateApp(baseFactory, sessions, withCaptureLoop: true, provider: new OneFrameProvider());
+    var client = Client(app);
+    var capture = app.Services.GetRequiredService<BackgroundScreenCaptureService>();
+    capture.StartCapture(session.Id, "emu-197-crop");
+    try {
+      await WaitForAsync(() => capture.GetCachedFrame(session.Id) is not null).ConfigureAwait(true);
+      var shot = await ShotAsync(client, "emu-197-crop").ConfigureAwait(true);
+      var captureId = Header(shot, "X-Capture-Id");
+
+      var crop = await client.PostAsJsonAsync(new Uri("/api/images/crop", UriKind.Relative), new {
+        name = "crop-197-frame-id",
+        overwrite = true,
+        bounds = new { x = 0, y = 0, width = 16, height = 16 },
+        sourceCaptureId = captureId
+      }).ConfigureAwait(true);
+
+      crop.StatusCode.Should().Be(HttpStatusCode.Created);
+    }
+    finally {
+      capture.StopCapture(session.Id);
+    }
   }
 
   private static HttpClient Client(WebApplicationFactory<Program> app) {
@@ -223,6 +368,28 @@ public sealed class EmulatorScreenshotCaptureTests {
           break;
         case SnapshotMode.Throw:
           throw new InvalidOperationException("The device did not answer.");
+      }
+      return FixedFrameProvider.Png;
+    }
+  }
+
+  /// <summary>Feature 197: a fake device that returns one frame, then fails each capture. The frame stays the same.</summary>
+  private sealed class OneFrameProvider : IAdbScreenCaptureProvider {
+    private int _calls;
+
+    public Task<byte[]?> CaptureScreenshotPngAsync(CancellationToken ct) =>
+      Task.FromResult(Interlocked.Increment(ref _calls) == 1 ? FixedFrameProvider.Png : null);
+  }
+
+  /// <summary>Feature 197: the second capture hangs until its time limit. The other captures return the same frame.</summary>
+  private sealed class TimeoutOnceProvider : IAdbScreenCaptureProvider {
+    private int _calls;
+
+    public Task<bool?> HasRunningScreencapAsync(int timeoutMs, CancellationToken ct) => Task.FromResult<bool?>(false);
+
+    public async Task<byte[]?> CaptureScreenshotPngAsync(CancellationToken ct) {
+      if (Interlocked.Increment(ref _calls) == 2) {
+        await Task.Delay(Timeout.Infinite, ct).ConfigureAwait(false);
       }
       return FixedFrameProvider.Png;
     }

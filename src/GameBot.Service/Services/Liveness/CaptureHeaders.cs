@@ -13,7 +13,10 @@ internal readonly record struct CaptureHeaderValues(long AgeMs, long UnchangedMs
 /// The screenshot and snapshot response headers (feature 106, contract <c>screenshot-snapshot.md</c>).
 /// </summary>
 internal static class CaptureHeaders {
-  /// <summary>The ID of the stored capture (screenshot endpoint only; not new).</summary>
+  /// <summary>
+  /// The ID of the stored capture (screenshot endpoint only). For a frame of the capture loop it is the frame
+  /// id, so each read of the same frame gives the same id (feature 197). A direct capture gets a new id.
+  /// </summary>
   public const string CaptureId = "X-Capture-Id";
 
   /// <summary>Milliseconds since the frame was captured. <c>0</c> for a direct capture.</summary>
@@ -22,7 +25,10 @@ internal static class CaptureHeaders {
   /// <summary>Milliseconds since the frame bytes last changed.</summary>
   public const string UnchangedMs = "X-Capture-Unchanged-Ms";
 
-  /// <summary><c>true</c> or <c>false</c>: the stale flag of the session liveness report.</summary>
+  /// <summary>
+  /// <c>true</c> or <c>false</c>: the stale flag of the session liveness report. For a frame of the capture loop,
+  /// also <c>true</c> when the frame is older than the effective limit or is a stale repeat (feature 197).
+  /// </summary>
   public const string Stale = "X-Capture-Stale";
 
   /// <summary>The headers that browser clients can read (CORS <c>Access-Control-Expose-Headers</c>).</summary>

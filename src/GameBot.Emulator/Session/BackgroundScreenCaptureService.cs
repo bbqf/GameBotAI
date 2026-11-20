@@ -29,6 +29,8 @@ public sealed class BackgroundScreenCaptureService : IDisposable {
   private readonly DeviceCaptureGate _gate;
   private readonly int _suspectCheckIntervalMs;
   private readonly int _transportCheckTimeoutMs;
+  // Feature 197: the longest time of a stale repeat run (before the effective limit is applied).
+  private readonly int _frameMaxAgeMs;
   private bool _disposed;
 
   /// <summary>
@@ -55,6 +57,7 @@ public sealed class BackgroundScreenCaptureService : IDisposable {
     _captureTimeoutMs = normalized.CaptureTimeoutMs;
     _suspectCheckIntervalMs = normalized.CaptureStallLimitMs;
     _transportCheckTimeoutMs = normalized.TransportCheckTimeoutMs;
+    _frameMaxAgeMs = normalized.FrameMaxAgeMs;
     _gate = gate ?? new DeviceCaptureGate();
   }
 
@@ -74,7 +77,7 @@ public sealed class BackgroundScreenCaptureService : IDisposable {
     _gate.Clear(deviceSerial);
     var provider = _captureProviderFactory(deviceSerial);
     var loop = new SessionCaptureLoop(sessionId, deviceSerial, provider, _captureIntervalMs, _logger, _tracker, _captureTimeoutMs,
-      _gate, _suspectCheckIntervalMs, _transportCheckTimeoutMs);
+      _gate, _suspectCheckIntervalMs, _transportCheckTimeoutMs, _frameMaxAgeMs);
     _loops[sessionId] = loop;
     // Before the loop starts, so that the first capture finds a running loop in the tracker.
     _tracker?.LoopStarted(sessionId);
@@ -174,6 +177,10 @@ internal sealed class SessionCaptureLoop : IDisposable {
   private readonly DeviceCaptureGate _gate;
   private readonly int _suspectCheckIntervalMs;
   private readonly int _transportCheckTimeoutMs;
+  private readonly int _frameMaxAgeMs;
+  // Feature 197 (research R-003): true after a capture that timed out or failed, false after a capture
+  // that the loop kept as a new frame. Only the loop task reads and writes it.
+  private bool _lastCaptureFailed;
 
   // Rolling FPS: circular buffer of last 10 capture durations
   private const int RollingWindowSize = 10;
@@ -200,8 +207,10 @@ internal sealed class SessionCaptureLoop : IDisposable {
       int captureTimeoutMs = 10000,
       DeviceCaptureGate? gate = null,
       int suspectCheckIntervalMs = 60000,
-      int transportCheckTimeoutMs = 5000) {
+      int transportCheckTimeoutMs = 5000,
+      int frameMaxAgeMs = 5000) {
     _sessionId = sessionId;
+    _frameMaxAgeMs = Math.Max(1, frameMaxAgeMs);
     _deviceSerial = deviceSerial;
     _provider = provider;
     _intervalMs = intervalMs;
@@ -261,7 +270,10 @@ internal sealed class SessionCaptureLoop : IDisposable {
       captureLimit.CancelAfter(_captureTimeoutMs);
       try {
         var png = await _provider.CaptureScreenshotPngAsync(captureLimit.Token).ConfigureAwait(false);
-        if (png is null) _gate.Failed(_deviceSerial);
+        if (png is null) {
+          _gate.Failed(_deviceSerial);
+          _lastCaptureFailed = true;
+        }
         else _gate.Completed(_deviceSerial);
         if (png is not null && !ct.IsCancellationRequested) {
           Bitmap? bitmap = null;
@@ -281,11 +293,22 @@ internal sealed class SessionCaptureLoop : IDisposable {
           // The first frame of a loop is always a change.
           var previous = CurrentFrame;
           var changed = previous is null || !previous.PngBytes.AsSpan().SequenceEqual(png);
-          var frame = new CachedFrame(png, bitmap, DateTimeOffset.UtcNow, bitmap.Width, bitmap.Height);
-          var oldFrame = Interlocked.Exchange(ref _currentFrame, frame);
-          oldFrame?.Bitmap.Dispose();
-          Interlocked.Increment(ref _frameCount);
-          _tracker?.RecordCapture(_sessionId, changed);
+          var now = DateTimeOffset.UtcNow;
+          if (!changed && TryKeepStaleRepeat(previous!, now)) {
+            // Feature 197 (FR-002, FR-011): a stale repeat keeps the frame, its id, and its capture time.
+            // It is not a completed capture for the liveness tracker. The new bitmap is not used.
+            bitmap.Dispose();
+          }
+          else {
+            var frame = new CachedFrame(png, bitmap, now, bitmap.Width, bitmap.Height);
+            var oldFrame = Interlocked.Exchange(ref _currentFrame, frame);
+            // A stale repeat record shares its bitmap with the frame before it. Dispose a bitmap only
+            // when the new frame has a different instance.
+            if (oldFrame is not null && !ReferenceEquals(oldFrame.Bitmap, frame.Bitmap)) oldFrame.Bitmap.Dispose();
+            _lastCaptureFailed = false;
+            Interlocked.Increment(ref _frameCount);
+            _tracker?.RecordCapture(_sessionId, changed);
+          }
         }
       }
       catch (OperationCanceledException) when (ct.IsCancellationRequested) {
@@ -296,10 +319,12 @@ internal sealed class SessionCaptureLoop : IDisposable {
         // The capture time limit fired, not the loop token: a failed capture. The loop continues.
         // Feature 121: the device process can still run, so the device is Suspect.
         _gate.TimedOut(_deviceSerial);
+        _lastCaptureFailed = true;
         BackgroundCaptureLog.CaptureTimedOut(_logger, _sessionId, _captureTimeoutMs, ex);
       }
       catch (Exception ex) {
         _gate.Failed(_deviceSerial);
+        _lastCaptureFailed = true;
         BackgroundCaptureLog.CaptureError(_logger, _sessionId, ex);
       }
 
@@ -314,6 +339,25 @@ internal sealed class SessionCaptureLoop : IDisposable {
         catch (OperationCanceledException) { break; }
       }
     }
+  }
+
+  /// <summary>
+  /// Feature 197 (research R-003): the stale repeat rule. A capture with the same bytes as the current frame
+  /// is a stale repeat when the capture before it failed, or when the current frame is already a stale
+  /// repeat. The repeat run ends after the effective limit (<see cref="FrameFreshness.EffectiveLimitMs"/>),
+  /// because a still screen is possible. Returns true when the loop keeps the current frame as a stale
+  /// repeat. Returns false when the capture must be a normal new frame.
+  /// </summary>
+  private bool TryKeepStaleRepeat(CachedFrame previous, DateTimeOffset now) {
+    if (!_lastCaptureFailed && !previous.StaleRepeat) return false;
+    var since = previous.StaleRepeatSince ?? now;
+    var windowMs = FrameFreshness.EffectiveLimitMs(_frameMaxAgeMs, _intervalMs);
+    if ((now - since).TotalMilliseconds >= windowMs) return false;
+    if (!previous.StaleRepeat) {
+      var repeat = previous with { StaleRepeat = true, StaleRepeatSince = since };
+      Interlocked.CompareExchange(ref _currentFrame, repeat, previous);
+    }
+    return true;
   }
 
   /// <summary>

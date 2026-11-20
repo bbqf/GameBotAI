@@ -26,6 +26,21 @@ internal sealed class CaptureSessionStore {
     return capture;
   }
 
+  /// <summary>
+  /// Feature 197 (FR-009): returns the stored capture with <paramref name="id"/>, or stores a new capture
+  /// under this id. Thus each read of the same frame gives the same capture id. The trim rule does not change.
+  /// </summary>
+  public CaptureSession GetOrAdd(string id, byte[] png) {
+    ArgumentException.ThrowIfNullOrWhiteSpace(id);
+    ArgumentNullException.ThrowIfNull(png);
+    if (_captures.TryGetValue(id, out var existing)) return existing;
+    using var ms = new MemoryStream(png, writable: false);
+    using var bmp = new Bitmap(ms);
+    var capture = _captures.GetOrAdd(id, new CaptureSession(id, png, bmp.Width, bmp.Height, DateTimeOffset.UtcNow));
+    TrimIfNeeded();
+    return capture;
+  }
+
   public bool TryGet(string id, out CaptureSession? capture) {
     return _captures.TryGetValue(id, out capture);
   }
