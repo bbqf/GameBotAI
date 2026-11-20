@@ -373,4 +373,400 @@ public sealed partial class QueueExecutionServiceTests {
     var scope = ScopesOf(h, "R").Should().ContainSingle().Subject;
     ShouldResolveSlotFromEntry(scope, "one");
   }
+
+  // ── Feature 196 (#409): a booked run uses the current values of its template entry ──
+
+  /// <summary>
+  /// Changes the plan of the run in the same steps as <c>QueueLiveApplyService.ApplyAsync</c>: ask for an operator
+  /// pause, wait until the loop is at the gate, swap the plan, and release the pause.
+  /// </summary>
+  private static async Task ApplyWhilePausedAsync(Harness h, string queueId, Func<QueueRunPlan, QueueRunPlan> change) {
+    await WaitForAsync(() => h.Registry.TryGet(queueId, out var running) && running.Schedule is not null, 10000).ConfigureAwait(false);
+    h.Registry.TryGet(queueId, out var handle).Should().BeTrue();
+    handle!.RequestOperatorPause(h.Clock?.GetLocalNow() ?? DateTimeOffset.Now);
+    await WaitForPausedAsync(h, handle).ConfigureAwait(false);
+    SwapAndRelease(handle, change);
+  }
+
+  /// <summary>Waits until the loop is at the operator gate. With a fake clock, the clock moves in small steps.</summary>
+  private static async Task WaitForPausedAsync(Harness h, QueueRunHandle handle) {
+    var sw = Stopwatch.StartNew();
+    for (var i = 0; handle.OperatorPause != OperatorPauseState.Paused && sw.ElapsedMilliseconds < 10000; i++) {
+      if (h.Clock is not null && i % 10 == 9) h.Clock.Advance(TimeSpan.FromMilliseconds(300));
+      await Task.Delay(10).ConfigureAwait(false);
+    }
+    handle.OperatorPause.Should().Be(OperatorPauseState.Paused);
+  }
+
+  private static void SwapAndRelease(QueueRunHandle handle, Func<QueueRunPlan, QueueRunPlan> change) {
+    var schedule = handle.Schedule!;
+    schedule.SwapPlan(change(schedule.Plan));
+    handle.ReleaseOperatorPause();
+  }
+
+  /// <summary>
+  /// A plan with the next version, where the entry with <paramref name="key"/> is a clone with <c>slot</c> =
+  /// <paramref name="value"/>. A null value removes all values of the entry.
+  /// </summary>
+  private static QueueRunPlan WithSlotValue(QueueRunPlan plan, string key, string? value) =>
+    ChangeEntry(plan, key, entry => {
+      entry.ParameterValues.Clear();
+      if (value is not null) entry.ParameterValues.Add(new ParameterBinding { Name = "slot", Value = value });
+    });
+
+  /// <summary>A plan with the next version, where the entry with <paramref name="key"/> is a clone that <paramref name="change"/> changed.</summary>
+  private static QueueRunPlan ChangeEntry(QueueRunPlan plan, string key, Action<QueueTemplateEntry> change) {
+    var entries = plan.AllEntries.Select((entry, i) => {
+      if (plan.AllKeys[i] != key) return entry;
+      var copy = entry.Clone();
+      change(copy);
+      return copy;
+    }).ToList();
+    return QueueRunPlan.FromAll(entries, plan.AllKeys, plan.Version + 1);
+  }
+
+  /// <summary>A plan with the next version, with no entry with <paramref name="key"/>.</summary>
+  private static QueueRunPlan WithoutEntry(QueueRunPlan plan, string key) {
+    var keep = Enumerable.Range(0, plan.AllEntries.Count).Where(i => plan.AllKeys[i] != key).ToList();
+    return QueueRunPlan.FromAll(keep.Select(i => plan.AllEntries[i]).ToList(), keep.Select(i => plan.AllKeys[i]).ToList(), plan.Version + 1);
+  }
+
+  private static QueueTemplateEntry SlotEntry(QueueTemplateEntry entry, string id, string? value) {
+    entry.EntryId = id;
+    return value is null ? entry : WithSlot(entry, value);
+  }
+
+  private static async Task<QueueRunHandle> WaitForPendingTimerAsync(Harness h, string queueId) {
+    await WaitForAsync(() => h.Registry.TryGet(queueId, out var running) && running.HasPendingTimerFirings, 10000).ConfigureAwait(false);
+    h.Registry.TryGet(queueId, out var handle).Should().BeTrue();
+    handle!.HasPendingTimerFirings.Should().BeTrue();
+    return handle;
+  }
+
+  /// <summary>
+  /// Runs the issue scenario with one Timer booking: the first run of A books <paramref name="bookedSequence"/> with
+  /// Timer +15 min, the apply changes the entry, and the clock moves to the fire time. Gives the scopes of the booked runs.
+  /// </summary>
+  private static async Task<List<ParameterScope>> RunTimerBookingWithApplyAsync(
+      Harness h, FakeTimeProvider clock, string bookedSequence, Func<QueueRunPlan, QueueRunPlan> change) {
+    var booked = 0;
+    h.Sequences.Handler = (id, ct) => {
+      if (id == "A" && Interlocked.Exchange(ref booked, 1) == 0) {
+        h.Coordinator.ScheduleSelf("q1", bookedSequence, SelfRescheduleOption.Timer, null, TimeSpan.FromMinutes(15), CurrentScope(h), SelfRescheduleKeep.Earliest);
+      }
+      return Task.FromResult(FakeSequenceExecution.Success(id));
+    };
+
+    (await h.Service.StartAsync("q1").ConfigureAwait(false)).Should().Be(QueueStartOutcome.Started);
+    await WaitForPendingTimerAsync(h, "q1").ConfigureAwait(false);
+    await ApplyWhilePausedAsync(h, "q1", change).ConfigureAwait(false);
+    var bookedRuns = bookedSequence == "A" ? 2 : 1;
+    clock.Advance(TimeSpan.FromMinutes(15));
+    await WaitForAsync(() => FiringCount(h, bookedSequence) >= bookedRuns, 10000).ConfigureAwait(false);
+    await h.Service.StopAsync("q1").ConfigureAwait(false);
+    return ScopesOf(h, bookedSequence);
+  }
+
+  [Fact] // T009 (feature 196) — US1-1, FR-002, SC-001: the issue scenario. This test failed before the fix.
+  public async Task TimerBookingUsesTheNewEntryValueAfterAnApply() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { SlotEntry(OncePerRun("A"), "e-A", "one") });
+
+    var scopes = await RunTimerBookingWithApplyAsync(h, clock, "A", plan => WithSlotValue(plan, "e-A", "two"));
+
+    scopes.Should().HaveCount(2);
+    ShouldResolveSlotFromEntry(scopes[0], "one");
+    ShouldResolveSlotFromEntry(scopes[1], "two");
+  }
+
+  public static TheoryData<string> AppliedBookingVariants() => new() {
+    "OncePerRun", "EveryStep", "AtQueueStartCycling", "TimerOffset"
+  };
+
+  [Theory] // T010 (feature 196) — FR-002: each register uses the new value after an apply.
+  [MemberData(nameof(AppliedBookingVariants))]
+  public async Task BookingOfEachRegisterUsesTheNewEntryValueAfterAnApply(string variant) {
+    ArgumentNullException.ThrowIfNull(variant);
+    var clock = variant == "TimerOffset" ? new FakeTimeProvider(FakeStart) : null;
+    var h = new Harness(clock);
+    // A cycling queue keeps the run alive, so the loop reaches the gate after the booking.
+    AddQueueWithEntries(h, "q1", new[] { SlotEntry(OncePerRun("A"), "e-A", "one") }, cycle: clock is null);
+    var booked = 0;
+    Task? apply = null;
+    h.Sequences.Handler = (id, ct) => {
+      if (id == "A" && Interlocked.Exchange(ref booked, 1) == 0) {
+        var scope = CurrentScope(h);
+        _ = variant switch {
+          "OncePerRun" => h.Coordinator.ScheduleSelf("q1", "R", SelfRescheduleOption.OncePerRun, null, null, scope),
+          "EveryStep" => h.Coordinator.ScheduleSelf("q1", "R", SelfRescheduleOption.EveryStep, null, null, scope),
+          "AtQueueStartCycling" => h.Coordinator.ScheduleSelf("q1", "R", SelfRescheduleOption.AtQueueStart, null, null, scope),
+          "TimerOffset" => h.Coordinator.ScheduleSelf("q1", "R", SelfRescheduleOption.Timer, null, TimeSpan.FromMinutes(10), scope),
+          _ => throw new ArgumentOutOfRangeException(nameof(variant), variant, "Unknown variant.")
+        };
+        if (clock is null) {
+          h.Registry.TryGet("q1", out var handle).Should().BeTrue();
+          handle!.RequestOperatorPause(DateTimeOffset.Now);
+          apply = Task.Run(async () => {
+            await WaitForPausedAsync(h, handle).ConfigureAwait(false);
+            SwapAndRelease(handle, plan => WithSlotValue(plan, "e-A", "two"));
+          }, CancellationToken.None);
+        }
+      }
+      return Task.FromResult(FakeSequenceExecution.Success(id));
+    };
+
+    (await h.Service.StartAsync("q1").ConfigureAwait(false)).Should().Be(QueueStartOutcome.Started);
+    if (clock is not null) {
+      await WaitForPendingTimerAsync(h, "q1").ConfigureAwait(false);
+      await ApplyWhilePausedAsync(h, "q1", plan => WithSlotValue(plan, "e-A", "two")).ConfigureAwait(false);
+      clock.Advance(TimeSpan.FromMinutes(15));
+      await WaitForAsync(() => FiringCount(h, "R") >= 1, 10000).ConfigureAwait(false);
+    }
+    else {
+      await WaitForAsync(() => Volatile.Read(ref apply) is not null, 10000).ConfigureAwait(false);
+      await apply!.WaitAsync(TimeSpan.FromSeconds(15)).ConfigureAwait(false);
+      var afterApply = FiringCount(h, "R");
+      await WaitForAsync(() => FiringCount(h, "R") > afterApply || (variant != "EveryStep" && afterApply >= 1), 10000).ConfigureAwait(false);
+    }
+    await h.Service.StopAsync("q1").ConfigureAwait(false);
+
+    var scopes = ScopesOf(h, "R");
+    scopes.Should().NotBeEmpty();
+    if (variant == "EveryStep") {
+      // The every-step pass has no gate, so R can run once before the pause takes effect. The last run uses the new value.
+      ShouldResolveSlotFromEntry(scopes[^1], "two");
+    }
+    else {
+      foreach (var scope in scopes) ShouldResolveSlotFromEntry(scope, "two");
+    }
+  }
+
+  [Fact] // T011 (feature 196) — FR-005, US1-3: the apply does not move a keep-earliest booking.
+  public async Task KeepEarliestBookingKeepsItsFireTimeAfterAnApply() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { SlotEntry(OncePerRun("A"), "e-A", "one") });
+    var booked = 0;
+    h.Sequences.Handler = (id, ct) => {
+      if (id == "A" && Interlocked.Exchange(ref booked, 1) == 0) {
+        h.Coordinator.ScheduleSelf("q1", "A", SelfRescheduleOption.Timer, null, TimeSpan.FromMinutes(15), CurrentScope(h), SelfRescheduleKeep.Earliest);
+      }
+      return Task.FromResult(FakeSequenceExecution.Success(id));
+    };
+
+    (await h.Service.StartAsync("q1").ConfigureAwait(false)).Should().Be(QueueStartOutcome.Started);
+    var handle = await WaitForPendingTimerAsync(h, "q1").ConfigureAwait(false);
+    var before = handle.SnapshotPendingTimerFirings().Select(f => (f.Id, f.FireAt)).ToList();
+    await ApplyWhilePausedAsync(h, "q1", plan => WithSlotValue(plan, "e-A", "two")).ConfigureAwait(false);
+    var after = handle.SnapshotPendingTimerFirings().Select(f => (f.Id, f.FireAt)).ToList();
+    await h.Service.StopAsync("q1").ConfigureAwait(false);
+
+    before.Should().ContainSingle();
+    after.Should().Equal(before);
+  }
+
+  [Fact] // T017 (feature 196) — US2, FR-003: each booking of a chain uses the current value.
+  public async Task ChainBookingUsesTheNewEntryValueAfterAnApply() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { SlotEntry(OncePerRun("A"), "e-A", "one") });
+    var firings = 0;
+    h.Sequences.Handler = (id, ct) => {
+      h.Coordinator.ScheduleSelf("q1", "A", SelfRescheduleOption.Timer, null, TimeSpan.FromSeconds(90), CurrentScope(h));
+      Interlocked.Increment(ref firings);
+      return Task.FromResult(FakeSequenceExecution.Success(id));
+    };
+
+    (await h.Service.StartAsync("q1").ConfigureAwait(false)).Should().Be(QueueStartOutcome.Started);
+    await WaitForAsync(() => Volatile.Read(ref firings) == 1 && h.Registry.TryGet("q1", out var r) && r.HasPendingTimerFirings, 10000).ConfigureAwait(false);
+    clock.Advance(TimeSpan.FromSeconds(90)); // R1 fires and books R2.
+    await WaitForAsync(() => Volatile.Read(ref firings) == 2 && h.Registry.TryGet("q1", out var r) && r.HasPendingTimerFirings, 10000).ConfigureAwait(false);
+    await ApplyWhilePausedAsync(h, "q1", plan => WithSlotValue(plan, "e-A", "two")).ConfigureAwait(false);
+    clock.Advance(TimeSpan.FromSeconds(90)); // R2 fires.
+    await WaitForAsync(() => Volatile.Read(ref firings) >= 3, 10000).ConfigureAwait(false);
+    await h.Service.StopAsync("q1").ConfigureAwait(false);
+
+    var scopes = ScopesOf(h, "A");
+    scopes.Should().HaveCountGreaterThanOrEqualTo(3);
+    ShouldResolveSlotFromEntry(scopes[1], "one"); // R1, before the apply
+    ShouldResolveSlotFromEntry(scopes[2], "two"); // R2, after the apply
+  }
+
+  [Fact] // T018 (feature 196) — US2: the step-0 retry of a failed run uses the new value.
+  public async Task StepZeroRetryOfAFailedBookedRunUsesTheNewEntryValue() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { SlotEntry(OncePerRun("A"), "e-A", "one") });
+    var results = new List<bool>();
+    h.Sequences.Handler = (id, ct) => {
+      var scope = CurrentScope(h);
+      h.Coordinator.ScheduleSelf("q1", "A", SelfRescheduleOption.Timer, null, TimeSpan.FromMinutes(15), scope, SelfRescheduleKeep.Earliest);
+      var ok = scope.TryResolve("slot", out var slot) && slot.Text != "one";
+      lock (results) results.Add(ok);
+      return Task.FromResult(ok ? FakeSequenceExecution.Success(id) : FakeSequenceExecution.Failure(id));
+    };
+
+    (await h.Service.StartAsync("q1").ConfigureAwait(false)).Should().Be(QueueStartOutcome.Started);
+    await WaitForPendingTimerAsync(h, "q1").ConfigureAwait(false);
+    await ApplyWhilePausedAsync(h, "q1", plan => WithSlotValue(plan, "e-A", "two")).ConfigureAwait(false);
+    clock.Advance(TimeSpan.FromMinutes(15));
+    await WaitForAsync(() => FiringCount(h, "A") >= 2, 10000).ConfigureAwait(false);
+    await h.Service.StopAsync("q1").ConfigureAwait(false);
+
+    var scopes = ScopesOf(h, "A");
+    scopes.Should().HaveCountGreaterThanOrEqualTo(2);
+    ShouldResolveSlotFromEntry(scopes[1], "two");
+    lock (results) results.Take(2).Should().Equal(false, true);
+  }
+
+  [Fact] // T020 (feature 196) — US3, SC-001: a type change of the parameter does not make the booking fail.
+  public async Task BookingAfterAParameterTypeChangeResolvesTheNewNumberValue() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    var entry = OncePerRun("A");
+    entry.EntryId = "e-A";
+    entry.ParameterValues.Add(new ParameterBinding { Name = "fighterTier", Value = "pns-troop-tier-max" });
+    AddQueueWithEntries(h, "q1", new[] { entry });
+
+    var scopes = await RunTimerBookingWithApplyAsync(h, clock, "A", plan => ChangeEntry(plan, "e-A", e => {
+      e.ParameterValues.Clear();
+      e.ParameterValues.Add(new ParameterBinding { Name = "fighterTier", Value = "0" });
+    }));
+
+    scopes.Should().HaveCount(2);
+    scopes[1].TryResolve("fighterTier", out var value).Should().BeTrue();
+    value.Text.Should().Be("0");
+    value.OriginLayer.Should().Be(ParameterScopeLayers.Entry);
+    int.TryParse(value.Text, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out _).Should().BeTrue();
+  }
+
+  [Fact] // T022 (feature 196) — US4, FR-006, SC-002: a change of one entry does not touch the bookings of other entries.
+  public async Task ApplyOfOneEntryDoesNotChangeTheBookingsOfOtherEntries() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { SlotEntry(OncePerRun("A"), "e-A", "a1"), SlotEntry(OncePerRun("B"), "e-B", "b1") });
+    var bookedA = 0;
+    var bookedB = 0;
+    h.Sequences.Handler = (id, ct) => {
+      if (id == "A" && Interlocked.Exchange(ref bookedA, 1) == 0) {
+        h.Coordinator.ScheduleSelf("q1", "A", SelfRescheduleOption.Timer, null, TimeSpan.FromMinutes(10), CurrentScope(h));
+      }
+      if (id == "B" && Interlocked.Exchange(ref bookedB, 1) == 0) {
+        h.Coordinator.ScheduleSelf("q1", "B", SelfRescheduleOption.Timer, null, TimeSpan.FromMinutes(20), CurrentScope(h));
+      }
+      return Task.FromResult(FakeSequenceExecution.Success(id));
+    };
+
+    (await h.Service.StartAsync("q1").ConfigureAwait(false)).Should().Be(QueueStartOutcome.Started);
+    await WaitForAsync(() => h.Registry.TryGet("q1", out var r) && r.SnapshotPendingTimerFirings().Count == 2, 10000).ConfigureAwait(false);
+    h.Registry.TryGet("q1", out var handle).Should().BeTrue();
+    var before = handle!.SnapshotPendingTimerFirings().Select(f => (f.Id, f.FireAt)).OrderBy(x => x.Id).ToList();
+    await ApplyWhilePausedAsync(h, "q1", plan => WithSlotValue(plan, "e-A", "a2")).ConfigureAwait(false);
+    var after = handle.SnapshotPendingTimerFirings().Select(f => (f.Id, f.FireAt)).OrderBy(x => x.Id).ToList();
+    clock.Advance(TimeSpan.FromMinutes(20));
+    await WaitForAsync(() => FiringCount(h, "A") >= 2 && FiringCount(h, "B") >= 2, 10000).ConfigureAwait(false);
+    await h.Service.StopAsync("q1").ConfigureAwait(false);
+
+    before.Should().HaveCount(2);
+    after.Should().Equal(before);
+    ShouldResolveSlotFromEntry(ScopesOf(h, "A")[1], "a2");
+    ShouldResolveSlotFromEntry(ScopesOf(h, "B")[1], "b1");
+  }
+
+  [Fact] // T023 (feature 196) — clarification 5: two entries of one sequence each use their own current value.
+  public async Task TwoEntriesOfOneSequenceEachUseTheirOwnCurrentValue() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { SlotEntry(OncePerRun("A"), "e-A1", "x1"), SlotEntry(OncePerRun("A"), "e-A2", "y1") });
+    var runsOfA = 0;
+    h.Sequences.Handler = (id, ct) => {
+      // Two Timer bookings of one sequence replace each other, so each entry books a different sequence.
+      // The entries run in template order: e-A1 books R1, and e-A2 books R2.
+      var run = id == "A" ? Interlocked.Increment(ref runsOfA) : 0;
+      if (run is 1 or 2) {
+        h.Coordinator.ScheduleSelf("q1", "R" + run, SelfRescheduleOption.Timer, null, TimeSpan.FromMinutes(10), CurrentScope(h));
+      }
+      return Task.FromResult(FakeSequenceExecution.Success(id));
+    };
+
+    (await h.Service.StartAsync("q1").ConfigureAwait(false)).Should().Be(QueueStartOutcome.Started);
+    await WaitForAsync(() => h.Registry.TryGet("q1", out var r) && r.SnapshotPendingTimerFirings().Count == 2, 10000).ConfigureAwait(false);
+    await ApplyWhilePausedAsync(h, "q1", plan => WithSlotValue(plan, "e-A1", "x2")).ConfigureAwait(false);
+    clock.Advance(TimeSpan.FromMinutes(10));
+    await WaitForAsync(() => FiringCount(h, "R1") >= 1 && FiringCount(h, "R2") >= 1, 10000).ConfigureAwait(false);
+    await h.Service.StopAsync("q1").ConfigureAwait(false);
+
+    ShouldResolveSlotFromEntry(ScopesOf(h, "R1").Should().ContainSingle().Subject, "x2");
+    ShouldResolveSlotFromEntry(ScopesOf(h, "R2").Should().ContainSingle().Subject, "y1");
+  }
+
+  // ── Feature 196: edge cases (T024) ──
+
+  [Fact] // FR-004: the apply removed the entry, so the booking uses its kept values.
+  public async Task BookingOfARemovedEntryUsesItsKeptValues() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { SlotEntry(OncePerRun("A"), "e-A", "one"), SlotEntry(OncePerRun("B"), "e-B", null) });
+
+    var scopes = await RunTimerBookingWithApplyAsync(h, clock, "R", plan => WithoutEntry(plan, "e-A"));
+
+    ShouldResolveSlotFromEntry(scopes.Should().ContainSingle().Subject, "one");
+  }
+
+  [Fact] // Edge case: a disabled entry still gives its current values to its booking.
+  public async Task BookingOfADisabledEntryUsesItsCurrentValues() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { SlotEntry(OncePerRun("A"), "e-A", "one") });
+
+    var scopes = await RunTimerBookingWithApplyAsync(h, clock, "R", plan => ChangeEntry(plan, "e-A", e => {
+      e.Enabled = false;
+      e.ParameterValues.Clear();
+      e.ParameterValues.Add(new ParameterBinding { Name = "slot", Value = "two" });
+    }));
+
+    ShouldResolveSlotFromEntry(scopes.Should().ContainSingle().Subject, "two");
+  }
+
+  [Fact] // Edge case: the entry had no values at the booking, and the apply added a value.
+  public async Task BookingOfAnEntryWithNoValuesGetsTheValuesThatTheApplyAdded() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { SlotEntry(OncePerRun("A"), "e-A", null) });
+
+    var scopes = await RunTimerBookingWithApplyAsync(h, clock, "R", plan => WithSlotValue(plan, "e-A", "two"));
+
+    ShouldResolveSlotFromEntry(scopes.Should().ContainSingle().Subject, "two");
+  }
+
+  [Fact] // Edge case: the apply removed all values of the entry.
+  public async Task BookingAfterTheApplyRemovedAllValuesGetsNoEntryValue() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { SlotEntry(OncePerRun("A"), "e-A", "one") });
+
+    var scopes = await RunTimerBookingWithApplyAsync(h, clock, "R", plan => WithSlotValue(plan, "e-A", null));
+
+    scopes.Should().ContainSingle().Which.TryResolve("slot", out _).Should().BeFalse();
+  }
+
+  [Fact] // R-004: a template upgrade renames the key of the entry. Then an apply changes the value under the new key.
+  public async Task BookingAfterAKeyRenameUsesTheCurrentValues() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { WithSlot(OncePerRun("A"), "one") }); // no entry ID: the key is idx:0
+
+    var scopes = await RunTimerBookingWithApplyAsync(h, clock, "R", plan => {
+      var map = new Dictionary<string, string> { ["idx:0"] = "e-1" };
+      var renamed = plan.WithRenamedKeys(map);
+      h.Registry.TryGet("q1", out var handle).Should().BeTrue();
+      handle!.Schedule!.SwapPlan(renamed, renameMap: map);
+      return WithSlotValue(renamed, "e-1", "two");
+    });
+
+    var scope = scopes.Should().ContainSingle().Subject;
+    ShouldResolveSlotFromEntry(scope, "two");
+    scope.EntryKey.Should().Be("e-1");
+  }
 }

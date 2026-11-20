@@ -2,7 +2,7 @@
 
 **Feature Branch**: `116-reschedule-keeps-params`
 **Created**: 2026-09-29
-**Status**: Implemented
+**Status**: Implemented (iterated by 196)
 **Input**: GitHub issue #249 (B-031): "a run started by reschedule-self loses the parameterValues of the template entry, so a required parameter resolves from no scope". Labels: bug, P1.
 
 Closes #249

@@ -288,6 +288,25 @@ public sealed partial class QueueExecutionServiceTests {
       rig.Executed().Should().Equal("S1", "S2");
     }
 
+    [Fact] // Feature 196 (FR-009): a held at-queue-start entry uses the current values of its entry when it fires.
+    public async Task HeldAtQueueStartEntryUsesTheCurrentValuesWhenItFires() {
+      var rig = new Rig();
+      AddQueueWithEntries(rig.H, "q1", new[] { SlotEntry(AtStart("S"), "e-S", "one"), SlotEntry(Once("A"), "e-A", null) });
+      rig.Liveness.SetNotLive(DeviceLivenessReasons.CaptureStalled);
+
+      await rig.Service.StartAsync("q1");
+      await WaitForAsync(() => rig.H.Registry.TryGet("q1", out var running) && running.Schedule is not null, 5000);
+      await rig.PassIterationsAsync(4);
+      rig.Executed().Should().BeEmpty("the hold moved S to the next-cycle register, and S did not run");
+
+      await ApplyWhilePausedAsync(rig.H, "q1", plan => WithSlotValue(plan, "e-S", "two"));
+      rig.Liveness.SetLive();
+      await WaitForAsync(() => rig.Executed().Contains("S"), 10000);
+      await rig.StopAsync("q1");
+
+      ShouldResolveSlotFromEntry(ScopesOf(rig.H, "S")[0], "two");
+    }
+
     [Fact]
     public async Task AHeldLiveScheduleDoesNotReplaceANewerSchedule() {
       var rig = new Rig();

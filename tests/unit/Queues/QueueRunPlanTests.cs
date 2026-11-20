@@ -123,4 +123,38 @@ public sealed class QueueRunPlanTests {
     QueueRunPlan.Build(new[] { Entry("a", ScheduleType.Timer, "1") }, 0).HasLoopWork.Should().BeTrue();
     QueueRunPlan.Build(new[] { Entry("a", ScheduleType.AtQueueStart, "1") }, 0).HasLoopWork.Should().BeFalse();
   }
+
+  // ── Feature 196: KeyFor ──────────────────────────────────────────────────────────────────────
+
+  [Fact]
+  public void KeyForGivesTheKeyOfAnEnabledEntry() {
+    var a = Entry("a", id: "e-a");
+    var plan = QueueRunPlan.Build(new[] { a }, version: 0);
+
+    plan.KeyFor(a).Should().Be("e-a");
+  }
+
+  [Fact]
+  public void KeyForGivesTheKeyOfADisabledEntry() {
+    var off = Entry("off", id: "e-off", enabled: false);
+    var plan = QueueRunPlan.Build(new[] { Entry("a", id: "e-a"), off }, version: 0);
+
+    plan.KeyFor(off).Should().Be("e-off");
+  }
+
+  [Fact]
+  public void KeyForGivesTheIndexKeyOfAnEntryWithNoId() {
+    var second = Entry("b");
+    var plan = QueueRunPlan.Build(new[] { Entry("a", id: "e-a"), second }, version: 0);
+
+    plan.KeyFor(second).Should().Be("idx:1");
+  }
+
+  [Fact]
+  public void KeyForGivesNullForAnObjectThatIsNotInThePlan() {
+    var a = Entry("a", id: "e-a");
+    var plan = QueueRunPlan.Build(new[] { a }, version: 0);
+
+    plan.KeyFor(a.Clone()).Should().BeNull();
+  }
 }

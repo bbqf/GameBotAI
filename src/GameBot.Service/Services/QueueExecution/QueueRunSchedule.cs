@@ -30,6 +30,9 @@ internal sealed class QueueRunSchedule {
   private readonly HashSet<string> _relativeFired = new(StringComparer.Ordinal);
   private readonly HashSet<string> _oncePerRunDoneThisCycle = new(StringComparer.Ordinal);
   private readonly HashSet<string> _ranThisRun = new(StringComparer.Ordinal);
+  // Old key to new key of each rename of a template upgrade (feature 196). A booking keeps the key of the
+  // time of the booking, so TryGetEntry follows these renames to find the entry in the current plan.
+  private readonly Dictionary<string, string> _renamedKeys = new(StringComparer.Ordinal);
   private bool _oncePerRunPassDone;
   private QueueRunPlan _plan;
 
@@ -87,7 +90,10 @@ internal sealed class QueueRunSchedule {
     ArgumentNullException.ThrowIfNull(newPlan);
     lock (_gate) {
       if (renameMap is not null) {
-        foreach (var pair in renameMap) RenameKeyLocked(pair.Key, pair.Value);
+        foreach (var pair in renameMap) {
+          RenameKeyLocked(pair.Key, pair.Value);
+          if (!string.Equals(pair.Key, pair.Value, StringComparison.Ordinal)) _renamedKeys[pair.Key] = pair.Value;
+        }
       }
       if (droppedKeys is not null) {
         foreach (var key in droppedKeys) RemoveKeyLocked(key);
@@ -97,6 +103,34 @@ internal sealed class QueueRunSchedule {
       }
       _plan = newPlan;
     }
+  }
+
+  /// <summary>
+  /// Finds the entry with <paramref name="key"/> in the current plan, also a disabled entry (feature 196). When the
+  /// key is not in the plan, the method follows the key renames of <see cref="SwapPlan"/> (also more than one) and
+  /// looks up each new key.
+  /// </summary>
+  /// <param name="key">The key that a booking kept.</param>
+  /// <param name="entry">The entry of the current plan, when found.</param>
+  /// <param name="currentKey">The key of the entry in the current plan. When not found, this is <paramref name="key"/>.</param>
+  /// <returns><c>true</c> when the current plan has the entry; <c>false</c> when the entry was removed.</returns>
+  public bool TryGetEntry(string key, out QueueTemplateEntry entry, out string currentKey) {
+    ArgumentNullException.ThrowIfNull(key);
+    lock (_gate) {
+      var current = key;
+      for (var step = 0; step <= _renamedKeys.Count; step++) {
+        if (_plan.TryGetFromAllByKey(current, out entry)) {
+          currentKey = current;
+          return true;
+        }
+        if (!_renamedKeys.TryGetValue(current, out var next)) break;
+        current = next;
+      }
+    }
+
+    entry = null!;
+    currentKey = key;
+    return false;
   }
 
   private void RemoveKeyLocked(string key) {

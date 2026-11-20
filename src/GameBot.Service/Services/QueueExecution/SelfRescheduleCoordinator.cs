@@ -12,7 +12,8 @@ namespace GameBot.Service.Services.QueueExecution;
 /// Default <see cref="ISelfRescheduleCoordinator"/> (feature 065). Looks up the active run via the
 /// <see cref="IQueueRunRegistry"/> and injects one ephemeral <see cref="SelfRescheduleEntry"/> into
 /// the register matching the chosen option. The entry keeps the parameter scope of the run that
-/// makes the booking, so the booked run uses the same scope (feature 116). All wall-clock reads go through the injected
+/// makes the booking (feature 116). When the booking fires, the run loop uses the current values of the template entry
+/// of that scope, when the entry is in the run plan. The kept scope is the fallback (feature 196). All wall-clock reads go through the injected
 /// <see cref="TimeProvider"/> so timing is deterministic under test.
 /// </summary>
 internal sealed class SelfRescheduleCoordinator : ISelfRescheduleCoordinator {

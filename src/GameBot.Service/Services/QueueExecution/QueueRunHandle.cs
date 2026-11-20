@@ -751,7 +751,9 @@ internal sealed record SelfRescheduleEntry(
   DateTimeOffset? FireAt,
   /// <summary>
   /// The parameter scope that the queue run loop gave the run that made the booking (feature 078
-  /// FR-015, feature 116). The booked run uses this scope. Null means the queue scope.
+  /// FR-015, feature 116). Null means the queue scope. When the scope has the key of a template entry and that
+  /// entry is in the run plan when the booking fires, the booked run uses the current values of the entry
+  /// (feature 196). Otherwise the booked run uses this kept scope.
   /// </summary>
   GameBot.Domain.Parameters.ParameterScope? Scope = null,
   /// <summary>

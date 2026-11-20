@@ -52,6 +52,12 @@ All notable changes to this project will be documented in this file.
   - **Version**: the patch version is now 1.12.19.
 
 ### Fixed
+- A booked run uses the current parameter values of its template entry (196-fix-reschedule-params, #409)
+  - **Problem**: a `reschedule-self` booking kept the parameter values of the run that made it (feature 116). After `apply-template` changed the values of the template entry, the pending bookings and each booking of their chain still used the old values. A value with a different type (for example `pns-troop-tier-max` in place of `0`) made each booked run fail, until a stop and a start of the queue.
+  - **Change**: the entry layer of the scope has the key of its template entry. When a booking fires, the run loop finds the entry in the current run plan (also a disabled entry, and also after a key rename of a template upgrade), and the booked run uses the current values of the entry. This applies to all four booking registers, to the bookings of a run-next run, and to an at-queue-start entry that a liveness hold moved. No stop and start is necessary.
+  - **Not changed**: the fire time, the register, and the `keep` rule of a booking. A booking of an entry that the apply removed, and a booking with no entry, use the kept scope as before. A template edit with no apply does not change a run. The run-next run itself keeps the values of the request (feature 184).
+  - **Perf note**: each booking firing does one key lookup in the run plan and allocates one scope node. Not measurable.
+  - **Version**: the patch version is now 1.12.28.
 - The TextInput step types all characters (195-fix-text-input-chars, #404)
   - **Problem**: a `TextInput` step sent a number such as `250` as one ADB command. Many game input fields accepted only the first character of this burst and dropped some of the others (for example `20` or `2` in place of `250`). But the step result was `executed` with `typedLength` 3.
   - **Change**: the step sends one input command for each character, with a pause between two characters. A space stays key event 62. The new setting `GAMEBOT_TEXT_INPUT_CHAR_DELAY_MS` sets the pause (default 100 ms, range 0 to 2000, 0 = no pause). A change of the setting applies at run time. The fix applies to a literal text and to a text from a placeholder (`{{fighterBatch}}` or the `fieldTemplates` key `textInput.text`).

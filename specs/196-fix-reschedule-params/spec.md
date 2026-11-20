@@ -2,7 +2,7 @@
 
 **Feature Branch**: `196-fix-reschedule-params`
 **Created**: 2026-11-20
-**Status**: Draft
+**Status**: Implemented
 **Input**: GitHub issue #409, "B-045: a run that `reschedule-self` books must use the current parameter values of its template entry". Labels: bug, P2. Closes #409.
 
 ## Problem *(context)*
