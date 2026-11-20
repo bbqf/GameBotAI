@@ -35,7 +35,20 @@ public sealed record WaitForImageDetailAttributes(
   double? Confidence,
   string? ExitCondition,
   string? ImageLoadStatus,
-  string? MatchedImageId = null);
+  string? MatchedImageId = null,
+  // Feature 197 (FR-007): the frame data of the last pass and the pass counts. Omitted from JSON when null.
+  [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+  string? CaptureId = null,
+  [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+  long? FrameAgeMs = null,
+  [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+  double? BestScore = null,
+  [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+  int? PassCount = null,
+  [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+  int? StalePassCount = null,
+  [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+  string? StaleReason = null);
 
 public sealed record ExecutionStepOutcome(
   int StepOrder,

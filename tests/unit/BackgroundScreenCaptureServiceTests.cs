@@ -209,6 +209,144 @@ public sealed class BackgroundScreenCaptureServiceTests : IDisposable {
     tracker.Stopped.Should().Equal("sess-1", "sess-2");
   }
 
+  // ── Feature 197: frame id and stale repeat ─────────────────────────────────
+
+  private static BackgroundScreenCaptureService StaleRepeatService(IAdbScreenCaptureProvider provider, IDeviceLivenessTracker? tracker = null, int frameMaxAgeMs = 60000) =>
+    new(_ => provider, 50, NullLogger<BackgroundScreenCaptureService>.Instance, tracker,
+      new DeviceLivenessOptions { CaptureTimeoutMs = 200, CaptureStallLimitMs = 1000, FrameMaxAgeMs = frameMaxAgeMs });
+
+  [Fact]
+  public async Task ANewFrameHasANewFrameId() {
+    using var service = new BackgroundScreenCaptureService(_ => new ChangingCaptureProvider(), 50,
+      NullLogger<BackgroundScreenCaptureService>.Instance);
+    service.StartCapture("sess-1", "device-1");
+    await WaitForAsync(() => service.GetCachedFrame("sess-1") is not null);
+    var first = service.GetCachedFrame("sess-1")!.FrameId;
+
+    await WaitForAsync(() => service.GetCachedFrame("sess-1")?.FrameId != first);
+
+    service.GetCachedFrame("sess-1")!.FrameId.Should().NotBe(first);
+  }
+
+  [Fact]
+  public async Task SameBytesWithNoFailureGiveANewFrameAndNoFlag() {
+    // A still screen: the device answers, and the bytes do not change.
+    using var service = new BackgroundScreenCaptureService(_ => new FakeCaptureProvider(), 50,
+      NullLogger<BackgroundScreenCaptureService>.Instance);
+    service.StartCapture("sess-1", "device-1");
+    await WaitForAsync(() => service.GetCachedFrame("sess-1") is not null);
+    var first = service.GetCachedFrame("sess-1")!.FrameId;
+
+    await WaitForAsync(() => service.GetCachedFrame("sess-1")?.FrameId != first);
+
+    var frame = service.GetCachedFrame("sess-1")!;
+    frame.FrameId.Should().NotBe(first);
+    frame.StaleRepeat.Should().BeFalse();
+  }
+
+  [Fact]
+  public async Task SameBytesAfterATimeoutAreAStaleRepeat() {
+    var tracker = new RecordingLivenessTracker();
+    var provider = new TimeoutThenRepeatProvider();
+    using var service = StaleRepeatService(provider, tracker);
+    service.StartCapture("sess-1", "device-1");
+    await WaitForAsync(() => service.GetCachedFrame("sess-1") is not null);
+    var first = service.GetCachedFrame("sess-1")!;
+
+    await WaitForAsync(() => service.GetCachedFrame("sess-1")?.StaleRepeat == true, timeoutMs: 8000);
+    // Some more repeats.
+    var calls = provider.Calls;
+    await WaitForAsync(() => provider.Calls >= calls + 3);
+
+    var frame = service.GetCachedFrame("sess-1")!;
+    frame.StaleRepeat.Should().BeTrue();
+    frame.StaleRepeatSince.Should().NotBeNull();
+    frame.FrameId.Should().Be(first.FrameId, "a stale repeat keeps the frame id");
+    frame.Timestamp.Should().Be(first.Timestamp, "a stale repeat keeps the capture time");
+    tracker.Captures.Should().HaveCount(1, "a stale repeat is not a completed capture");
+    frame.Bitmap.Width.Should().BeGreaterThan(0, "the shared bitmap of a stale repeat is not disposed");
+  }
+
+  [Fact]
+  public async Task DifferentBytesEndTheStaleRepeat() {
+    var provider = new TimeoutThenRepeatProvider();
+    using var service = StaleRepeatService(provider);
+    service.StartCapture("sess-1", "device-1");
+    await WaitForAsync(() => service.GetCachedFrame("sess-1")?.StaleRepeat == true, timeoutMs: 8000);
+    var stale = service.GetCachedFrame("sess-1")!;
+
+    provider.UseOtherBytes();
+    await WaitForAsync(() => service.GetCachedFrame("sess-1")?.StaleRepeat == false);
+
+    var frame = service.GetCachedFrame("sess-1")!;
+    frame.StaleRepeat.Should().BeFalse();
+    frame.StaleRepeatSince.Should().BeNull();
+    frame.FrameId.Should().NotBe(stale.FrameId);
+  }
+
+  [Fact]
+  public async Task RepeatsLongerThanTheFrameLimitGiveANewFrame() {
+    var tracker = new RecordingLivenessTracker();
+    var provider = new TimeoutThenRepeatProvider();
+    using var service = StaleRepeatService(provider, tracker, frameMaxAgeMs: 1000);
+    service.StartCapture("sess-1", "device-1");
+    await WaitForAsync(() => service.GetCachedFrame("sess-1")?.StaleRepeat == true, timeoutMs: 8000);
+    var stale = service.GetCachedFrame("sess-1")!;
+
+    await WaitForAsync(() => service.GetCachedFrame("sess-1")?.StaleRepeat == false, timeoutMs: 4000);
+
+    var frame = service.GetCachedFrame("sess-1")!;
+    frame.StaleRepeat.Should().BeFalse("a still screen ends the repeat run after the frame limit");
+    frame.FrameId.Should().NotBe(stale.FrameId);
+    tracker.Captures.Should().HaveCountGreaterThanOrEqualTo(2);
+    tracker.Captures.Skip(1).First().Changed.Should().BeFalse();
+  }
+
+  [Fact]
+  public async Task ARestartOfTheLoopStartsWithNoStaleRepeatState() {
+    var provider = new TimeoutThenRepeatProvider();
+    using var service = StaleRepeatService(provider);
+    service.StartCapture("sess-1", "device-1");
+    await WaitForAsync(() => service.GetCachedFrame("sess-1")?.StaleRepeat == true, timeoutMs: 8000);
+
+    service.StartCapture("sess-1", "device-1");
+    await WaitForAsync(() => service.GetCachedFrame("sess-1") is not null);
+    var first = service.GetCachedFrame("sess-1")!;
+    await WaitForAsync(() => service.GetCachedFrame("sess-1")?.FrameId != first.FrameId);
+
+    var second = service.GetCachedFrame("sess-1")!;
+    first.StaleRepeat.Should().BeFalse();
+    second.StaleRepeat.Should().BeFalse("the same bytes with no failure in the new loop are a normal new frame");
+    second.FrameId.Should().NotBe(first.FrameId);
+  }
+
+  [Fact]
+  public async Task StaleRepeatsForLongerThanTheStallLimitGiveCaptureStalled() {
+    // Feature 197 (FR-011, SC-005): FrameMaxAgeMs is above the stall limit for this test.
+    var clock = new GameBot.UnitTests.Queues.FakeTimeProvider(new DateTimeOffset(2026, 11, 20, 12, 0, 0, TimeSpan.Zero));
+    var tracker = new DeviceLivenessTracker(clock);
+    var provider = new TimeoutThenRepeatProvider();
+    var options = new DeviceLivenessOptions { CaptureTimeoutMs = 200, CaptureStallLimitMs = 1000, FrameMaxAgeMs = 60000 };
+    using var service = new BackgroundScreenCaptureService(_ => provider, 50,
+      NullLogger<BackgroundScreenCaptureService>.Instance, tracker, options);
+    service.StartCapture("sess-1", "device-1");
+    await WaitForAsync(() => service.GetCachedFrame("sess-1")?.StaleRepeat == true, timeoutMs: 8000);
+
+    clock.Advance(TimeSpan.FromMilliseconds(2000));
+    var calls = provider.Calls;
+    await WaitForAsync(() => provider.Calls >= calls + 3);
+    var stalled = DeviceLivenessEvaluator.Evaluate(tracker.Sample("sess-1", hasDevice: true), options.Normalized(), clock.GetUtcNow());
+
+    stalled.State.Should().Be(DeviceLivenessStates.NotLive);
+    stalled.Reason.Should().Be(DeviceLivenessReasons.CaptureStalled);
+
+    provider.UseOtherBytes();
+    await WaitForAsync(() => service.GetCachedFrame("sess-1")?.StaleRepeat == false);
+    var live = DeviceLivenessEvaluator.Evaluate(tracker.Sample("sess-1", hasDevice: true), options.Normalized(), clock.GetUtcNow());
+
+    live.State.Should().Be(DeviceLivenessStates.Live);
+  }
+
   private static async Task WaitForAsync(Func<bool> condition, int timeoutMs = 3000) {
     var sw = Stopwatch.StartNew();
     while (!condition() && sw.ElapsedMilliseconds < timeoutMs) await Task.Delay(10);
@@ -265,6 +403,38 @@ file sealed class HangOnceProvider : IAdbScreenCaptureProvider {
       }
     }
     using var bmp = new System.Drawing.Bitmap(2, 2);
+    using var ms = new System.IO.MemoryStream();
+    bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+    return ms.ToArray();
+  }
+}
+
+/// <summary>
+/// Feature 197: the first capture returns frame A, the second capture hangs until its time limit, and the
+/// captures after it return frame A again (a stale repeat). <see cref="UseOtherBytes"/> switches to frame B.
+/// </summary>
+file sealed class TimeoutThenRepeatProvider : IAdbScreenCaptureProvider {
+  private static readonly byte[] FrameA = Png(System.Drawing.Color.Red);
+  private static readonly byte[] FrameB = Png(System.Drawing.Color.Blue);
+  private int _calls;
+  private volatile bool _useB;
+
+  public int Calls => Volatile.Read(ref _calls);
+
+  public void UseOtherBytes() => _useB = true;
+
+  public Task<bool?> HasRunningScreencapAsync(int timeoutMs, CancellationToken ct) => Task.FromResult<bool?>(false);
+
+  public async Task<byte[]?> CaptureScreenshotPngAsync(CancellationToken ct) {
+    if (Interlocked.Increment(ref _calls) == 2) {
+      await Task.Delay(Timeout.Infinite, ct);
+    }
+    return _useB ? FrameB : FrameA;
+  }
+
+  private static byte[] Png(System.Drawing.Color color) {
+    using var bmp = new System.Drawing.Bitmap(2, 2);
+    bmp.SetPixel(0, 0, color);
     using var ms = new System.IO.MemoryStream();
     bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
     return ms.ToArray();

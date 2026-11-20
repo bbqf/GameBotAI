@@ -15,5 +15,20 @@ public sealed record CachedFrame(
     Bitmap Bitmap,
     DateTimeOffset Timestamp,
     int Width,
-    int Height);
+    int Height) {
 #pragma warning restore CA1819
+  /// <summary>
+  /// The id of the frame (feature 197). The capture loop gives a new id to each new frame. A stale repeat
+  /// keeps the id of the frame before it. The default is a new GUID in "N" format.
+  /// </summary>
+  public string FrameId { get; init; } = Guid.NewGuid().ToString("N");
+
+  /// <summary>
+  /// True when the frame is a stale repeat (feature 197, FR-002): after a failed capture, the device
+  /// returned the same bytes again. The frame then keeps its id and its capture time.
+  /// </summary>
+  public bool StaleRepeat { get; init; }
+
+  /// <summary>The time of the first capture of the current stale repeat run. Null when <see cref="StaleRepeat"/> is false.</summary>
+  public DateTimeOffset? StaleRepeatSince { get; init; }
+}

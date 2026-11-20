@@ -6,7 +6,11 @@ namespace GameBot.Domain.Vision;
 /// </summary>
 /// <param name="FrameAvailable">True when the screen source gave a frame.</param>
 /// <param name="BestScore">The best similarity of the image and its alternates. Null when no frame was available.</param>
-public sealed record ImageDetectionPass(bool FrameAvailable, double? BestScore);
+/// <param name="Frame">
+/// The data of the frame read of the pass (feature 197): the <c>LastRead</c> of the current
+/// <see cref="GameBot.Domain.Sessions.FrameReadScope"/>. Null when no frame read scope is current.
+/// </param>
+public sealed record ImageDetectionPass(bool FrameAvailable, double? BestScore, GameBot.Domain.Sessions.FrameReadInfo? Frame = null);
 
 /// <summary>
 /// Keeps the last detection pass of one <c>WaitForImage</c> wait, ambient for the duration of the wait

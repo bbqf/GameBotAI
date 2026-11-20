@@ -110,6 +110,27 @@ public sealed partial class QueueExecutionServiceTests {
     }
 
     [Fact]
+    public async Task TheWatchSeesCaptureStalledWhileAStepRuns() {
+      // Feature 197 (FR-012): the watch runs every QueueCheckIntervalMs for the whole run. It does not wait
+      // for the next sequence start, so it sees a stall while a long step of the run still runs.
+      var s = new Setup();
+      var step = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+      using var stop = new CancellationTokenSource();
+      var watch = s.Watch.RunAsync(stop.Token);
+      s.Liveness.SetNotLive(DeviceLivenessReasons.CaptureStalled);
+      await WaitForAsync(() => s.Handle.Liveness.Snapshot().NotLiveSince is not null);
+      s.Clock.Advance(TimeSpan.FromMinutes(3));
+
+      await WaitForAsync(() => s.Faults().Count == 1);
+
+      step.Task.IsCompleted.Should().BeFalse("the step still runs");
+      s.Faults().Should().ContainSingle().Which.Reason.Should().Be("capture_stalled");
+      step.SetResult();
+      await stop.CancelAsync();
+      await watch;
+    }
+
+    [Fact]
     public async Task StillNotLiveOnTheNextChecksGivesNoSecondEntry() {
       var s = new Setup();
       s.Liveness.SetNotLive(DeviceLivenessReasons.InputTimeout);

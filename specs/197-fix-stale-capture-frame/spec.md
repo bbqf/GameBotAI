@@ -2,7 +2,7 @@
 
 **Feature Branch**: `197-fix-stale-capture-frame`  
 **Created**: 2026-11-20  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: GitHub issue #407, "B-043: In a queue run, WaitForImage and ocrText read an old frame: timeout while the image is on the screen". Closes #407.
 
 ## Background

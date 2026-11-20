@@ -176,9 +176,20 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
       "Milliseconds since the frame was captured, as an integer. 0 for a direct capture." + when, "integer");
     ok.Headers["X-Capture-Unchanged-Ms"] = CaptureHeader(
       "Milliseconds since the frame bytes last changed, as an integer. 0 for a direct capture when no capture loop runs." + when, "integer");
+    var frameStale = isScreenshot
+      ? " For a frame of the capture loop, also 'true' when the frame is older than max(FrameMaxAgeMs, 2 x capture "
+        + "interval), or when it is a stale repeat (the same bytes again after a failed capture)."
+      : string.Empty;
     ok.Headers["X-Capture-Stale"] = CaptureHeader(
       "'true' or 'false': the stale flag of the session liveness (see GET /api/sessions/{id}/health). 'false' for a "
-      + "direct capture when no capture loop runs. A stale frame alone does not mean that the device is not live." + when, "string");
+      + "direct capture when no capture loop runs. A stale frame alone does not mean that the device is not live."
+      + frameStale + when, "string");
+    if (isScreenshot) {
+      ok.Headers["X-Capture-Id"] = CaptureHeader(
+        "The id of the stored capture. Use it as sourceCaptureId of POST /api/images/crop. For a frame of the capture "
+        + "loop, it is the frame id: each call that returns the same frame gives the same id. A direct capture gets a "
+        + "new id.", "string");
+    }
 
     var timeoutExample = isScreenshot
       ? new OpenApiObject {

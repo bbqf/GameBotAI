@@ -30,7 +30,14 @@ public enum ConditionEvaluationFailureKind {
   /// a resolved <c>ocrText.pattern</c> is not a valid regular expression. <c>Detail</c> holds the
   /// parameter name.
   /// </summary>
-  ParameterValueInvalid
+  ParameterValueInvalid,
+
+  /// <summary>
+  /// The frame in memory stayed stale for the wait of an <c>imageVisible</c> or <c>ocrText</c> leaf
+  /// (feature 197, FR-006). The message contains <c>stale_frame</c> and the frame age. <c>Detail</c> holds
+  /// the frame id.
+  /// </summary>
+  StaleFrame
 }
 
 /// <summary>
@@ -239,8 +246,7 @@ public static class SequenceStepConditionEvaluator {
           // Feature 180: any-of. The first visible image ends the check. An empty list is false.
           foreach (var imageId in image.ImageIds) {
             ct.ThrowIfCancellationRequested();
-            if (await imageEvaluator(NewImageCondition(imageId, image), ct).ConfigureAwait(false)) {
-              NoteImageMatch(imageId);
+            if (await CheckImageAsync(imageEvaluator, imageId, image, ct).ConfigureAwait(false)) {
               return true;
             }
           }
@@ -248,9 +254,7 @@ public static class SequenceStepConditionEvaluator {
           return false;
         }
 
-        var single = await imageEvaluator(NewImageCondition(image.ImageId, image), ct).ConfigureAwait(false);
-        if (single) NoteImageMatch(image.ImageId);
-        return single;
+        return await CheckImageAsync(imageEvaluator, image.ImageId, image, ct).ConfigureAwait(false);
 
       case MatchedImageStepCondition matchedImage:
         return EvaluateMatchedImage(matchedImage);
@@ -279,6 +283,61 @@ public static class SequenceStepConditionEvaluator {
           $"Unsupported condition type '{condition.Type}'.");
     }
   }
+
+  /// <summary>
+  /// One image check of an <c>imageVisible</c> leaf (feature 197). Before the read, the check waits for a
+  /// fresh frame. After the read, a refused stale frame fails the check. Thus a negated leaf is never true
+  /// on a stale frame. Each check adds one log line with the frame data and the score.
+  /// </summary>
+  private static async Task<bool> CheckImageAsync(
+      Func<Condition, CancellationToken, Task<bool>> imageEvaluator,
+      string imageId,
+      ImageVisibleStepCondition image,
+      CancellationToken ct) {
+    var frameScope = GameBot.Domain.Sessions.FrameReadScope.Current;
+    await EnsureFreshFrameAsync(frameScope, ct).ConfigureAwait(false);
+    if (frameScope is not null) frameScope.LastRead = null;
+
+    // The inner scope keeps the pass of this check only, for the log line and the matched image score.
+    using var passScope = GameBot.Domain.Vision.ImageDetectionPassScope.Push();
+    var seen = await imageEvaluator(NewImageCondition(imageId, image), ct).ConfigureAwait(false);
+    var lastPass = GameBot.Domain.Vision.ImageDetectionPassScope.Current?.LastPass;
+    var frame = frameScope?.LastRead ?? lastPass?.Frame;
+    CommandStepStateScope.Current?.AddLog(ImageVisibleLogLine(imageId, frame, lastPass?.BestScore));
+    if (frame is { Stale: true } && frameScope is not null) {
+      throw StaleFrameFailure(frameScope);
+    }
+
+    if (seen) NoteImageMatch(imageId);
+    return seen;
+  }
+
+  /// <summary>
+  /// The log line of one image check (feature 197, contract section 4):
+  /// <c>imageVisible(&lt;id&gt;) capture=&lt;frameId&gt; ageMs=&lt;n&gt; score=&lt;s&gt;</c>, or
+  /// <c>imageVisible(&lt;id&gt;) capture=none score=&lt;s&gt;</c> with no frame data.
+  /// </summary>
+  internal static string ImageVisibleLogLine(string imageId, GameBot.Domain.Sessions.FrameReadInfo? frame, double? score) {
+    var scoreText = score is { } s ? s.ToString("0.000", CultureInfo.InvariantCulture) : "none";
+    return frame is null
+      ? string.Format(CultureInfo.InvariantCulture, "imageVisible({0}) capture=none score={1}", imageId, scoreText)
+      : string.Format(CultureInfo.InvariantCulture, "imageVisible({0}) capture={1} ageMs={2} score={3}",
+          imageId, frame.FrameId, frame.AgeMs, scoreText);
+  }
+
+  /// <summary>
+  /// Feature 197 (FR-006): waits for a fresh frame before a screen read. Throws a <c>StaleFrame</c> failure
+  /// when the frame stays stale. No scope: no wait.
+  /// </summary>
+  private static async Task EnsureFreshFrameAsync(GameBot.Domain.Sessions.FrameReadScope? frameScope, CancellationToken ct) {
+    if (frameScope is null) return;
+    if (!await frameScope.EnsureFreshAsync(ct).ConfigureAwait(false)) {
+      throw StaleFrameFailure(frameScope);
+    }
+  }
+
+  private static ConditionEvaluationException StaleFrameFailure(GameBot.Domain.Sessions.FrameReadScope frameScope) =>
+    new(ConditionEvaluationFailureKind.StaleFrame, frameScope.LastRead?.FrameId ?? string.Empty, frameScope.StaleMessage());
 
   /// <summary>Feature 181: tells the ambient match scope which image the last true check matched.</summary>
   private static void NoteImageMatch(string imageId) =>
@@ -351,11 +410,24 @@ public static class SequenceStepConditionEvaluator {
   /// </summary>
   private static async Task<bool> EvaluateOcrTextAsync(OcrTextStepCondition condition, CancellationToken ct) {
     var scope = OcrTextEvaluationScope.Current;
+    OcrTextReadResult? read = null;
     if (scope?.Reader is null) {
       return Fail(null, null, OcrTextFailureReasons.NoSession);
     }
 
-    var read = await scope.Reader(condition, ct).ConfigureAwait(false);
+    // Feature 197 (FR-006): wait for a fresh frame before the read. A frame that stays stale fails the step.
+    var frameScope = GameBot.Domain.Sessions.FrameReadScope.Current;
+    if (frameScope is not null && !await frameScope.EnsureFreshAsync(ct).ConfigureAwait(false)) {
+      throw StaleOcrFailure(frameScope);
+    }
+    if (frameScope is not null) frameScope.LastRead = null;
+
+    read = await scope.Reader(condition, ct).ConfigureAwait(false);
+    // The frame can become stale between the wait and the read. The reader then got no frame.
+    if (frameScope?.LastRead is { Stale: true }) {
+      throw StaleOcrFailure(frameScope);
+    }
+
     if (read.FailureReason is not null) {
       return Fail(read.Text, null, read.FailureReason);
     }
@@ -369,13 +441,22 @@ public static class SequenceStepConditionEvaluator {
     var result = OcrTextConditionRules.Matches(condition, compared, out var timedOut);
     scope.Add(new OcrTextEvaluationRecord(
       read.Text, compared, condition.Expected, condition.Pattern, condition.Parser, result, null,
-      timedOut ? OcrTextEvaluationRecord.PatternTimedOutNote : null));
+      timedOut ? OcrTextEvaluationRecord.PatternTimedOutNote : null, read.CaptureId, read.FrameAgeMs));
     return result;
 
     bool Fail(string? text, string? compared, string reason) {
       scope?.Add(new OcrTextEvaluationRecord(
-        text, compared, condition.Expected, condition.Pattern, condition.Parser, false, reason, null));
+        text, compared, condition.Expected, condition.Pattern, condition.Parser, false, reason, null,
+        read?.CaptureId, read?.FrameAgeMs));
       return false;
+    }
+
+    ConditionEvaluationException StaleOcrFailure(GameBot.Domain.Sessions.FrameReadScope gate) {
+      var frame = gate.LastRead;
+      scope?.Add(new OcrTextEvaluationRecord(
+        null, null, condition.Expected, condition.Pattern, condition.Parser, false, OcrTextFailureReasons.StaleFrame, null,
+        frame?.FrameId, frame?.AgeMs));
+      return StaleFrameFailure(gate);
     }
   }
 

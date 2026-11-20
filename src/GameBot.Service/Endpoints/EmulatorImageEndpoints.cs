@@ -49,9 +49,12 @@ internal static class EmulatorImageEndpoints {
       // Try background capture cache first
       var frame = captureService?.GetCachedFrame(session.Id);
       if (frame is not null) {
-        var capture = captures.Add(frame.PngBytes);
+        // Feature 197 (FR-009): the frame id is the capture id, so each read of the same frame gives the same id.
+        var capture = captures.GetOrAdd(frame.FrameId, frame.PngBytes);
         ctx.Response.Headers[CaptureHeaders.CaptureId] = capture.Id;
-        ApplyCachedFrameHeaders(ctx.Response, frame, liveness.Evaluate(session));
+        var captureIntervalMs = ctx.RequestServices.GetService<GameBot.Domain.Config.AppConfig>()?.CaptureIntervalMs ?? 500;
+        var limitMs = GameBot.Domain.Sessions.FrameFreshness.EffectiveLimitMs(liveness.Options.FrameMaxAgeMs, captureIntervalMs);
+        ApplyCachedFrameHeaders(ctx.Response, frame, liveness.Evaluate(session), limitMs);
         EmulatorImageLog.CaptureSucceeded(logger, capture.Id, capture.Width, capture.Height);
         return Results.File(frame.PngBytes, "image/png");
       }
@@ -111,12 +114,15 @@ internal static class EmulatorImageEndpoints {
 
   /// <summary>
   /// Feature 106 (FR-010): the staleness headers of a cached frame. The age comes from the frame itself;
-  /// the unchanged time and the stale flag come from the liveness report of the session.
+  /// the unchanged time comes from the liveness report of the session. Feature 197 (FR-010): the frame is
+  /// also stale when it is older than the effective limit, or when it is a stale repeat.
   /// </summary>
-  private static void ApplyCachedFrameHeaders(HttpResponse response, GameBot.Domain.Sessions.CachedFrame frame, GameBot.Domain.Sessions.DeviceLivenessReport report) {
+  private static void ApplyCachedFrameHeaders(HttpResponse response, GameBot.Domain.Sessions.CachedFrame frame, GameBot.Domain.Sessions.DeviceLivenessReport report, int limitMs) {
     var fromReport = CaptureHeaders.FromReport(report, directCapture: false);
-    var ageMs = Math.Max(0L, (long)(DateTimeOffset.UtcNow - frame.Timestamp).TotalMilliseconds);
-    CaptureHeaders.Apply(response, fromReport with { AgeMs = ageMs });
+    var now = DateTimeOffset.UtcNow;
+    var ageMs = GameBot.Domain.Sessions.FrameFreshness.AgeMs(frame, now);
+    var stale = fromReport.Stale || GameBot.Domain.Sessions.FrameFreshness.IsStale(frame, now, limitMs);
+    CaptureHeaders.Apply(response, fromReport with { AgeMs = ageMs, Stale = stale });
   }
 
   /// <summary>

@@ -172,7 +172,13 @@ internal static class ExecutionLogsEndpoints {
           Confidence = node.DetailAttributes.Confidence,
           ExitCondition = node.DetailAttributes.ExitCondition,
           ImageLoadStatus = node.DetailAttributes.ImageLoadStatus,
-          MatchedImageId = node.DetailAttributes.MatchedImageId
+          MatchedImageId = node.DetailAttributes.MatchedImageId,
+          CaptureId = node.DetailAttributes.CaptureId,
+          FrameAgeMs = node.DetailAttributes.FrameAgeMs,
+          BestScore = node.DetailAttributes.BestScore,
+          PassCount = node.DetailAttributes.PassCount,
+          StalePassCount = node.DetailAttributes.StalePassCount,
+          StaleReason = node.DetailAttributes.StaleReason
         },
       ConditionTrace = node.ConditionTrace is null
         ? null
@@ -241,7 +247,13 @@ internal static class ExecutionLogsEndpoints {
             Confidence = step.DetailAttributes.Confidence,
             ExitCondition = step.DetailAttributes.ExitCondition,
             ImageLoadStatus = step.DetailAttributes.ImageLoadStatus,
-            MatchedImageId = step.DetailAttributes.MatchedImageId
+            MatchedImageId = step.DetailAttributes.MatchedImageId,
+            CaptureId = step.DetailAttributes.CaptureId,
+            FrameAgeMs = step.DetailAttributes.FrameAgeMs,
+            BestScore = step.DetailAttributes.BestScore,
+            PassCount = step.DetailAttributes.PassCount,
+            StalePassCount = step.DetailAttributes.StalePassCount,
+            StaleReason = step.DetailAttributes.StaleReason
           },
         DeepLink = new AuthoringDeepLinkDto {
           SequenceId = step.DeepLink.SequenceId,

@@ -28,6 +28,11 @@ internal sealed class BackgroundCaptureSessionFrameSource : ISessionFrameSource 
       return null;
     }
 
+    // Feature 197 (FR-004): in a sequence run, a stale frame is no frame. With no scope, no change.
+    if (!GameBot.Domain.Sessions.FrameReadScope.Admit(frame)) {
+      return null;
+    }
+
     using var ms = new MemoryStream(frame.PngBytes, writable: false);
     using var tmp = new Bitmap(ms);
     return new Bitmap(tmp); // detach from the stream so the caller can dispose independently

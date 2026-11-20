@@ -301,7 +301,8 @@ internal sealed class WaitForImageCaptureTestHost : IDisposable {
   private readonly WebApplicationFactory<Program> _app;
   private HttpClient? _client;
 
-  public WaitForImageCaptureTestHost() {
+  /// <param name="configure">Optional. More test services, for example liveness options (feature 197).</param>
+  public WaitForImageCaptureTestHost(Action<IServiceCollection>? configure = null) {
     foreach (var name in EnvNames) _previousEnv[name] = Environment.GetEnvironmentVariable(name);
     Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", "false");
     Environment.SetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT", "true");
@@ -330,6 +331,7 @@ internal sealed class WaitForImageCaptureTestHost : IDisposable {
       services.RemoveAll<GameBot.Domain.Triggers.Evaluators.IScreenSourceFactory>();
       services.AddSingleton<GameBot.Domain.Triggers.Evaluators.IScreenSourceFactory>(sp =>
         new BackgroundCaptureScreenSourceFactory(sp.GetRequiredService<BackgroundScreenCaptureService>()));
+      configure?.Invoke(services);
     }));
   }
 

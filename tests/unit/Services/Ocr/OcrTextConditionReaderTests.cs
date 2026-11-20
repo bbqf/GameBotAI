@@ -106,6 +106,29 @@ public sealed class OcrTextConditionReaderTests {
   }
 
   [Fact]
+  public async Task TheReadGivesTheFrameDataOfTheFrameScope() {
+    // Feature 197 (FR-008): the frame data of the read comes from the frame read scope.
+    var scope = new GameBot.Domain.Sessions.FrameReadScope(5000) {
+      LastRead = new GameBot.Domain.Sessions.FrameReadInfo("f1", 420, false)
+    };
+    OcrTextReadResult result;
+    using (GameBot.Domain.Sessions.FrameReadScope.Push(scope)) {
+      result = await ReadAsync(Condition(), new FakeFrames(), new FakeOcr("250"));
+    }
+
+    result.CaptureId.Should().Be("f1");
+    result.FrameAgeMs.Should().Be(420);
+  }
+
+  [Fact]
+  public async Task WithNoFrameScopeTheReadHasNoFrameData() {
+    var result = await ReadAsync(Condition(), new FakeFrames(), new FakeOcr("250"));
+
+    result.CaptureId.Should().BeNull();
+    result.FrameAgeMs.Should().BeNull();
+  }
+
+  [Fact]
   public async Task AnUnknownParserGivesParseFailed() {
     var result = await ReadAsync(Condition(parser: "no-such-parser"), new FakeFrames(), new FakeOcr("2:10:35"));
 

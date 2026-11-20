@@ -2,7 +2,7 @@
 
 **Feature Branch**: `106-wedged-device-liveness`  
 **Created**: 2026-09-25  
-**Status**: Implemented (iterated by 121: `specs\121-device-not-live-alert-recovery` adds the alert, the optional recovery and the capture gate)  
+**Status**: Implemented (iterated by 121, 197: `specs\121-device-not-live-alert-recovery` adds the alert, the optional recovery and the capture gate; `specs\197-fix-stale-capture-frame` adds the frame id, the stale repeat that is not a completed capture, and the frame stale flag of the screenshot headers)  
 **Input**: GitHub issue #220 (B-019): "a wedged emulator is invisible to the API - health is green, inputs report dispatched, screenshots return a stale frame". Full description: see the issue and the feature description that started this spec.
 
 ## Background

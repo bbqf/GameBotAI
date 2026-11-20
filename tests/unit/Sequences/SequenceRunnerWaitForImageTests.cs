@@ -619,6 +619,115 @@ public sealed class SequenceRunnerWaitForImageTests {
     result.Steps[0].WaitForImageDetails!.MatchedImageId.Should().Be("pns-city-anchor");
   }
 
+  // ---- Feature 197: stale frames ----
+
+  private static readonly DateTimeOffset StaleT0 = new(2026, 11, 20, 12, 0, 0, TimeSpan.Zero);
+
+  /// <summary>
+  /// A test image evaluator that reads a test frame through <see cref="GameBot.Domain.Sessions.FrameReadScope.Admit"/>,
+  /// as the screen sources do. Each pass takes the next frame of the script (the last one repeats). A frame
+  /// marked stale has a capture time older than the limit. A refused frame is a pass with no frame.
+  /// </summary>
+  private static Func<GameBot.Domain.Commands.Blocks.Condition, CancellationToken, Task<bool>> FrameScript(
+      System.Drawing.Bitmap bitmap, params (bool Stale, bool ShowsImage)[] frames) {
+    var index = 0;
+    return (_, _) => {
+      var (stale, showsImage) = frames[Math.Min(index, frames.Length - 1)];
+      var frame = new GameBot.Domain.Sessions.CachedFrame(new byte[] { 1 }, bitmap, stale ? StaleT0.AddSeconds(-10) : StaleT0, 1, 1) {
+        FrameId = "frame-" + index
+      };
+      index++;
+      var passScope = GameBot.Domain.Vision.ImageDetectionPassScope.Current;
+      var lastRead = (Func<GameBot.Domain.Sessions.FrameReadInfo?>)(() => GameBot.Domain.Sessions.FrameReadScope.Current?.LastRead);
+      if (!GameBot.Domain.Sessions.FrameReadScope.Admit(frame)) {
+        if (passScope is not null) passScope.LastPass = new GameBot.Domain.Vision.ImageDetectionPass(false, null, lastRead());
+        return Task.FromResult(false);
+      }
+      var score = showsImage ? 0.95 : 0.1;
+      if (passScope is not null) passScope.LastPass = new GameBot.Domain.Vision.ImageDetectionPass(true, score, lastRead());
+      return Task.FromResult(showsImage);
+    };
+  }
+
+  private static async Task<GameBot.Domain.Services.SequenceExecutionResult> RunWithFrameScopeAsync(
+      SequenceRunner runner, Func<GameBot.Domain.Commands.Blocks.Condition, CancellationToken, Task<bool>> evaluator) {
+    var scope = new GameBot.Domain.Sessions.FrameReadScope(5000, new GameBot.UnitTests.Queues.FakeTimeProvider(StaleT0));
+    using (GameBot.Domain.Sessions.FrameReadScope.Push(scope)) {
+      return await RunAsync(runner, evaluator).ConfigureAwait(false);
+    }
+  }
+
+  [Fact]
+  public async Task AStaleFrameThatShowsTheImageIsNotADetection() {
+    // Spec US1 scenario 6: before the fix, the step ended with image_detected on the stale frame.
+    using var bmp = new System.Drawing.Bitmap(1, 1);
+    var runner = CreateRunner(new WaitForImageConfig { TimeoutMs = 80, DetectionTarget = new DetectionTarget("map-image", 0.85) });
+
+    var result = await RunWithFrameScopeAsync(runner, FrameScript(bmp, (true, true))).ConfigureAwait(false);
+
+    result.Steps[0].ActionOutcome.Should().Be("timeout_elapsed");
+    result.Status.Should().Be("Succeeded");
+  }
+
+  [Fact]
+  public async Task StalePassesThenAFreshPassWithTheImageGiveImageDetected() {
+    using var bmp = new System.Drawing.Bitmap(1, 1);
+    var runner = CreateRunner(new WaitForImageConfig { TimeoutMs = 2000, DetectionTarget = new DetectionTarget("map-image", 0.85) });
+
+    var result = await RunWithFrameScopeAsync(runner, FrameScript(bmp, (true, true), (true, true), (false, true))).ConfigureAwait(false);
+
+    var step = result.Steps[0];
+    step.ActionOutcome.Should().Be("image_detected");
+    var details = step.WaitForImageDetails!;
+    details.PassCount.Should().Be(3);
+    details.StalePassCount.Should().Be(2);
+    details.CaptureId.Should().Be("frame-2");
+    details.FrameAgeMs.Should().Be(0);
+    details.BestScore.Should().Be(0.95);
+    details.StaleReason.Should().BeNull();
+  }
+
+  [Fact]
+  public async Task OnlyStalePassesGiveTimeoutWithTheStaleReason() {
+    using var bmp = new System.Drawing.Bitmap(1, 1);
+    var runner = CreateRunner(new WaitForImageConfig { TimeoutMs = 80, DetectionTarget = new DetectionTarget("map-image", 0.85) });
+
+    var result = await RunWithFrameScopeAsync(runner, FrameScript(bmp, (true, true))).ConfigureAwait(false);
+
+    var details = result.Steps[0].WaitForImageDetails!;
+    details.ExitCondition.Should().Be("timeout_elapsed");
+    details.StaleReason.Should().Be("stale_frame");
+    details.StalePassCount.Should().Be(details.PassCount);
+    details.CaptureId.Should().NotBeNull();
+    details.FrameAgeMs.Should().Be(10000);
+    details.BestScore.Should().BeNull();
+  }
+
+  [Fact]
+  public async Task TimeoutOnAFreshFrameHasNoStaleReason() {
+    using var bmp = new System.Drawing.Bitmap(1, 1);
+    var runner = CreateRunner(new WaitForImageConfig { TimeoutMs = 80, DetectionTarget = new DetectionTarget("map-image", 0.85) });
+
+    var result = await RunWithFrameScopeAsync(runner, FrameScript(bmp, (true, false), (false, false))).ConfigureAwait(false);
+
+    var details = result.Steps[0].WaitForImageDetails!;
+    details.ExitCondition.Should().Be("timeout_elapsed");
+    details.StaleReason.Should().BeNull();
+    details.StalePassCount.Should().Be(1);
+    details.BestScore.Should().Be(0.1);
+  }
+
+  [Fact]
+  public async Task InAbsentModeAStalePassIsNotAnAbsentCapture() {
+    using var bmp = new System.Drawing.Bitmap(1, 1);
+    var runner = CreateRunner(AbsentConfig(80, absentCaptures: 1));
+
+    var result = await RunWithFrameScopeAsync(runner, FrameScript(bmp, (true, false))).ConfigureAwait(false);
+
+    result.Steps[0].ActionOutcome.Should().Be("timeout_elapsed");
+    result.Steps[0].WaitForImageDetails!.StaleReason.Should().Be("stale_frame");
+  }
+
   private static SequenceRunner CreateRunner(WaitForImageConfig waitConfig) {
     return new SequenceRunner(
       new StubRepo(BuildSequence(waitConfig)),

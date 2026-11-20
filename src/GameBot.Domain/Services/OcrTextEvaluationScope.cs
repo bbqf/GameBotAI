@@ -29,13 +29,18 @@ public static class OcrTextFailureReasons {
 
   /// <summary>A parser is named and the text does not parse, or the parser name is unknown.</summary>
   public const string ParseFailed = "parse-failed";
+
+  /// <summary>The frame in memory stayed stale, so the step did not read it (feature 197).</summary>
+  public const string StaleFrame = "stale-frame";
 }
 
 /// <summary>The result of one screen read for an <c>ocrText</c> condition.</summary>
 /// <param name="Text">The raw text, or null on failure.</param>
 /// <param name="Parsed">The parsed text, or null. Set only when a parser is named and the text parses.</param>
 /// <param name="FailureReason">One code from <see cref="OcrTextFailureReasons"/>. Null on success.</param>
-public sealed record OcrTextReadResult(string? Text, string? Parsed, string? FailureReason);
+/// <param name="CaptureId">The frame id of the frame that the reader read (feature 197). Null when not known.</param>
+/// <param name="FrameAgeMs">The age of that frame at the read, in milliseconds (feature 197). Null when not known.</param>
+public sealed record OcrTextReadResult(string? Text, string? Parsed, string? FailureReason, string? CaptureId = null, long? FrameAgeMs = null);
 
 /// <summary>One record for each evaluation of an <c>ocrText</c> leaf. It is for the run log only.</summary>
 public sealed record OcrTextEvaluationRecord(
@@ -46,7 +51,9 @@ public sealed record OcrTextEvaluationRecord(
     string? Parser,
     bool Result,
     string? Reason,
-    string? Note) {
+    string? Note,
+    string? CaptureId = null,
+    long? FrameAgeMs = null) {
   /// <summary>The note after a <c>pattern</c> time-out.</summary>
   public const string PatternTimedOutNote = "pattern timed out";
 
@@ -63,6 +70,10 @@ public sealed record OcrTextEvaluationRecord(
       Result ? "true" : "false");
     if (Reason is not null) line += " reason=" + Reason;
     if (Note is not null) line += " " + Note;
+    // Feature 197 (FR-008): the frame data of the read, when it is known.
+    if (CaptureId is not null) {
+      line += string.Format(CultureInfo.InvariantCulture, " capture={0} ageMs={1}", CaptureId, FrameAgeMs ?? 0);
+    }
     return line;
   }
 }

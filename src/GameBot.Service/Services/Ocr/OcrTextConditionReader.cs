@@ -44,7 +44,10 @@ internal sealed class OcrTextConditionReader : IOcrTextConditionReader {
   public Task<OcrTextReadResult> ReadAsync(OcrTextStepCondition condition, string sessionId, CancellationToken ct) {
     ArgumentNullException.ThrowIfNull(condition);
     ct.ThrowIfCancellationRequested();
-    return Task.FromResult(Read(condition, sessionId));
+    var result = Read(condition, sessionId);
+    // Feature 197 (FR-008): the frame data of the read, for the log line of the condition.
+    var frame = GameBot.Domain.Sessions.FrameReadScope.Current?.LastRead;
+    return Task.FromResult(frame is null ? result : result with { CaptureId = frame.FrameId, FrameAgeMs = frame.AgeMs });
   }
 
   private OcrTextReadResult Read(OcrTextStepCondition condition, string sessionId) {
