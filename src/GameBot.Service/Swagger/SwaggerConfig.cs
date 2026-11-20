@@ -1047,9 +1047,19 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     }
   }
 
+  /// <summary>Feature 198 (FR-008): the rules of a queue log, for the list and subtree operations.</summary>
+  internal const string QueueLogRulesDescription =
+    "A queue log is the root entry of one queue run. Each sequence run of the queue is a child of this root. "
+    + "There is no limit on the number of children. After 24 hours, the service closes the root at the next firing "
+    + "and continues the run in a new root: rotatedToExecutionId and rotatedFromExecutionId link the two roots. "
+    + "At service start, each entry that has the status running and started before the service started gets the "
+    + "status failure, because its run ended when the service stopped.";
+
   private static void ApplyExecutionLogExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
     if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.ExecutionLogs)) {
       operation.Summary ??= "List execution logs";
+      // Feature 198 (FR-008): the queue log rules.
+      operation.Description ??= QueueLogRulesDescription;
       // Feature 127: the origin filter.
       var originParameter = operation.Parameters?.FirstOrDefault(p => string.Equals(p.Name, "origin", StringComparison.OrdinalIgnoreCase));
       if (originParameter is not null) {
@@ -1063,7 +1073,9 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
       if (path.EndsWith("/subtree", StringComparison.OrdinalIgnoreCase)) {
         // Feature 094: tree nodes carry the entry's cancellation fields; their schema can't be published
         // (schema-id clash, see ConditionalFlowSchemaDocumentFilter), so they are described here.
-        operation.Description ??= "Every node that represents a recorded execution carries cancellationReason and "
+        // Feature 198 (FR-008): the queue log rules come first.
+        operation.Description ??= QueueLogRulesDescription + " "
+          + "Every node that represents a recorded execution carries cancellationReason and "
           + "timeLimitMs from its entry (null on step nodes). cancellationReason: "
           + SequenceTimeLimitSchemaFilter.CancellationReasonDescription;
       }

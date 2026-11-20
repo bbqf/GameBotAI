@@ -13,6 +13,12 @@ public sealed class FileExecutionLogRepository : IExecutionLogRepository, IDispo
     WriteIndented = true
   };
 
+  /// <summary>
+  /// Test hook. Runs inside the remove step of DeleteExpiredAsync, after the read of the list
+  /// and before the set of the new list.
+  /// </summary>
+  internal Func<Task>? RemoveStepHookForTests { get; set; }
+
   public FileExecutionLogRepository(string storageRoot) {
     _dir = Path.Combine(storageRoot, "execution-logs");
     Directory.CreateDirectory(_dir);
@@ -143,27 +149,73 @@ public sealed class FileExecutionLogRepository : IExecutionLogRepository, IDispo
 
   public async Task<int> DeleteExpiredAsync(DateTimeOffset nowUtc, CancellationToken ct = default) {
     await EnsureEntriesLoadedAsync(ct).ConfigureAwait(false);
-    var deleted = 0;
-    var remaining = ImmutableArray.CreateBuilder<ExecutionLogEntry>(_entries.Length);
-    foreach (var entry in _entries) {
-      ct.ThrowIfCancellationRequested();
-      if (entry.RetentionExpiresUtc <= nowUtc) {
-        try {
-          var file = Path.Combine(_dir, entry.Id + ".json");
-          File.Delete(file);
-          deleted++;
+
+    // Hold the write lock for the full remove step. Without the lock, an AddAsync or UpsertAsync
+    // between the read of the list and the set of the new list is lost from the list (feature 198).
+    await _mutex.WaitAsync(ct).ConfigureAwait(false);
+    try {
+      var deleted = 0;
+      var current = _entries;
+      var remaining = ImmutableArray.CreateBuilder<ExecutionLogEntry>(current.Length);
+      foreach (var entry in current) {
+        ct.ThrowIfCancellationRequested();
+        if (entry.RetentionExpiresUtc <= nowUtc) {
+          try {
+            var file = Path.Combine(_dir, entry.Id + ".json");
+            File.Delete(file);
+            deleted++;
+          }
+          catch {
+          }
         }
-        catch {
+        else {
+          remaining.Add(entry);
         }
       }
-      else {
-        remaining.Add(entry);
+
+      if (RemoveStepHookForTests is { } hook) {
+        await hook().ConfigureAwait(false);
       }
+
+      _entries = remaining.ToImmutable();
+
+      return deleted;
     }
+    finally {
+      _mutex.Release();
+    }
+  }
 
-    _entries = remaining.ToImmutable();
+  public async Task<int> CloseAbandonedRunningAsync(DateTimeOffset processStartUtc, CancellationToken ct = default) {
+    await EnsureEntriesLoadedAsync(ct).ConfigureAwait(false);
 
-    return deleted;
+    await _mutex.WaitAsync(ct).ConfigureAwait(false);
+    try {
+      var closed = 0;
+      var current = _entries;
+      var updated = ImmutableArray.CreateBuilder<ExecutionLogEntry>(current.Length);
+      foreach (var entry in current) {
+        ct.ThrowIfCancellationRequested();
+        if (ExecutionLogAbandonedRun.IsAbandoned(entry, processStartUtc)) {
+          var closedEntry = ExecutionLogAbandonedRun.Close(entry);
+          await WriteEntryFileAsync(Path.Combine(_dir, entry.Id + ".json"), closedEntry, ct).ConfigureAwait(false);
+          updated.Add(closedEntry);
+          closed++;
+        }
+        else {
+          updated.Add(entry);
+        }
+      }
+
+      if (closed > 0) {
+        _entries = updated.ToImmutable();
+      }
+
+      return closed;
+    }
+    finally {
+      _mutex.Release();
+    }
   }
 
   public void Dispose() {

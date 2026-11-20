@@ -225,6 +225,7 @@ Status vocabulary:
 | 195 | Fix TextInput Characters | Implemented |
 | 196 | Booked run uses the current entry parameter values | Implemented |
 | 197 | Do not read a stale capture frame in a step | Implemented |
+| 198 | Show the newest runs of a running queue in the execution log | Implemented |
 
 ## Numbering notes
 

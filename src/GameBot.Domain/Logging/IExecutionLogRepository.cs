@@ -20,4 +20,11 @@ public interface IExecutionLogRepository {
 
   Task<ExecutionLogPage> QueryAsync(ExecutionLogQuery query, CancellationToken ct = default);
   Task<int> DeleteExpiredAsync(DateTimeOffset nowUtc, CancellationToken ct = default);
+
+  /// <summary>
+  /// Closes each entry that has the status "running" and a timestamp before
+  /// <paramref name="processStartUtc"/> (see <see cref="ExecutionLogAbandonedRun"/>).
+  /// Writes the closed entry to its file and to the list. Returns the number of closed entries.
+  /// </summary>
+  Task<int> CloseAbandonedRunningAsync(DateTimeOffset processStartUtc, CancellationToken ct = default);
 }
