@@ -82,10 +82,10 @@ public sealed class GamepackRestoreTakeOverForceTests {
     using (kit) {
       var task = kit.Service.RunExclusiveAsync(() => kit.Service.RestoreTakeOverForcedInGateAsync(backupId));
 
-      var done = await Task.WhenAny(task, Task.Delay(TimeSpan.FromSeconds(10)));
+      // WaitAsync ends with a TimeoutException when the task does not end in time (CA2027).
+      var result = await task.WaitAsync(TimeSpan.FromSeconds(10));
 
-      done.Should().BeSameAs(task, "the forced restore must not take the gate a second time");
-      (await task).Status.Should().Be(TakeOverRestoreStatus.Restored);
+      result.Status.Should().Be(TakeOverRestoreStatus.Restored, "the forced restore must not take the gate a second time");
     }
   }
 

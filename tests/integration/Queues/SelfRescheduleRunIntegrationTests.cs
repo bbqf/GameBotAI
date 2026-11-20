@@ -386,4 +386,83 @@ public sealed class SelfRescheduleRunIntegrationTests {
     }
     await ShouldHaveNoUnresolvedErrorAsync(log, "s116-timer").ConfigureAwait(false);
   }
+
+  // ── Feature 196 (#409): a booked run uses the value that apply-template changed ──────────────
+
+  private const string AppliedSlotValue = "pns-other-option";
+
+  private static async Task<System.Text.Json.JsonElement> JsonBodyAsync(System.Net.Http.HttpResponseMessage resp) =>
+    System.Text.Json.JsonDocument.Parse(await resp.Content.ReadAsStringAsync().ConfigureAwait(false)).RootElement.Clone();
+
+  [Fact] // T021 (feature 196) — US3, SC-001: the real dispatch path and the real HTTP apply path.
+  public async Task TimerBookedRunUsesTheValueThatTheApplyChanged() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = app.CreateClient();
+    client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
+    var services = app.Services;
+    const string queueId = "q196-apply";
+    await services.GetRequiredService<ICommandRepository>().AddAsync(SlotTapCommand("c196")).ConfigureAwait(false);
+    await services.GetRequiredService<ISequenceRepository>().CreateAsync(
+      SlotSequence("s196", "c196", ("option", "Timer"), ("timerRelativeOffset", "00:00:05"))).ConfigureAwait(false);
+    // The entry has an ID, so the apply does not need a template upgrade.
+    static QueueTemplate Template(string slot) {
+      var entry = new QueueTemplateEntry { EntryId = "e-196", SequenceId = "s196", ScheduleType = ScheduleType.OncePerRun };
+      entry.ParameterValues.Add(new GameBot.Domain.Parameters.ParameterBinding { Name = "slot", Value = slot });
+      var template = new QueueTemplate { Id = $"tpl-{queueId}", Name = $"T-{queueId}" };
+      template.Entries.Add(entry);
+      return template;
+    }
+    var templates = services.GetRequiredService<IQueueTemplateRepository>();
+    await templates.CreateAsync(Template(SlotValue)).ConfigureAwait(false);
+    await services.GetRequiredService<IQueueRepository>().CreateAsync(new ExecutionQueue {
+      Id = queueId, Name = $"Q-{queueId}", EmulatorSerial = "emu-offline", LinkedTemplateId = $"tpl-{queueId}"
+    }).ConfigureAwait(false);
+
+    var engine = services.GetRequiredService<IQueueExecutionService>();
+    var log = services.GetRequiredService<IExecutionLogService>();
+    var registry = services.GetRequiredService<IQueueRunRegistry>();
+    (await engine.StartAsync(queueId).ConfigureAwait(false)).Should().Be(QueueStartOutcome.Started);
+    try {
+      var first = await WaitForParametersItemsAsync(log, "c196", 1, 60000).ConfigureAwait(false);
+      first.Should().NotBeEmpty("the entry run must run the command");
+      Resolved(first[0]).Should().Equal(("slot", SlotValue, GameBot.Domain.Parameters.ParameterScopeLayers.Entry));
+
+      // 1. Pause, and wait until the loop is at the gate.
+      (await client.PostAsync(new Uri($"/api/queues/{queueId}/pause", UriKind.Relative), null).ConfigureAwait(false))
+        .IsSuccessStatusCode.Should().BeTrue();
+      var sw = Stopwatch.StartNew();
+      while (!(registry.TryGet(queueId, out var handle) && handle.OperatorPause == OperatorPauseState.Paused) && sw.ElapsedMilliseconds < 60000) {
+        await Task.Delay(50).ConfigureAwait(false);
+      }
+      registry.TryGet(queueId, out var paused).Should().BeTrue();
+      paused!.OperatorPause.Should().Be(OperatorPauseState.Paused);
+
+      // 2. Change the stored template, and apply the difference.
+      await templates.UpdateAsync(Template(AppliedSlotValue)).ConfigureAwait(false);
+      var diffResponse = await client.GetAsync(new Uri($"/api/queues/{queueId}/template-diff", UriKind.Relative)).ConfigureAwait(false);
+      diffResponse.IsSuccessStatusCode.Should().BeTrue();
+      var diff = await JsonBodyAsync(diffResponse).ConfigureAwait(false);
+      var keys = diff.GetProperty("differences").EnumerateArray().Select(d => d.GetProperty("key").GetString()!).ToArray();
+      keys.Should().NotBeEmpty("the parameter value of the entry changed");
+      var apply = await client.PostAsync(new Uri($"/api/queues/{queueId}/apply-template", UriKind.Relative),
+        System.Net.Http.Json.JsonContent.Create(new { baseToken = diff.GetProperty("baseToken").GetString(), selectedKeys = keys })).ConfigureAwait(false);
+      apply.IsSuccessStatusCode.Should().BeTrue(await apply.Content.ReadAsStringAsync().ConfigureAwait(false));
+
+      // 3. Resume. A booked run resolves the new value from the entry layer.
+      (await client.PostAsync(new Uri($"/api/queues/{queueId}/resume", UriKind.Relative), null).ConfigureAwait(false))
+        .IsSuccessStatusCode.Should().BeTrue();
+      sw.Restart();
+      var found = false;
+      while (!found && sw.ElapsedMilliseconds < 60000) {
+        var items = await ParametersItemsAsync(log, "c196").ConfigureAwait(false);
+        found = items.Any(i => Resolved(i).Contains(("slot", AppliedSlotValue, GameBot.Domain.Parameters.ParameterScopeLayers.Entry)));
+        if (!found) await Task.Delay(100).ConfigureAwait(false);
+      }
+      found.Should().BeTrue("the booked run after the apply must use the new value of the entry");
+    }
+    finally {
+      await engine.StopAsync(queueId).ConfigureAwait(false);
+    }
+    await ShouldHaveNoUnresolvedErrorAsync(log, "s196").ConfigureAwait(false);
+  }
 }

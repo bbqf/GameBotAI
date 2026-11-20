@@ -150,7 +150,7 @@ Status vocabulary:
 | 113 | Reject a malformed sequence step on create | Implemented |
 | 114 | Let a parameter choose the reference image | Implemented |
 | 115 | Resolve a placeholder in a step parameterBindings value | Implemented |
-| 116 | Keep the parameter scope on a run that reschedule-self books | Implemented |
+| 116 | Keep the parameter scope on a run that reschedule-self books | Implemented (iterated by 196) |
 | 117 | A Break outcome when its If branch did not run | Implemented |
 | 118 | One format for timerTimeOfDay | Implemented |
 | 119 | Reject an unknown field in a reschedule-self payload | Implemented |
@@ -223,6 +223,7 @@ Status vocabulary:
 | 193 | Parameter Condition | Implemented |
 | 194 | Fix Disabled Tests | Implemented |
 | 195 | Fix TextInput Characters | Implemented |
+| 196 | Booked run uses the current entry parameter values | Implemented |
 
 ## Numbering notes
 

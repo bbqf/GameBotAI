@@ -238,9 +238,9 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     }
 
     // The scope is fixed now, so a later live apply does not change a request that waits (FR-005).
-    var scope = entry.ParameterValues.Count > 0
-      ? queueScope.Child(ParameterScopeLayers.Entry, entry.ParameterValues, null)
-      : queueScope;
+    // The scope also has the key of the entry (feature 196, FR-011). Thus a booking that the run-next run
+    // makes uses the current values of the entry when the booking fires.
+    var scope = queueScope.ChildForEntry(plan.Keys[index], entry.ParameterValues);
     // The add is one step under the lock. A second caller at the same time gets "already queued".
     if (!handle.TryAddRunNext(new PendingRunNext(entryId, entry.SequenceId, scope, now)))
       return new RunNextResult(RunNextOutcome.AlreadyQueued, entry.SequenceId);
@@ -364,10 +364,30 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
         // setup. Each firing layers its entry's values on top (FR-010, FR-012).
         var queueScope = ParameterScope.FromQueue(queue);
         handle.QueueScope = queueScope;
-        ParameterScope EntryScope(QueueTemplateEntry entry) =>
-            entry.ParameterValues.Count > 0
+        // Feature 196: the entry layer also has the key of the entry in the run plan. A reschedule-self booking
+        // keeps this scope, and the key lets the booked run find the current values of the entry (#409).
+        ParameterScope EntryScope(QueueTemplateEntry entry) {
+          var key = plan.KeyFor(entry);
+          if (key is null) {
+            return entry.ParameterValues.Count > 0
               ? queueScope.Child(ParameterScopeLayers.Entry, entry.ParameterValues, null)
               : queueScope;
+          }
+          return queueScope.ChildForEntry(key, entry.ParameterValues);
+        }
+
+        // Feature 196 (#409): a booked run uses the values that its template entry has in the run plan when the
+        // booking fires, so an apply-template between the booking and the firing has an effect. The key comes
+        // from the kept scope, and TryGetEntry follows a key rename of a template upgrade. When the entry is not in
+        // the plan (the apply removed it), or the kept scope has no key, the booked run uses the kept scope.
+        ParameterScope BookingScope(SelfRescheduleEntry firing) {
+          if (firing.Scope?.EntryKey is { } key
+              && handle.Schedule is { } current
+              && current.TryGetEntry(key, out var entry, out var currentKey)) {
+            return queueScope.ChildForEntry(currentKey, entry.ParameterValues);
+          }
+          return firing.Scope ?? queueScope;
+        }
 
         // 1.5 Feature 074: when the queue is configured with an emulator instance identifier, bring that
         // instance up BEFORE binding the device session, so a queue can self-start from a backend-only
@@ -457,7 +477,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
               foreach (var injection in handle.EveryStepInjections.Values.ToList()) {
                 ct.ThrowIfCancellationRequested();
                 EnsureSessionBound();
-                var injOk = await RunOneSequenceAsync(injection.SequenceId, rootId, ++index, sessionId, queue.Id, injection.Scope ?? queueScope, ct, injection.Id).ConfigureAwait(false);
+                var injOk = await RunOneSequenceAsync(injection.SequenceId, rootId, ++index, sessionId, queue.Id, BookingScope(injection), ct, injection.Id).ConfigureAwait(false);
                 if (!injOk) failed++;
                 handle.Cycles.RecordEntry(injection.SequenceId, injOk);
               }
@@ -666,7 +686,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                 while (handle.PendingNextCycleStart.TryDequeue(out var nextCycleEntry)) {
                   // An at-start entry that a liveness hold moved here came from no self-reschedule action.
                   var originActionId = nextCycleEntry.Id.StartsWith(AtQueueStartHoldIdPrefix, StringComparison.Ordinal) ? null : nextCycleEntry.Id;
-                  var nextOk = await FireGroupAsync(nextCycleEntry.SequenceId, nextCycleEntry.Scope ?? queueScope, beforeEachRun: true, originActionId).ConfigureAwait(false);
+                  var nextOk = await FireGroupAsync(nextCycleEntry.SequenceId, BookingScope(nextCycleEntry), beforeEachRun: true, originActionId).ConfigureAwait(false);
                   if (nextOk is null) {
                     // Feature 106: hold the rest of the register too, then put all back in order and
                     // stop the drain, so that no entry fires again in the same drain.
@@ -777,7 +797,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                 // failed firing is non-fatal. Entries never due before the run ends are discarded with
                 // the handle and never fail the run (FR-015).
                 foreach (var timerFiring in handle.DrainDueTimerFirings(_timeProvider.GetLocalNow())) {
-                  var srTimerResult = await FireGroupAsync(timerFiring.SequenceId, timerFiring.Scope ?? queueScope, beforeEachRun: true, timerFiring.Id).ConfigureAwait(false);
+                  var srTimerResult = await FireGroupAsync(timerFiring.SequenceId, BookingScope(timerFiring), beforeEachRun: true, timerFiring.Id).ConfigureAwait(false);
                   if (srTimerResult is not { } srTimerOk) {
                     // Feature 106: put the held firing back with its original FireAt, so the chain
                     // keeps its cadence after a recovery.
@@ -850,7 +870,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                   try {
                     foreach (var oprFiring in oncePerRunReschedules) {
                       if (handle.TryConsumeCancelled(oprFiring.Id)) continue;
-                      var oprResult = await FireGroupAsync(oprFiring.SequenceId, oprFiring.Scope ?? queueScope, beforeEachRun: true, oprFiring.Id).ConfigureAwait(false);
+                      var oprResult = await FireGroupAsync(oprFiring.SequenceId, BookingScope(oprFiring), beforeEachRun: true, oprFiring.Id).ConfigureAwait(false);
                       if (oprResult is not { } oprOk) {
                         heldReschedules.Add(oprFiring);
                         continue;

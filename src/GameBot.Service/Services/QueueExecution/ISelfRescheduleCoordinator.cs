@@ -80,8 +80,9 @@ internal interface ISelfRescheduleCoordinator {
   /// <param name="timerTimeOfDay">The time of day for a Timer booking.</param>
   /// <param name="timerRelativeOffset">The relative offset for a Timer booking.</param>
   /// <param name="scope">
-  /// The parameter scope of the run that makes the booking. The booked run uses this scope. Null
-  /// means the queue scope (feature 116).
+  /// The parameter scope of the run that makes the booking. Null means the queue scope (feature 116).
+  /// When the scope has the key of a template entry that is in the run plan when the booking fires, the
+  /// booked run uses the current values of that entry. Otherwise the booked run uses this scope (feature 196).
   /// </param>
   /// <param name="keep">
   /// The keep rule of a Timer booking (feature 125). With <see cref="SelfRescheduleKeep.Earliest"/>, a

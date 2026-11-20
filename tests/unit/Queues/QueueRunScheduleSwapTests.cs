@@ -239,4 +239,82 @@ public sealed class QueueRunScheduleSwapTests {
     schedule.Entries.Select(e => e.SequenceId).Should().Equal("seq-a", "seq-b");
     schedule.Plan.Version.Should().Be(1);
   }
+
+  // ── Feature 196: TryGetEntry ─────────────────────────────────────────────────────────────────
+
+  private static QueueTemplateEntry WithSlot(QueueTemplateEntry entry, string value) {
+    entry.ParameterValues.Add(new GameBot.Domain.Parameters.ParameterBinding { Name = "slot", Value = value });
+    return entry;
+  }
+
+  [Fact]
+  public void TryGetEntryFindsAnEntryOfTheCurrentPlan() {
+    var a = Once("a", "seq-a");
+    var schedule = NewSchedule(QueueRunPlan.Build(new[] { a }, 0));
+
+    schedule.TryGetEntry("a", out var entry, out var currentKey).Should().BeTrue();
+    entry.Should().BeSameAs(a);
+    currentKey.Should().Be("a");
+  }
+
+  [Fact]
+  public void TryGetEntryFindsADisabledEntry() {
+    var off = Once("off", "seq-off");
+    off.Enabled = false;
+    var schedule = NewSchedule(QueueRunPlan.Build(new[] { Once("a", "seq-a"), off }, 0));
+
+    schedule.TryGetEntry("off", out var entry, out _).Should().BeTrue();
+    entry.Should().BeSameAs(off);
+  }
+
+  [Fact]
+  public void TryGetEntryGivesTheNewEntryObjectAfterASwap() {
+    var schedule = NewSchedule(QueueRunPlan.Build(new[] { WithSlot(Once("a", "seq-a"), "one") }, 0));
+    var changed = WithSlot(Once("a", "seq-a"), "two");
+
+    schedule.SwapPlan(QueueRunPlan.Build(new[] { changed }, 1));
+
+    schedule.TryGetEntry("a", out var entry, out _).Should().BeTrue();
+    entry.Should().BeSameAs(changed);
+    entry.ParameterValues.Should().ContainSingle().Which.Value.Should().Be("two");
+  }
+
+  [Fact]
+  public void TryGetEntryGivesFalseForARemovedEntry() {
+    var schedule = NewSchedule(QueueRunPlan.Build(new[] { Once("a", "seq-a"), Once("b", "seq-b") }, 0));
+
+    schedule.SwapPlan(QueueRunPlan.Build(new[] { Once("b", "seq-b") }, 1), droppedKeys: new[] { "a" });
+
+    schedule.TryGetEntry("a", out _, out var currentKey).Should().BeFalse();
+    currentKey.Should().Be("a");
+  }
+
+  [Fact]
+  public void TryGetEntryFollowsAKeyRename() {
+    var plan = QueueRunPlan.Build(new[] { new QueueTemplateEntry { SequenceId = "seq-a", ScheduleType = ScheduleType.OncePerRun } }, 0);
+    var schedule = NewSchedule(plan);
+    var map = new Dictionary<string, string> { ["idx:0"] = "e-1" };
+
+    schedule.SwapPlan(plan.WithRenamedKeys(map), renameMap: map);
+
+    schedule.TryGetEntry("idx:0", out var entry, out var currentKey).Should().BeTrue();
+    currentKey.Should().Be("e-1");
+    entry.EntryId.Should().Be("e-1");
+  }
+
+  [Fact]
+  public void TryGetEntryFollowsTwoKeyRenames() {
+    var plan = QueueRunPlan.Build(new[] { new QueueTemplateEntry { SequenceId = "seq-a", ScheduleType = ScheduleType.OncePerRun } }, 0);
+    var schedule = NewSchedule(plan);
+    var first = new Dictionary<string, string> { ["idx:0"] = "e-1" };
+    var renamed = plan.WithRenamedKeys(first);
+    schedule.SwapPlan(renamed, renameMap: first);
+    var second = new Dictionary<string, string> { ["e-1"] = "e-2" };
+
+    schedule.SwapPlan(renamed.WithRenamedKeys(second), renameMap: second);
+
+    schedule.TryGetEntry("idx:0", out var entry, out var currentKey).Should().BeTrue();
+    currentKey.Should().Be("e-2");
+    entry.EntryId.Should().Be("e-2");
+  }
 }

@@ -270,4 +270,35 @@ public sealed partial class QueueExecutionServiceTests {
 
     millis[(int)(millis.Length * 0.95)].Should().BeLessThan(100);
     await h.Service.StopAsync("q1");
-  }}
+  }
+
+  // Feature 196 (FR-011): the run-next run keeps the values of the request (feature 184, FR-005), but a booking that it
+  // makes uses the current values of the entry when the booking fires.
+  [Fact]
+  public async Task BookingOfARunNextRunUsesTheCurrentEntryValue() {
+    var h = new Harness(new FakeTimeProvider(FakeStart));
+    AddQueueWithEntries(h, "q1", new[] { WithSlot(WithId(OncePerRun("A"), "e-A"), "one"), FarTimer() });
+    var runsOfA = 0;
+    h.Sequences.Handler = (id, ct) => {
+      if (id == "A" && Interlocked.Increment(ref runsOfA) == 2) {
+        h.Coordinator.ScheduleSelf("q1", "R", GameBot.Domain.Commands.SelfReschedule.SelfRescheduleOption.Timer, null, TimeSpan.FromMinutes(10), CurrentScope(h));
+      }
+      return Task.FromResult(FakeSequenceExecution.Success(id));
+    };
+    var handle = await StartAndWaitIdleAsync(h, "e-A", "A");
+
+    h.Service.RunNext("q1", "e-A").Outcome.Should().Be(RunNextOutcome.Queued);
+    await WaitForAsync(() => Volatile.Read(ref runsOfA) >= 2 && handle.HasPendingTimerFirings, 10000);
+    await ApplyWhilePausedAsync(h, "q1", plan => WithSlotValue(plan, "e-A", "two"));
+    h.Clock!.Advance(TimeSpan.FromMinutes(10));
+    await WaitForAsync(() => h.Sequences.Executed.Contains("R"), 10000);
+    await h.Service.StopAsync("q1");
+
+    var runNextScope = h.Sequences.Scopes.Where(s => s.SequenceId == "A").Select(s => s.Scope).ElementAt(1);
+    runNextScope.TryResolve("slot", out var kept).Should().BeTrue();
+    kept.Text.Should().Be("one");
+    var bookedScope = h.Sequences.Scopes.Single(s => s.SequenceId == "R").Scope;
+    bookedScope.TryResolve("slot", out var current).Should().BeTrue();
+    current.Text.Should().Be("two");
+  }
+}

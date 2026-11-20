@@ -85,16 +85,19 @@ public sealed record ScopeEntry(
 public sealed class ParameterScope {
   private readonly Dictionary<string, ParameterValue> _values;
   private readonly Dictionary<string, ParameterDeclaration> _declarations;
+  private readonly string? _entryKey;
 
   private ParameterScope(
       ParameterScope? parent,
       string layerName,
       Dictionary<string, ParameterValue> values,
-      Dictionary<string, ParameterDeclaration> declarations) {
+      Dictionary<string, ParameterDeclaration> declarations,
+      string? entryKey = null) {
     Parent = parent;
     LayerName = layerName;
     _values = values;
     _declarations = declarations;
+    _entryKey = entryKey;
   }
 
   /// <summary>An empty scope. Every pre-existing call site defaults to this, preserving behaviour.</summary>
@@ -109,6 +112,21 @@ public sealed class ParameterScope {
 
   /// <summary>Which layer this node represents; one of <see cref="ParameterScopeLayers"/>.</summary>
   public string LayerName { get; }
+
+  /// <summary>
+  /// The key of the template entry that this scope comes from (feature 196). The property walks from this
+  /// layer outward and gives the first key that it finds. It is <c>null</c> when no layer of the chain has a key,
+  /// for example a scope that a template entry did not make.
+  /// </summary>
+  public string? EntryKey {
+    get {
+      for (var scope = this; scope is not null; scope = scope.Parent) {
+        if (scope._entryKey is not null) return scope._entryKey;
+      }
+
+      return null;
+    }
+  }
 
   /// <summary>
   /// Builds the outermost layer from a queue's own configuration, exposing the four reserved
@@ -166,6 +184,32 @@ public sealed class ParameterScope {
     }
 
     return new ParameterScope(this, layerName, values, declared);
+  }
+
+  /// <summary>
+  /// Returns a new <see cref="ParameterScopeLayers.Entry"/> layer with the values of a template entry and the
+  /// key of that entry (feature 196). A binding with a <c>null</c> name or value is skipped. The layer has no
+  /// declarations. The run loop uses the key to find the current values of the entry when a booking of
+  /// <c>reschedule-self</c> fires. The receiver does not change.
+  /// </summary>
+  /// <param name="entryKey">The key of the entry in the run plan. It must not be <c>null</c> or empty.</param>
+  /// <param name="values">The parameter values of the entry.</param>
+  public ParameterScope ChildForEntry(string entryKey, IEnumerable<ParameterBinding>? values) {
+    ArgumentException.ThrowIfNullOrEmpty(entryKey);
+    var bound = new Dictionary<string, ParameterValue>(StringComparer.Ordinal);
+    if (values is not null) {
+      foreach (var binding in values) {
+        if (binding?.Name is null || binding.Value is null) continue;
+        bound[binding.Name] = new ParameterValue(binding.Value, ParameterScopeLayers.Entry);
+      }
+    }
+
+    return new ParameterScope(
+        this,
+        ParameterScopeLayers.Entry,
+        bound,
+        new Dictionary<string, ParameterDeclaration>(StringComparer.Ordinal),
+        entryKey);
   }
 
   /// <summary>

@@ -147,6 +147,17 @@ internal sealed class QueueRunPlan {
     return -1;
   }
 
+  /// <summary>
+  /// The key of this entry object (feature 196). The search compares references in <see cref="AllEntries"/>, so a
+  /// disabled entry also gives its key. An object that is not in the plan (for example a clone) gives <c>null</c>.
+  /// </summary>
+  public string? KeyFor(QueueTemplateEntry entry) {
+    for (var i = 0; i < AllEntries.Count; i++) {
+      if (ReferenceEquals(AllEntries[i], entry)) return AllKeys[i];
+    }
+    return null;
+  }
+
   /// <summary>True when an entry with this key is in the plan.</summary>
   public bool ContainsKey(string key) => _byKey.ContainsKey(key);
 
