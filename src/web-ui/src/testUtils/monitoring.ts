@@ -11,6 +11,7 @@ export const makeSession = (id: string, overrides: Partial<MonitoredSessionDto> 
   ownerQueueId: null,
   ownerQueueName: null,
   currentSequenceName: null,
+  ownerQueueDeviceLiveness: null,
   restartAvailable: true,
   restartUnavailableReason: null,
   startedAtUtc: '2026-10-13T08:00:00Z',

@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Add the device recovery option to the queue form (199-device-recovery-ui)
+  - **Change**: the queue form has the option "Reboot the instance when the device is not live". When it is on, the form shows the wait before the first reboot (minutes), the maximum attempts (1 to 5), and the time between attempts (minutes). The form checks each value and shows a message at the field. A new queue has the option off, with the defaults 5, 2, and 3.
+  - **API**: `PUT /api/queues/{id}` keeps the stored `deviceRecovery` when the member is absent. Only an explicit `null` clears it. `GET /api/queues` has the new member `deviceLiveness` (`live` or `not_live`) for a running queue, and `GET /api/sessions/monitoring` has `ownerQueueDeviceLiveness`.
+  - **Running queue**: a saved change of `deviceRecovery` applies to a running queue within 1 minute, with no stop. The not-live episode keeps its attempt count.
+  - **Web UI**: the edit view of a running queue has a device state line. The Monitoring list and header, the phone queue card, and the phone queue detail show a "Not live" mark.
+  - **Fix**: a save from the web UI no longer clears `deviceRecovery`.
+  - **Not changed**: the stored queue format, the rule of `POST /api/queues`, and the validation texts of feature 121.
+  - **Perf note**: one queue file read each minute for each running queue. The web UI makes no new request.
+  - **Version**: the patch version is now 1.12.31.
 - Add the parameter condition (193-parameter-condition, #401, FR-046)
   - **Change**: the new sequence condition `parameter` compares the run value of a declared sequence parameter with a fixed value: `{ "type": "parameter", "name": "fighterBatch", "operator": "equals", "value": 0 }`. The operators are `equals`, `notEquals`, `greaterThan`, and `lessThan`. `negate` works as for the other conditions. The condition works in each condition slot and as a child of `all`, `any`, and `none`.
   - **Compare**: a `number` parameter compares as a whole number (also a `choice` parameter of the type `number`, and a number with a `pattern`: the compare uses the entered number). A `text` parameter (kinds `text`, `choice`, `image`) compares as text, ordinal and case-insensitive, with no trim.

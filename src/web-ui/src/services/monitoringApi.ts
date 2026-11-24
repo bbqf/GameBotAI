@@ -13,6 +13,8 @@ export type MonitoredSessionDto = {
   ownerQueueId: string | null;
   ownerQueueName: string | null;
   currentSequenceName: string | null;
+  /** The device state of the owner queue (feature 199). Null when the session has no running owner queue. */
+  ownerQueueDeviceLiveness?: 'live' | 'not_live' | null;
   restartAvailable: boolean;
   restartUnavailableReason: string | null;
   startedAtUtc: string;

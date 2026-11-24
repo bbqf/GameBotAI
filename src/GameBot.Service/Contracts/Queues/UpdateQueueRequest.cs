@@ -25,11 +25,25 @@ namespace GameBot.Service.Contracts.Queues {
     /// </summary>
     public QueueFailurePolicyDto? FailurePolicy { get; set; }
 
+    private QueueDeviceRecoveryDto? _deviceRecovery;
+
     /// <summary>
-    /// Optional device recovery settings (feature 121). Absent or null clears the stored settings, as
-    /// for <see cref="FailurePolicy"/>.
+    /// Optional device recovery settings (feature 121). An absent member keeps the stored settings (feature 199).
+    /// An explicit null clears them.
     /// </summary>
-    public QueueDeviceRecoveryDto? DeviceRecovery { get; set; }
+    public QueueDeviceRecoveryDto? DeviceRecovery {
+      get => _deviceRecovery;
+      set {
+        _deviceRecovery = value;
+        DeviceRecoverySpecified = true;
+      }
+    }
+
+    /// <summary>
+    /// True when the request JSON has the member deviceRecovery, also with the value null.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool DeviceRecoverySpecified { get; private set; }
 
     /// <summary>Opt-in: start the queue again after a service restart if it was running (feature 098). Absent → false.</summary>
     public bool ResumeOnServiceStart { get; set; }

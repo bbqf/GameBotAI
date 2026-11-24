@@ -672,3 +672,48 @@ describe('PhoneQueuesView Run next (feature 184)', () => {
     expect(phoneCss).toMatch(/\.phone-card__title\s*\{[^}]*text-overflow:\s*ellipsis/s);
   });
 });
+
+describe('PhoneQueuesView "Not live" mark (feature 199)', () => {
+  it('shows the mark on the card of a running queue with a not-live device only', async () => {
+    queuesMock.listQueues.mockResolvedValue([
+      queue({ id: 'q1', name: 'Daily', status: 'Running', deviceLiveness: 'not_live' }),
+      queue({ id: 'q2', name: 'Farm', status: 'Running', deviceLiveness: 'live' }),
+      queue({ id: 'q3', name: 'Idle', status: 'Stopped' })
+    ]);
+    render(<View />);
+
+    const card = await screen.findByTestId('queue-card-q1');
+    expect(within(card).getByText('Not live')).toBeInTheDocument();
+    expect(within(screen.getByTestId('queue-card-q2')).queryByText('Not live')).toBeNull();
+    expect(within(screen.getByTestId('queue-card-q3')).queryByText('Not live')).toBeNull();
+  });
+
+  it('shows the mark in the detail when the health block says not live', async () => {
+    queuesMock.listQueues.mockResolvedValue([queue({ id: 'q1', name: 'Daily', status: 'Running' })]);
+    queuesMock.getQueue.mockResolvedValue(detail({
+      status: 'Running',
+      health: { paused: false, deviceLiveness: { state: 'not_live', reason: 'capture_stalled' } }
+    }));
+    render(<View />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Open Daily' }));
+
+    const section = await screen.findByTestId('phone-queue-detail');
+    expect(await within(section).findByText('Not live')).toBeInTheDocument();
+  });
+
+  it('shows no mark in the detail when the device is live', async () => {
+    queuesMock.listQueues.mockResolvedValue([queue({ id: 'q1', name: 'Daily', status: 'Running' })]);
+    queuesMock.getQueue.mockResolvedValue(detail({
+      status: 'Running',
+      health: { paused: false, deviceLiveness: { state: 'live' } }
+    }));
+    render(<View />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Open Daily' }));
+
+    const section = await screen.findByTestId('phone-queue-detail');
+    await within(section).findByText('Daily');
+    expect(within(section).queryByText('Not live')).toBeNull();
+  });
+});

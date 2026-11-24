@@ -13,7 +13,7 @@ namespace GameBot.ContractTests.Queues;
 
 /// <summary>
 /// The <c>deviceRecovery</c> field of a queue (feature 121, contract <c>device-recovery-api.md</c>):
-/// round-trip, defaults, the clear rule of <c>PUT</c>, the copy in the duplicate route, and the
+/// round-trip, defaults, the keep and clear rule of <c>PUT</c> (feature 199), the copy in the duplicate route, and the
 /// validation errors. A bad value must give HTTP 400 and never 500. None of these tests starts a run.
 /// </summary>
 public sealed class QueueDeviceRecoveryContractTests : IDisposable {
@@ -106,17 +106,64 @@ public sealed class QueueDeviceRecoveryContractTests : IDisposable {
     (await GetQueueAsync(client, id)).GetProperty("deviceRecovery").ValueKind.Should().Be(JsonValueKind.Null);
   }
 
+  private static Task<HttpResponseMessage> PutRawAsync(HttpClient client, string id, string json) =>
+    client.PutAsync(new Uri($"/api/queues/{id}", UriKind.Relative),
+      new StringContent(json, System.Text.Encoding.UTF8, "application/json"));
+
+  // Feature 199 (FR-005a): an absent member on PUT keeps the stored settings. This replaces the rule of feature 121.
   [Fact]
-  public async Task AnAbsentMemberOnPutClearsTheField() {
+  public async Task AnAbsentMemberOnPutKeepsTheField() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = NewClient(app);
+    var id = await CreateWithRecoveryAsync(client, new { action = "reboot-instance", afterMs = 120000 });
+
+    var update = await PutRawAsync(client, id, "{\"name\":\"Plain now\",\"emulatorInstanceName\":\"LDPlayer-1\"}");
+    update.StatusCode.Should().Be(HttpStatusCode.OK);
+
+    var kept = (await JsonOf(update)).GetProperty("deviceRecovery");
+    kept.GetProperty("action").GetString().Should().Be("reboot-instance");
+    kept.GetProperty("afterMs").GetInt32().Should().Be(120000);
+    var stored = (await GetQueueAsync(client, id)).GetProperty("deviceRecovery");
+    stored.GetProperty("action").GetString().Should().Be("reboot-instance");
+    stored.GetProperty("afterMs").GetInt32().Should().Be(120000);
+  }
+
+  [Fact]
+  public async Task AnExplicitNullOnPutClearsTheField() {
     using var app = new WebApplicationFactory<Program>();
     var client = NewClient(app);
     var id = await CreateWithRecoveryAsync(client, new { action = "reboot-instance" });
 
-    var update = await client.PutAsJsonAsync(new Uri($"/api/queues/{id}", UriKind.Relative),
-      new { name = "Plain now", emulatorInstanceName = "LDPlayer-1" });
+    var update = await PutRawAsync(client, id, "{\"name\":\"Plain now\",\"emulatorInstanceName\":\"LDPlayer-1\",\"deviceRecovery\":null}");
     update.StatusCode.Should().Be(HttpStatusCode.OK);
 
+    (await JsonOf(update)).GetProperty("deviceRecovery").ValueKind.Should().Be(JsonValueKind.Null);
     (await GetQueueAsync(client, id)).GetProperty("deviceRecovery").ValueKind.Should().Be(JsonValueKind.Null);
+  }
+
+  [Fact]
+  public async Task ActionNoneOnPutIsStored() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = NewClient(app);
+    var id = await CreateWithRecoveryAsync(client, new { action = "reboot-instance" });
+
+    var update = await PutRawAsync(client, id, "{\"name\":\"Plain now\",\"emulatorInstanceName\":\"LDPlayer-1\",\"deviceRecovery\":{\"action\":\"none\"}}");
+    update.StatusCode.Should().Be(HttpStatusCode.OK);
+
+    (await JsonOf(update)).GetProperty("deviceRecovery").GetProperty("action").GetString().Should().Be("none");
+  }
+
+  [Fact]
+  public async Task AnAbsentMemberWithAnEmptyInstanceNameOnAnAbsentRecoveryGivesHttp400() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = NewClient(app);
+    var id = await CreateWithRecoveryAsync(client, new { action = "reboot-instance" });
+
+    var update = await PutRawAsync(client, id, "{\"name\":\"Plain now\",\"emulatorInstanceName\":\"\"}");
+
+    update.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    (await ErrorMessageAsync(update)).Should().Be(
+      "deviceRecovery.action 'reboot-instance' needs emulatorInstanceName. Set emulatorInstanceName on the queue.");
   }
 
   [Fact]

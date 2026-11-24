@@ -25,6 +25,9 @@ namespace GameBot.Service.Services.QueueExecution;
 /// than <c>AlertAfterMs</c> and one "device live again" message after the device is live. When the queue has
 /// <c>deviceRecovery</c> with action <c>reboot-instance</c>, it also starts one recovery attempt in the
 /// background when the episode is older than <c>afterMs</c>.
+/// The watch reads the stored queue at the start of each check, so a saved change of <c>deviceRecovery</c>
+/// or of the instance name applies to the run at its next check (feature 199). The episode and its attempt
+/// count do not change.
 /// The watch never stops the run. The watch repairs the device only through the recovery runner, and only
 /// when the queue asks for it. A stop policy that the operator configured acts through the evaluator, as for
 /// each other failed cycle. The watch never throws: it logs each exception and continues.
@@ -42,6 +45,9 @@ internal sealed class QueueLivenessWatch {
   private readonly INotificationDispatcher? _notifications;
   private readonly QueueDeviceRecoveryRunner? _recovery;
   private readonly Func<ExecutionQueue, QueueRunHandle, Task>? _rebind;
+  private readonly Func<CancellationToken, Task<ExecutionQueue?>>? _readQueue;
+  private QueueDeviceRecovery? _recoverySettings;
+  private string? _instanceName;
   private CancellationToken _stopToken = CancellationToken.None;
   private Task _recoveryTask = Task.CompletedTask;
 
@@ -57,7 +63,8 @@ internal sealed class QueueLivenessWatch {
     ILogger logger,
     INotificationDispatcher? notifications = null,
     QueueDeviceRecoveryRunner? recovery = null,
-    Func<ExecutionQueue, QueueRunHandle, Task>? rebind = null) {
+    Func<ExecutionQueue, QueueRunHandle, Task>? rebind = null,
+    Func<CancellationToken, Task<ExecutionQueue?>>? readQueue = null) {
     _queue = queue;
     _handle = handle;
     _rootId = rootId;
@@ -70,6 +77,9 @@ internal sealed class QueueLivenessWatch {
     _notifications = notifications;
     _recovery = recovery;
     _rebind = rebind;
+    _readQueue = readQueue;
+    _recoverySettings = queue.DeviceRecovery;
+    _instanceName = queue.EmulatorInstanceName;
   }
 
   /// <summary>
@@ -121,6 +131,7 @@ internal sealed class QueueLivenessWatch {
   /// </summary>
   public async Task<bool> CheckOnceAsync() {
     try {
+      await RefreshRecoverySettingsAsync().ConfigureAwait(false);
       var sessionId = _handle.SessionId;
       if (sessionId is null) return false;
       var session = _sessions.GetSession(sessionId);
@@ -151,6 +162,27 @@ internal sealed class QueueLivenessWatch {
     }
   }
 
+  // Feature 199 (FR-012a): read the stored queue and take its recovery settings and instance name. When the
+  // read fails or gives null, keep the last known values.
+  private async Task RefreshRecoverySettingsAsync() {
+    if (_readQueue is null) return;
+    try {
+      var stored = await _readQueue(_stopToken).ConfigureAwait(false);
+      if (stored is null) {
+        QueueLivenessLog.StoredQueueReadFailed(_logger, _queue.Id);
+        return;
+      }
+      _recoverySettings = stored.DeviceRecovery;
+      _instanceName = stored.EmulatorInstanceName;
+    }
+    catch (OperationCanceledException) {
+      throw;
+    }
+    catch (Exception) {
+      QueueLivenessLog.StoredQueueReadFailed(_logger, _queue.Id);
+    }
+  }
+
   // Feature 121 (FR-001, FR-002, FR-003): each claim is true one time for the episode, so each message is
   // sent one time. Without a dispatcher the watch claims nothing.
   private void SendAlerts(DeviceLivenessReport report, DateTimeOffset now) {
@@ -173,7 +205,7 @@ internal sealed class QueueLivenessWatch {
   // episode claim keeps one attempt at a time, and it keeps the attempt count and the cooldown.
   private void StartRecoveryIfDue(DeviceLivenessReport report, DateTimeOffset now) {
     if (_recovery is null || _rebind is null) return;
-    if (_queue.DeviceRecovery is not { Reboots: true } settings) return;
+    if (_recoverySettings is not { Reboots: true } settings) return;
     if (report.State != DeviceLivenessStates.NotLive) return;
     var claimed = _handle.Liveness.TryBeginRecovery(
       now,
@@ -189,7 +221,8 @@ internal sealed class QueueLivenessWatch {
     Func<ExecutionQueue, QueueRunHandle, Task> rebind,
     CancellationToken ct) {
     try {
-      await runner.RunAttemptAsync(_queue, _handle, rebind, ct).ConfigureAwait(false);
+      await runner.RunAttemptAsync(
+        _queue, _handle, rebind, _instanceName, _recoverySettings?.MaxAttempts ?? QueueDeviceRecovery.DefaultMaxAttempts, ct).ConfigureAwait(false);
     }
     catch (OperationCanceledException) {
       // A stop or a delete of the queue. The runner already cleared the running flag.
@@ -209,6 +242,9 @@ internal static partial class QueueLivenessLog {
 
   [LoggerMessage(EventId = 1142, Level = LogLevel.Warning, Message = "Queue {QueueId}: the device is not live ({Reason}). The queue holds the firing of sequence {SequenceId}.")]
   public static partial void FiringHeld(ILogger logger, string QueueId, string SequenceId, string Reason);
+
+  [LoggerMessage(EventId = 1144, Level = LogLevel.Debug, Message = "Queue {QueueId}: the read of the stored queue failed. The watch uses the last known recovery settings.")]
+  public static partial void StoredQueueReadFailed(ILogger logger, string QueueId);
 
   [LoggerMessage(EventId = 1143, Level = LogLevel.Warning, Message = "Queue {QueueId}: could not record the held firing of sequence {SequenceId}. The firing stays held.")]
   public static partial void GateRecordFailed(ILogger logger, string QueueId, string SequenceId, Exception ex);

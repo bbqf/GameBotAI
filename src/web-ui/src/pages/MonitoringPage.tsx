@@ -14,6 +14,7 @@ import {
 } from '../services/monitoringApi';
 import { ScreenshotView } from '../components/monitoring/ScreenshotView';
 import { SessionList, SessionStateChip } from '../components/monitoring/SessionList';
+import { NotLiveBadge } from '../components/queues/NotLiveBadge';
 import { RestartEmulatorDialog } from '../components/monitoring/RestartEmulatorDialog';
 import './Monitoring.phone.css';
 
@@ -220,6 +221,7 @@ export const MonitoringPage: React.FC<MonitoringPageProps> = ({ layout, connecti
       <h2 className="monitoring-detail__name">{session.name}</h2>
       <div className="monitoring-detail__row">
         <SessionStateChip state={session.state} />
+        {session.ownerQueueDeviceLiveness === 'not_live' && <NotLiveBadge />}
         {session.state === 'no_answer' && session.reason && <span className="form-hint">{session.reason}</span>}
       </div>
       {session.currentSequenceName && (

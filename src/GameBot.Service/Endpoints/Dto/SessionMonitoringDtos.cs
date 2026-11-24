@@ -68,6 +68,12 @@ internal sealed class MonitoredSessionDto {
   public string? OwnerQueueId { get; set; }
   public string? OwnerQueueName { get; set; }
   public string? CurrentSequenceName { get; set; }
+
+  /// <summary>
+  /// The device state of the owner queue: live or not_live (feature 199). Null when the session has no running owner
+  /// queue or the queue has no report.
+  /// </summary>
+  public string? OwnerQueueDeviceLiveness { get; set; }
   public bool RestartAvailable { get; set; }
   public string? RestartUnavailableReason { get; set; }
   public DateTimeOffset StartedAtUtc { get; set; }

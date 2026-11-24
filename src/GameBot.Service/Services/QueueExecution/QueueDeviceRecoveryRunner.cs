@@ -82,11 +82,15 @@ internal sealed class QueueDeviceRecoveryRunner {
   /// <param name="queue">The queue. It needs a non-blank <c>EmulatorInstanceName</c>.</param>
   /// <param name="handle">The run handle of the queue.</param>
   /// <param name="rebind">Makes a new session for the queue and sets <c>handle.SessionId</c>.</param>
+  /// <param name="instanceName">The current instance name of the queue (feature 199: the stored value, not the value at the start of the run).</param>
+  /// <param name="maxAttempts">The current maximum attempts of the queue (feature 199).</param>
   /// <param name="ct">The token of the queue run.</param>
   public async Task<bool> RunAttemptAsync(
     ExecutionQueue queue,
     QueueRunHandle handle,
     Func<ExecutionQueue, QueueRunHandle, Task> rebind,
+    string? instanceName,
+    int maxAttempts,
     CancellationToken ct) {
     ArgumentNullException.ThrowIfNull(queue);
     ArgumentNullException.ThrowIfNull(handle);
@@ -94,7 +98,7 @@ internal sealed class QueueDeviceRecoveryRunner {
 
     var success = false;
     try {
-      success = await ExecuteStepsAsync(queue, handle, rebind, ct).ConfigureAwait(false);
+      success = await ExecuteStepsAsync(queue, handle, rebind, instanceName, ct).ConfigureAwait(false);
     }
     catch (OperationCanceledException) {
       handle.Liveness.AbortRecoveryAttempt();
@@ -105,7 +109,7 @@ internal sealed class QueueDeviceRecoveryRunner {
     }
 
     handle.Liveness.EndRecoveryAttempt(_time.GetLocalNow());
-    if (!success) SendRecoveryFailedIfUsedUp(queue, handle);
+    if (!success) SendRecoveryFailedIfUsedUp(queue, handle, maxAttempts);
     return success;
   }
 
@@ -113,10 +117,11 @@ internal sealed class QueueDeviceRecoveryRunner {
     ExecutionQueue queue,
     QueueRunHandle handle,
     Func<ExecutionQueue, QueueRunHandle, Task> rebind,
+    string? instanceName,
     CancellationToken ct) {
     var options = _liveness.Options;
     var limit = TimeSpan.FromMilliseconds(Math.Max(1, options.RebootReadyTimeoutMs));
-    var instance = queue.EmulatorInstanceName;
+    var instance = instanceName;
     if (string.IsNullOrWhiteSpace(instance)) {
       RecoveryLog.NoInstanceName(_logger, queue.Id);
       return false;
@@ -167,8 +172,7 @@ internal sealed class QueueDeviceRecoveryRunner {
     }
   }
 
-  private void SendRecoveryFailedIfUsedUp(ExecutionQueue queue, QueueRunHandle handle) {
-    var maxAttempts = queue.DeviceRecovery?.MaxAttempts ?? QueueDeviceRecovery.DefaultMaxAttempts;
+  private void SendRecoveryFailedIfUsedUp(ExecutionQueue queue, QueueRunHandle handle, int maxAttempts) {
     var snapshot = handle.Liveness.Snapshot();
     if (snapshot.State != DeviceLivenessStates.NotLive || snapshot.Attempts < maxAttempts) return;
     if (_notifications is null || !handle.Liveness.TryClaimRecoveryFailed()) return;

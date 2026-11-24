@@ -61,7 +61,10 @@ internal static class QueuesEndpoints {
       var list = await repo.ListAsync().ConfigureAwait(false);
       var resp = list.Select(q => {
         var item = BuildResponse(q, runtime);
-        if (TryGetLiveRun(q.Id, runtime, runs, out var handle)) item.OperatorPause = OperatorPauseName(handle.OperatorPause);
+        if (TryGetLiveRun(q.Id, runtime, runs, out var handle)) {
+          item.OperatorPause = OperatorPauseName(handle.OperatorPause);
+          item.DeviceLiveness = handle.Liveness.Snapshot().MarkState;
+        }
         return item;
       }).ToList();
       return Results.Ok(resp);
@@ -106,17 +109,25 @@ internal static class QueuesEndpoints {
     group.MapPut("{id}", async (string id, UpdateQueueRequest? req, IQueueRepository repo, IQueueRuntimeStore runtime, IOptions<FailureNotificationOptions> notifyOptions, INotificationDispatcher notifications) => {
       var queue = await repo.GetAsync(id).ConfigureAwait(false);
       if (queue is null) return NotFound();
-      // Feature 173: a running queue accepts new settings. The run keeps the settings it read at its start,
-      // and the saved settings apply at the next start. The emulator is not part of this request.
+      // Feature 173: a running queue accepts new settings. The saved settings apply at the next start, but
+      // device recovery applies at the next liveness check of the run (feature 199). The emulator is not part of this request.
       var name = req?.Name?.Trim();
       if (string.IsNullOrWhiteSpace(name)) return Error(400, "invalid_request", "name is required");
       if (req!.EmulatorInstanceIndex is < 0) return Error(400, "invalid_request", "emulatorInstanceIndex must be >= 0");
       if (!QueueFailurePolicyMapping.TryMap(req.FailurePolicy, notifyOptions.Value, out var updatePolicy, out var updatePolicyError))
         return Error(400, "invalid_request", updatePolicyError!);
-      // Feature 121: an absent deviceRecovery clears the stored settings, as failurePolicy does.
+      // Feature 199: an absent deviceRecovery keeps the stored settings. An explicit null clears them.
       var updateInstanceName = NormalizeInstanceName(req.EmulatorInstanceName);
-      if (!QueueDeviceRecoveryMapping.TryMap(req.DeviceRecovery, updateInstanceName, out var updateRecovery, out var updateRecoveryError))
-        return Error(400, "invalid_request", updateRecoveryError!);
+      QueueDeviceRecovery? updateRecovery;
+      if (req.DeviceRecoverySpecified) {
+        if (!QueueDeviceRecoveryMapping.TryMap(req.DeviceRecovery, updateInstanceName, out updateRecovery, out var updateRecoveryError))
+          return Error(400, "invalid_request", updateRecoveryError!);
+      }
+      else {
+        updateRecovery = queue.DeviceRecovery;
+        var keptError = QueueDeviceRecoveryValidator.Validate(updateRecovery, updateInstanceName);
+        if (keptError is not null) return Error(400, "invalid_request", keptError);
+      }
       // Feature 120 (FR-021): an absent level keeps the stored level.
       var updateLevel = queue.NotificationLevel;
       if (req.NotificationLevel is not null && !NotificationLevelText.TryParse(req.NotificationLevel, out updateLevel))

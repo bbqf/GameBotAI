@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { MonitoringPage } from '../MonitoringPage';
 import * as monitoringApi from '../../services/monitoringApi';
 import { ApiError } from '../../lib/api';
@@ -74,6 +74,22 @@ describe('MonitoringPage restart (feature 141, US2)', () => {
     await openSession(<MonitoringPage layout="desktop" />);
     expect(screen.getByTestId('monitoring-sequence')).toHaveTextContent('Sequence: Help All');
     expect(screen.queryByText(/q-id-1/)).toBeNull();
+  });
+
+  it('shows the "Not live" mark in the header of the selected session when the owner queue device is not live (feature 199)', async () => {
+    api.listMonitoredSessions.mockResolvedValue([
+      makeSession('a', { ownerQueueId: 'q1', ownerQueueName: 'PNS', ownerQueueDeviceLiveness: 'not_live' })
+    ]);
+    await openSession(<MonitoringPage layout="desktop" />);
+    expect(within(screen.getByTestId('monitoring-detail')).getByText('Not live')).toBeInTheDocument();
+  });
+
+  it('shows no "Not live" mark in the header when the owner queue device is live (feature 199)', async () => {
+    api.listMonitoredSessions.mockResolvedValue([
+      makeSession('a', { ownerQueueId: 'q1', ownerQueueName: 'PNS', ownerQueueDeviceLiveness: 'live' })
+    ]);
+    await openSession(<MonitoringPage layout="desktop" />);
+    expect(within(screen.getByTestId('monitoring-detail')).queryByText('Not live')).toBeNull();
   });
 
   it('shows no sequence line when the queue runs no sequence', async () => {

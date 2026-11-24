@@ -20,6 +20,7 @@ import {
 } from '../services/queues';
 import { listSequences, SequenceDto } from '../services/sequences';
 import { QueueForm, QueueFormValue, isValidSmartWindow } from '../components/queues/QueueForm';
+import { hasRecoveryErrors, recoveryFieldErrors, recoveryFormFromDto, recoveryToSend } from '../components/queues/deviceRecoveryForm';
 import { QueueMonitor } from '../components/queues/QueueMonitor';
 import { QueueRowActions } from '../components/queues/QueueRowActions';
 import { EntrySchedule } from '../components/queues/QueueEntryList';
@@ -57,7 +58,13 @@ const LIST_POLL_INTERVAL_MS = 5000;
 const smartWindowToSend = (form: QueueFormValue): number | undefined =>
   form.smartScheduling || isValidSmartWindow(form.smartSchedulingWindowMinutes) ? form.smartSchedulingWindowMinutes : undefined;
 
-const emptyForm: QueueFormValue = { name: '', emulatorSerial: '', cycleExecution: false, pauseWhenIdle: false, idleThresholdSeconds: 30, emulatorInstanceName: '', emulatorInstanceIndex: null, resumeOnServiceStart: false, smartScheduling: false, smartSchedulingWindowMinutes: 15 };
+/** Gives the deviceRecovery member of a request, or nothing when the request must have no member (feature 199). */
+const recoveryMember = (form: QueueFormValue) => {
+  const deviceRecovery = recoveryToSend(form);
+  return deviceRecovery === undefined ? {} : { deviceRecovery };
+};
+
+const emptyForm: QueueFormValue = { name: '', emulatorSerial: '', cycleExecution: false, pauseWhenIdle: false, idleThresholdSeconds: 30, emulatorInstanceName: '', emulatorInstanceIndex: null, resumeOnServiceStart: false, smartScheduling: false, smartSchedulingWindowMinutes: 15, ...recoveryFormFromDto(null) };
 
 export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
   const [queues, setQueues] = useState<QueueDto[]>([]);
@@ -164,7 +171,7 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
     const q = await getQueue(id);
     setDetail(q);
     setAssociatedTemplateName(q.linkedTemplateName ?? undefined);
-    setForm({ name: q.name, emulatorSerial: q.emulatorSerial, cycleExecution: q.cycleExecution, pauseWhenIdle: q.pauseWhenIdle, idleThresholdSeconds: q.idleThresholdSeconds, emulatorInstanceName: q.emulatorInstanceName ?? '', emulatorInstanceIndex: q.emulatorInstanceIndex ?? null, resumeOnServiceStart: q.resumeOnServiceStart ?? false, smartScheduling: q.smartScheduling ?? false, smartSchedulingWindowMinutes: q.smartSchedulingWindowMinutes ?? 15 });
+    setForm({ name: q.name, emulatorSerial: q.emulatorSerial, cycleExecution: q.cycleExecution, pauseWhenIdle: q.pauseWhenIdle, idleThresholdSeconds: q.idleThresholdSeconds, emulatorInstanceName: q.emulatorInstanceName ?? '', emulatorInstanceIndex: q.emulatorInstanceIndex ?? null, resumeOnServiceStart: q.resumeOnServiceStart ?? false, smartScheduling: q.smartScheduling ?? false, smartSchedulingWindowMinutes: q.smartSchedulingWindowMinutes ?? 15, ...recoveryFormFromDto(q.deviceRecovery) });
 
     // Restore per-entry schedule state from the linked template so that the editor
     // reflects previously saved schedule types and saving doesn't overwrite them with OncePerRun.
@@ -211,7 +218,9 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
     setFieldErrors(Object.keys(errs).length ? errs : undefined);
     // Feature 189: the form shows the range message at the window field. A save waits for a valid window.
     const windowOk = !form.smartScheduling || isValidSmartWindow(form.smartSchedulingWindowMinutes);
-    return Object.keys(errs).length === 0 && windowOk;
+    // Feature 199: the form shows the recovery messages at their fields. A save waits for valid recovery values.
+    const recoveryOk = !hasRecoveryErrors(recoveryFieldErrors(form, form.emulatorInstanceName));
+    return Object.keys(errs).length === 0 && windowOk && recoveryOk;
   };
 
   const submitForm = async () => {
@@ -221,10 +230,12 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
     setQueueSaveResult(undefined);
     try {
       if (creating) {
-        await createQueue({ name: form.name.trim(), emulatorSerial: form.emulatorSerial.trim(), cycleExecution: form.cycleExecution, pauseWhenIdle: form.pauseWhenIdle, idleThresholdSeconds: form.idleThresholdSeconds, emulatorInstanceName: form.emulatorInstanceName.trim() || null, emulatorInstanceIndex: form.emulatorInstanceIndex, resumeOnServiceStart: form.resumeOnServiceStart, smartScheduling: form.smartScheduling, smartSchedulingWindowMinutes: smartWindowToSend(form) });
+        await createQueue({ name: form.name.trim(), emulatorSerial: form.emulatorSerial.trim(), cycleExecution: form.cycleExecution, pauseWhenIdle: form.pauseWhenIdle, idleThresholdSeconds: form.idleThresholdSeconds, emulatorInstanceName: form.emulatorInstanceName.trim() || null, emulatorInstanceIndex: form.emulatorInstanceIndex, resumeOnServiceStart: form.resumeOnServiceStart, smartScheduling: form.smartScheduling, smartSchedulingWindowMinutes: smartWindowToSend(form), ...recoveryMember(form) });
         setQueueSaveResult({ kind: 'success', message: 'Queue created successfully.' });
       } else if (detail) {
-        await updateQueue(detail.id, { name: form.name.trim(), cycleExecution: form.cycleExecution, pauseWhenIdle: form.pauseWhenIdle, idleThresholdSeconds: form.idleThresholdSeconds, emulatorInstanceName: form.emulatorInstanceName.trim() || null, emulatorInstanceIndex: form.emulatorInstanceIndex, resumeOnServiceStart: form.resumeOnServiceStart, smartScheduling: form.smartScheduling, smartSchedulingWindowMinutes: smartWindowToSend(form) });
+        const saved = await updateQueue(detail.id, { name: form.name.trim(), cycleExecution: form.cycleExecution, pauseWhenIdle: form.pauseWhenIdle, idleThresholdSeconds: form.idleThresholdSeconds, emulatorInstanceName: form.emulatorInstanceName.trim() || null, emulatorInstanceIndex: form.emulatorInstanceIndex, resumeOnServiceStart: form.resumeOnServiceStart, smartScheduling: form.smartScheduling, smartSchedulingWindowMinutes: smartWindowToSend(form), ...recoveryMember(form) });
+        // Feature 199: the stored settings are now the saved settings. The next save uses them (research R-006).
+        if (saved) setForm((f) => ({ ...f, ...recoveryFormFromDto(saved.deviceRecovery) }));
         setQueueSaveResult({ kind: 'success', message: 'Queue updated successfully.' });
       }
       // Keep the form open so the confirmation is visible at the Save action (FR-006); just
@@ -560,6 +571,7 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
             queueId={detail.id}
             hasTemplate={Boolean(detail.linkedTemplateId)}
             refreshKey={templateSavedTick}
+            recoveryOn={detail.deviceRecovery?.action === 'reboot-instance'}
             onChanged={() => void refresh()}
           />
           <h4>Monitor: {detail.name}</h4>
