@@ -104,6 +104,24 @@ public sealed partial class QueueExecutionServiceTests {
       r.RecoveryAttempts.Should().Be(0);
     }
 
+    // Feature 199 (spec edge case "lower the maximum attempts"): the stored settings decide the state.
+    [Fact]
+    public void LoweringTheMaximumAttemptsBelowTheCountGivesExhausted() {
+      var s = new Setup();
+      s.Liveness.SetNotLive(DeviceLivenessReasons.CaptureStalled);
+      s.Reader.Project(s.Handle, Reboot);
+      for (var i = 0; i < 2; i++) {
+        s.Handle.Liveness.TryBeginRecovery(T0.AddMinutes(5 + i), TimeSpan.FromMinutes(1), 3, TimeSpan.Zero).Should().BeTrue();
+        s.Handle.Liveness.EndRecoveryAttempt(T0.AddMinutes(5 + i));
+      }
+      var lowered = new QueueDeviceRecovery { Action = "reboot-instance", MaxAttempts = 1, AfterMs = 60000, CooldownMs = 0 };
+
+      var r = s.Reader.Project(s.Handle, lowered)!;
+
+      r.RecoveryState.Should().Be("exhausted");
+      r.RecoveryAttempts.Should().Be(2);
+    }
+
     [Fact]
     public void AQueueWithNoRecoveryNeverShowsExhausted() {
       var s = new Setup();

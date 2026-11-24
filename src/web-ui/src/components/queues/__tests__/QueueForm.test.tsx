@@ -1,12 +1,13 @@
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { QueueForm, QueueFormValue } from '../QueueForm';
+import { recoveryFormFromDto } from '../deviceRecoveryForm';
 
 jest.mock('../../../services/useAdbDevices', () => ({
   useAdbDevices: () => ({ devices: [{ serial: 'emu-1' }, { serial: 'emu-2' }], loading: false, error: undefined, refresh: () => {} }),
 }));
 
-const baseValue: QueueFormValue = { name: '', emulatorSerial: '', cycleExecution: false, pauseWhenIdle: false, idleThresholdSeconds: 30, emulatorInstanceName: '', emulatorInstanceIndex: null, resumeOnServiceStart: false, smartScheduling: false, smartSchedulingWindowMinutes: 15 };
+const baseValue: QueueFormValue = { name: '', emulatorSerial: '', cycleExecution: false, pauseWhenIdle: false, idleThresholdSeconds: 30, emulatorInstanceName: '', emulatorInstanceIndex: null, resumeOnServiceStart: false, smartScheduling: false, smartSchedulingWindowMinutes: 15, ...recoveryFormFromDto(null) };
 
 const renderForm = (overrides: Partial<React.ComponentProps<typeof QueueForm>> = {}) => {
   const onChange = jest.fn();
@@ -48,7 +49,7 @@ describe('QueueForm', () => {
 
   it('says when the settings apply for a running queue, and keeps the emulator read-only', () => {
     renderForm({ mode: 'edit', running: true, value: { ...baseValue, name: 'Farm', emulatorSerial: 'emu-9' } });
-    expect(screen.getByText('Settings apply at the next start. Smart scheduling applies to the next booking.')).toBeInTheDocument();
+    expect(screen.getByText('Settings apply at the next start. Smart scheduling applies to the next booking. Device recovery applies within 1 minute.')).toBeInTheDocument();
     expect(screen.getByLabelText('Emulator *')).toBeDisabled();
     expect(screen.getByLabelText('Cycle execution')).not.toBeDisabled();
     expect(screen.getByLabelText('Name *')).not.toBeDisabled();
@@ -56,15 +57,15 @@ describe('QueueForm', () => {
 
   it('shows the settings note once, after the Save button', () => {
     renderForm({ mode: 'edit', running: true, value: { ...baseValue, name: 'Farm', emulatorSerial: 'emu-9' } });
-    const note = screen.getByText('Settings apply at the next start. Smart scheduling applies to the next booking.');
+    const note = screen.getByText('Settings apply at the next start. Smart scheduling applies to the next booking. Device recovery applies within 1 minute.');
     const save = screen.getByRole('button', { name: 'Save' });
-    expect(screen.getAllByText('Settings apply at the next start. Smart scheduling applies to the next booking.')).toHaveLength(1);
+    expect(screen.getAllByText('Settings apply at the next start. Smart scheduling applies to the next booking. Device recovery applies within 1 minute.')).toHaveLength(1);
     expect(save.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('shows no settings note for a stopped queue or in create mode', () => {
     renderForm({ mode: 'edit', value: { ...baseValue, name: 'Farm', emulatorSerial: 'emu-9' } });
-    expect(screen.queryByText('Settings apply at the next start. Smart scheduling applies to the next booking.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Settings apply at the next start. Smart scheduling applies to the next booking. Device recovery applies within 1 minute.')).not.toBeInTheDocument();
   });
 
   it('renders slots in the new order: emulator → cycle → game → Save → separator → template section', () => {
@@ -202,5 +203,50 @@ describe('QueueForm', () => {
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ emulatorInstanceIndex: 5 }));
     fireEvent.change(index, { target: { value: '' } });
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ emulatorInstanceIndex: null }));
+  });
+
+  // Feature 199: the device recovery option.
+  describe('device recovery option', () => {
+    it('shows the option off for a new queue, with no fields', () => {
+      renderForm();
+      expect(screen.getByLabelText('Device recovery')).not.toBeChecked();
+      expect(screen.getByText('Reboot the instance when the device is not live')).toBeInTheDocument();
+      expect(screen.queryByLabelText('Recovery wait minutes')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Recovery maximum attempts')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Recovery time between attempts minutes')).not.toBeInTheDocument();
+    });
+
+    it('emits the change of the option', () => {
+      const { onChange } = renderForm();
+      fireEvent.click(screen.getByLabelText('Device recovery'));
+      expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ deviceRecoveryOn: true }));
+    });
+
+    it('shows the three fields with the defaults when the option is on', () => {
+      renderForm({ value: { ...baseValue, emulatorInstanceName: 'PNS', deviceRecoveryOn: true } });
+      expect(screen.getByLabelText('Recovery wait minutes')).toHaveValue(5);
+      expect(screen.getByLabelText('Recovery maximum attempts')).toHaveValue(2);
+      expect(screen.getByLabelText('Recovery time between attempts minutes')).toHaveValue(3);
+    });
+
+    it('emits the change of each field', () => {
+      const { onChange } = renderForm({ value: { ...baseValue, emulatorInstanceName: 'PNS', deviceRecoveryOn: true } });
+      fireEvent.change(screen.getByLabelText('Recovery wait minutes'), { target: { value: '3' } });
+      expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ recoveryAfterMinutes: 3 }));
+      fireEvent.change(screen.getByLabelText('Recovery maximum attempts'), { target: { value: '4' } });
+      expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ recoveryMaxAttempts: 4 }));
+      fireEvent.change(screen.getByLabelText('Recovery time between attempts minutes'), { target: { value: '0.5' } });
+      expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ recoveryCooldownMinutes: 0.5 }));
+    });
+
+    it('shows the message at the field for a value that is not permitted', () => {
+      renderForm({ value: { ...baseValue, emulatorInstanceName: '', deviceRecoveryOn: true, recoveryAfterMinutes: 0.5, recoveryMaxAttempts: 6, recoveryCooldownMinutes: -1 } });
+      expect(screen.getByText('Device recovery needs an emulator instance name.')).toBeInTheDocument();
+      expect(screen.getByText('Enter 1 minute or more.')).toBeInTheDocument();
+      expect(screen.getByText('Enter a whole number from 1 to 5.')).toBeInTheDocument();
+      expect(screen.getByText('Enter 0 minutes or more.')).toBeInTheDocument();
+      expect(screen.getByLabelText('Recovery wait minutes')).toHaveAttribute('aria-invalid', 'true');
+      expect(screen.getByLabelText('Device recovery')).toHaveAttribute('aria-invalid', 'true');
+    });
   });
 });

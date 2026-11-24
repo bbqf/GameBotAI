@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { usePolling } from '../../hooks/usePolling';
 import { getQueueHealth, QueueHealthDto } from '../../services/queues';
+import { QueueDeviceState } from './QueueDeviceState';
 import { QueuePauseControls } from './QueuePauseControls';
 import { TemplateChangesNotice } from './TemplateChangesNotice';
 
@@ -13,6 +14,8 @@ export type RunningQueueControlsProps = {
   hasTemplate: boolean;
   /** Change this value to read the waiting changes again, for example after a template save. */
   refreshKey?: number;
+  /** True when the queue has device recovery with the action reboot-instance (feature 199). */
+  recoveryOn?: boolean;
   /** Called after a pause, a resume, or an apply. */
   onChanged?: () => void;
 };
@@ -21,7 +24,7 @@ export type RunningQueueControlsProps = {
  * The pause controls and the notice of waiting template changes, for the Edit page of a running queue (feature 173).
  * The component reads the pause state once and gives it to both parts, so the review knows when the queue is paused.
  */
-export const RunningQueueControls: React.FC<RunningQueueControlsProps> = ({ queueId, hasTemplate, refreshKey, onChanged }) => {
+export const RunningQueueControls: React.FC<RunningQueueControlsProps> = ({ queueId, hasTemplate, refreshKey, recoveryOn = false, onChanged }) => {
   const [health, setHealth] = useState<QueueHealthDto | null>(null);
 
   const read = useCallback(() => {
@@ -42,6 +45,7 @@ export const RunningQueueControls: React.FC<RunningQueueControlsProps> = ({ queu
 
   return (
     <div className="running-queue-controls">
+      <QueueDeviceState liveness={health?.deviceLiveness} recoveryOn={recoveryOn} />
       <QueuePauseControls queueId={queueId} health={health} onChanged={changed} />
       <TemplateChangesNotice
         queueId={queueId}

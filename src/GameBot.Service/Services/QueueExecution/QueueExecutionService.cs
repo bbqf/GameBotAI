@@ -1103,7 +1103,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
   private Task? StartLivenessWatch(ExecutionQueue queue, QueueRunHandle handle, string rootId, CancellationToken ct) {
     if (_liveness is null) return null;
     var watch = new QueueLivenessWatch(queue, handle, rootId, _sessions, _liveness, _log, _failurePolicy, _timeProvider, _logger,
-      _notifications, _recoveryRunner, RebindSessionAsync);
+      _notifications, _recoveryRunner, RebindSessionAsync, _ => _queues.GetAsync(queue.Id)!);
     return Task.Run(() => watch.RunAsync(ct), CancellationToken.None);
   }
 

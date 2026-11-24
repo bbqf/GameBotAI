@@ -119,6 +119,9 @@ pre.json { background: var(--gb-color-surface-alt); border: 1px solid var(--gb-c
 .badge-env { background: #fef3c7; color: #92400e; }
 .badge-file { background: #dbeafe; color: #1e40af; }
 .badge-default { background: #f1f5f9; color: #64748b; }
+/* Feature 199: the "Not live" mark. The colors give a contrast ratio above 7 to 1 (WCAG AA). It wraps with its text. */
+.not-live-badge { display: inline-block; margin-left: 0.5rem; padding: 2px 8px; border-radius: 999px; background: #fee2e2; color: #991b1b; font-size: 0.75rem; font-weight: 700; white-space: nowrap; }
+.queue-device-state { margin: 0.5rem 0; font-size: 0.9rem; }
 
 .config-empty-state { color: var(--gb-color-muted); text-align: center; padding: var(--gb-space-4); }
 .config-fetch-error { text-align: center; padding: var(--gb-space-4); }

@@ -17,6 +17,7 @@ import {
   QueueMonitorDto
 } from '../../services/queues';
 import { getQueueTemplate, saveQueueTemplate, QueueTemplateDetail } from '../../services/queueTemplates';
+import { NotLiveBadge } from './NotLiveBadge';
 import { buildQueueActivity, buildScheduleRows, describeNow } from './queueActivity';
 import { IconButton } from './IconButton';
 import { QueuePauseControls } from './QueuePauseControls';
@@ -351,6 +352,7 @@ export const PhoneQueuesView: React.FC<PhoneQueuesViewProps> = ({
             <h2 className="phone-queue-detail__name">{detail.name}</h2>
             <div className="phone-queue-detail__row">
               <QueueStatusChip status={detail.status} />
+              {detail.health?.deviceLiveness?.state === 'not_live' && <NotLiveBadge />}
               <button type="button" onClick={() => void toggleRun(detail)} disabled={busy || lost}>
                 {runLabel(detail.status)}
               </button>
@@ -463,7 +465,7 @@ export const PhoneQueuesView: React.FC<PhoneQueuesViewProps> = ({
             title={q.name}
             testId={`queue-card-${q.id}`}
             status={<QueueStatusChip status={q.status} />}
-            summary={<>{buildQueueActivity(q, monitors[q.id])}{listStale ? ' (old data)' : ''}</>}
+            summary={<>{buildQueueActivity(q, monitors[q.id])}{listStale ? ' (old data)' : ''}{q.deviceLiveness === 'not_live' && <NotLiveBadge />}</>}
             onOpen={() => open(q.id)}
             action={{ label: runLabel(q.status), onClick: () => void toggleRun(q), disabled: busy || lost }}
           />

@@ -72,6 +72,10 @@ The queue detail shows what the queue does now and what it will do next.
     browser cannot cancel a back step. The app (`lib/phoneLeaveGuard.ts`) goes forward one step again and raises a counter, and
     the page opens the dialog. A tab bar move asks the same question.
   - The big screen has no entry page. The Entry settings panel of the card holds the same parameter form.
+- **"Not live" mark** (feature 199, phone support level: `full`). A queue card and the queue detail show a small "Not live"
+  mark when the device of the running queue is not live. The mark wraps with its text, needs no tap, and causes no sideways
+  scroll at 360 px. The Monitoring session row and header show the same mark. The device recovery option is in the queue
+  settings form, which is not on the phone (`desktop-only`).
 - A running queue has the controls of feature 171 (phone support level: full). The controls are **Pause**,
   **Cancel pause**, **Resume**, **Review changes** (with **Apply**), and **Upgrade template**. They work in one column, each
   control is at least 44 px high, and the text wraps with no sideways scroll. The state shows as "Pausing (waiting for the

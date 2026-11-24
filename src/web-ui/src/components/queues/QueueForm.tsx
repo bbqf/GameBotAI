@@ -1,8 +1,9 @@
 import React, { useMemo } from 'react';
 import { SearchableDropdown, SearchableOption } from '../SearchableDropdown';
 import { useAdbDevices } from '../../services/useAdbDevices';
+import { RecoveryFormFields, recoveryFieldErrors } from './deviceRecoveryForm';
 
-export type QueueFormValue = {
+export type QueueFormValue = RecoveryFormFields & {
   name: string;
   emulatorSerial: string;
   cycleExecution: boolean;
@@ -20,6 +21,7 @@ export type QueueFormValue = {
   smartScheduling: boolean;
   /** The smart scheduling window in minutes, from 1 to 120 (default 15). */
   smartSchedulingWindowMinutes: number;
+  // The device recovery members (feature 199) come from RecoveryFormFields.
 };
 
 /** The permitted smart scheduling window, in minutes (feature 189). */
@@ -74,6 +76,8 @@ export const QueueForm: React.FC<QueueFormProps> = ({
 }) => {
   const isEdit = mode === 'edit';
   const { devices, loading: devicesLoading } = useAdbDevices(!isEdit);
+
+  const recoveryErrors = recoveryFieldErrors(value, value.emulatorInstanceName);
 
   const emulatorOptions = useMemo<SearchableOption[]>(
     () => devices.map((d) => ({ value: d.serial, label: d.serial, description: d.state })),
@@ -257,6 +261,87 @@ export const QueueForm: React.FC<QueueFormProps> = ({
         </div>
       </div>
 
+      {/* Row 2d: Device recovery (feature 199). The option follows the pattern of smart scheduling. */}
+      <div className="field">
+        <label>
+          <input
+            type="checkbox"
+            checked={value.deviceRecoveryOn}
+            onChange={(e) => onChange({ ...value, deviceRecoveryOn: e.target.checked })}
+            disabled={submitting}
+            aria-label="Device recovery"
+            aria-describedby={recoveryErrors.instanceName ? 'queue-recovery-help queue-recovery-instance-error' : 'queue-recovery-help'}
+            aria-invalid={recoveryErrors.instanceName ? true : undefined}
+          />
+          {' '}Reboot the instance when the device is not live
+        </label>
+        <div id="queue-recovery-help" className="form-hint">
+          When the device stays not live, the service reboots the emulator instance. It needs the emulator instance name.
+        </div>
+        {recoveryErrors.instanceName && (
+          <div id="queue-recovery-instance-error" className="field-error" role="alert">{recoveryErrors.instanceName}</div>
+        )}
+      </div>
+      {value.deviceRecoveryOn && (
+        <div className="field-row">
+          <div className="field">
+            <label htmlFor="queue-recovery-after">Wait before the first reboot (minutes)</label>
+            <input
+              id="queue-recovery-after"
+              type="number"
+              min={1}
+              step={0.1}
+              value={value.recoveryAfterMinutes}
+              onChange={(e) => onChange({ ...value, recoveryAfterMinutes: Number(e.target.value) })}
+              disabled={submitting}
+              aria-label="Recovery wait minutes"
+              aria-invalid={recoveryErrors.afterMinutes ? true : undefined}
+              aria-describedby={recoveryErrors.afterMinutes ? 'queue-recovery-after-error' : undefined}
+            />
+            {recoveryErrors.afterMinutes && (
+              <div id="queue-recovery-after-error" className="field-error" role="alert">{recoveryErrors.afterMinutes}</div>
+            )}
+          </div>
+          <div className="field">
+            <label htmlFor="queue-recovery-attempts">Maximum attempts</label>
+            <input
+              id="queue-recovery-attempts"
+              type="number"
+              min={1}
+              max={5}
+              step={1}
+              value={value.recoveryMaxAttempts}
+              onChange={(e) => onChange({ ...value, recoveryMaxAttempts: Number(e.target.value) })}
+              disabled={submitting}
+              aria-label="Recovery maximum attempts"
+              aria-invalid={recoveryErrors.maxAttempts ? true : undefined}
+              aria-describedby={recoveryErrors.maxAttempts ? 'queue-recovery-attempts-error' : undefined}
+            />
+            {recoveryErrors.maxAttempts && (
+              <div id="queue-recovery-attempts-error" className="field-error" role="alert">{recoveryErrors.maxAttempts}</div>
+            )}
+          </div>
+          <div className="field">
+            <label htmlFor="queue-recovery-cooldown">Time between attempts (minutes)</label>
+            <input
+              id="queue-recovery-cooldown"
+              type="number"
+              min={0}
+              step={0.1}
+              value={value.recoveryCooldownMinutes}
+              onChange={(e) => onChange({ ...value, recoveryCooldownMinutes: Number(e.target.value) })}
+              disabled={submitting}
+              aria-label="Recovery time between attempts minutes"
+              aria-invalid={recoveryErrors.cooldownMinutes ? true : undefined}
+              aria-describedby={recoveryErrors.cooldownMinutes ? 'queue-recovery-cooldown-error' : undefined}
+            />
+            {recoveryErrors.cooldownMinutes && (
+              <div id="queue-recovery-cooldown-error" className="field-error" role="alert">{recoveryErrors.cooldownMinutes}</div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Row 3: Game controls (edit only) */}
       {isEdit && gameControls}
 
@@ -267,7 +352,7 @@ export const QueueForm: React.FC<QueueFormProps> = ({
       </div>
       {isEdit && running && (
         <div className="form-hint" id="queue-running-note">
-          Settings apply at the next start. Smart scheduling applies to the next booking.
+          Settings apply at the next start. Smart scheduling applies to the next booking. Device recovery applies within 1 minute.
         </div>
       )}
       {saveResult && (

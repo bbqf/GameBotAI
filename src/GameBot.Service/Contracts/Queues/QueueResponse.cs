@@ -68,5 +68,12 @@ namespace GameBot.Service.Contracts.Queues {
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? OperatorPause { get; set; }
+
+    /// <summary>
+    /// The device state of a running queue: live or not_live (feature 199). Only the list gives it. It can be up to one
+    /// liveness check old. Absent when the queue does not run or has no report.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? DeviceLiveness { get; set; }
   }
 }

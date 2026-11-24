@@ -180,4 +180,48 @@ public sealed class QueueDeviceLivenessContractTests : IDisposable {
       await client.PostAsync(new Uri($"/api/queues/{id}/stop", UriKind.Relative), null);
     }
   }
+
+  // Feature 199 (FR-011a): the list gives deviceLiveness for a running queue that has a report, and nothing for a stopped queue.
+  [Fact]
+  public async Task TheListGivesTheDeviceStateOfARunningQueueOnly() {
+    var liveness = new FixedLivenessService {
+      Report = FixedLivenessService.NotLive(DeviceLivenessReasons.CaptureStalled),
+      Options = new DeviceLivenessOptions { QueueCheckIntervalMs = 50, QueueGracePeriodMs = 200 }
+    };
+    using var baseFactory = new WebApplicationFactory<Program>();
+    using var app = baseFactory.WithWebHostBuilder(b => b.ConfigureTestServices(services => {
+      services.RemoveAll<ISessionLivenessService>();
+      services.AddSingleton<ISessionLivenessService>(liveness);
+      services.PostConfigure<DeviceLivenessOptions>(o => {
+        o.QueueCheckIntervalMs = 100;
+        o.QueueGracePeriodMs = 200;
+      });
+    }));
+    var client = Client(app);
+    var sequenceId = "seq-" + Guid.NewGuid().ToString("N");
+    var id = await CreateQueueAsync(app, new QueueTemplateEntry { SequenceId = sequenceId, ScheduleType = ScheduleType.OncePerRun }, cycle: true);
+
+    async Task<JsonElement> ListItemAsync() {
+      var resp = await client.GetAsync(new Uri("/api/queues", UriKind.Relative));
+      var items = JsonDocument.Parse(await resp.Content.ReadAsStringAsync()).RootElement.Clone();
+      return items.EnumerateArray().Single(i => i.GetProperty("id").GetString() == id);
+    }
+
+    (await ListItemAsync()).TryGetProperty("deviceLiveness", out _).Should().BeFalse("the queue is stopped");
+
+    (await client.PostAsync(new Uri($"/api/queues/{id}/start", UriKind.Relative), null)).StatusCode.Should().Be(HttpStatusCode.OK);
+    try {
+      var deadline = DateTime.UtcNow.AddSeconds(15);
+      JsonElement item;
+      do {
+        await Task.Delay(50);
+        item = await ListItemAsync();
+      } while (!item.TryGetProperty("deviceLiveness", out _) && DateTime.UtcNow < deadline);
+
+      item.GetProperty("deviceLiveness").GetString().Should().Be("not_live");
+    }
+    finally {
+      await client.PostAsync(new Uri($"/api/queues/{id}/stop", UriKind.Relative), null);
+    }
+  }
 }

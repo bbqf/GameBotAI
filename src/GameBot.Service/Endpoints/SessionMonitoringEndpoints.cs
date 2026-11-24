@@ -44,6 +44,9 @@ internal static class SessionMonitoringEndpoints {
       .ToList();
     foreach (var item in items) {
       item.CurrentSequenceName = await ResolveSequenceNameAsync(item.OwnerQueueId, runs, sequences).ConfigureAwait(false);
+      if (item.OwnerQueueId is { } ownerId && runs.TryGet(ownerId, out var ownerRun)) {
+        item.OwnerQueueDeviceLiveness = ownerRun.Liveness.Snapshot().MarkState;
+      }
     }
     return Results.Ok(new SessionMonitoringListResponse { Sessions = items });
   }

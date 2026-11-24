@@ -95,7 +95,7 @@ public sealed partial class QueueExecutionServiceTests {
       s.Begin().Should().BeTrue();
       s.Liveness.SetLive();
 
-      var ok = await s.Runner.RunAttemptAsync(s.Queue, s.Handle, s.Rebind, CancellationToken.None);
+      var ok = await s.Runner.RunAttemptAsync(s.Queue, s.Handle, s.Rebind, s.Queue.EmulatorInstanceName, s.Queue.DeviceRecovery!.MaxAttempts, CancellationToken.None);
 
       ok.Should().BeTrue();
       s.Coordinator.Instances.Should().ContainSingle().Which.Should().Be("LDPlayer-1");
@@ -113,7 +113,7 @@ public sealed partial class QueueExecutionServiceTests {
       s.Coordinator.Result = false;
       s.Begin().Should().BeTrue();
 
-      var ok = await s.Runner.RunAttemptAsync(s.Queue, s.Handle, s.Rebind, CancellationToken.None);
+      var ok = await s.Runner.RunAttemptAsync(s.Queue, s.Handle, s.Rebind, s.Queue.EmulatorInstanceName, s.Queue.DeviceRecovery!.MaxAttempts, CancellationToken.None);
 
       ok.Should().BeFalse();
       s.Rebinds.Should().Be(0);
@@ -126,7 +126,7 @@ public sealed partial class QueueExecutionServiceTests {
       s.Coordinator.Throws = new InvalidOperationException("boom");
       s.Begin().Should().BeTrue();
 
-      var ok = await s.Runner.RunAttemptAsync(s.Queue, s.Handle, s.Rebind, CancellationToken.None);
+      var ok = await s.Runner.RunAttemptAsync(s.Queue, s.Handle, s.Rebind, s.Queue.EmulatorInstanceName, s.Queue.DeviceRecovery!.MaxAttempts, CancellationToken.None);
 
       ok.Should().BeFalse();
       s.Handle.Liveness.Snapshot().Attempts.Should().Be(1);
@@ -139,7 +139,7 @@ public sealed partial class QueueExecutionServiceTests {
       s.Probe.Responsive = false;
       s.Begin().Should().BeTrue();
 
-      var ok = await s.Runner.RunAttemptAsync(s.Queue, s.Handle, s.Rebind, CancellationToken.None);
+      var ok = await s.Runner.RunAttemptAsync(s.Queue, s.Handle, s.Rebind, s.Queue.EmulatorInstanceName, s.Queue.DeviceRecovery!.MaxAttempts, CancellationToken.None);
 
       ok.Should().BeFalse();
       s.Rebinds.Should().Be(0);
@@ -152,7 +152,7 @@ public sealed partial class QueueExecutionServiceTests {
       s.Liveness.SetNotLive(DeviceLivenessReasons.CaptureStalled);
       s.Begin().Should().BeTrue();
 
-      var ok = await s.Runner.RunAttemptAsync(s.Queue, s.Handle, s.Rebind, CancellationToken.None);
+      var ok = await s.Runner.RunAttemptAsync(s.Queue, s.Handle, s.Rebind, s.Queue.EmulatorInstanceName, s.Queue.DeviceRecovery!.MaxAttempts, CancellationToken.None);
 
       ok.Should().BeFalse();
       s.Rebinds.Should().Be(1);
@@ -165,12 +165,12 @@ public sealed partial class QueueExecutionServiceTests {
       s.Liveness.SetNotLive(DeviceLivenessReasons.CaptureStalled);
 
       s.Begin().Should().BeTrue();
-      await s.Runner.RunAttemptAsync(s.Queue, s.Handle, s.Rebind, CancellationToken.None);
+      await s.Runner.RunAttemptAsync(s.Queue, s.Handle, s.Rebind, s.Queue.EmulatorInstanceName, s.Queue.DeviceRecovery!.MaxAttempts, CancellationToken.None);
       s.Alerts.Sent.Should().BeEmpty("one attempt is left");
       DeviceLivenessReader.DeriveRecoveryState(s.Handle.Liveness.Snapshot(), s.Queue.DeviceRecovery).Should().Be("idle");
 
       s.Begin().Should().BeTrue();
-      await s.Runner.RunAttemptAsync(s.Queue, s.Handle, s.Rebind, CancellationToken.None);
+      await s.Runner.RunAttemptAsync(s.Queue, s.Handle, s.Rebind, s.Queue.EmulatorInstanceName, s.Queue.DeviceRecovery!.MaxAttempts, CancellationToken.None);
 
       var alert = s.Alerts.Sent.Should().ContainSingle().Subject;
       alert.Kind.Should().Be(QueueAlertKind.RecoveryFailed);
@@ -186,7 +186,7 @@ public sealed partial class QueueExecutionServiceTests {
       s.Coordinator.Gate = gate.Task;
       s.Begin().Should().BeTrue();
 
-      var run = s.Runner.RunAttemptAsync(s.Queue, s.Handle, s.Rebind, CancellationToken.None);
+      var run = s.Runner.RunAttemptAsync(s.Queue, s.Handle, s.Rebind, s.Queue.EmulatorInstanceName, s.Queue.DeviceRecovery!.MaxAttempts, CancellationToken.None);
       await Task.Delay(50);
 
       DeviceLivenessReader.DeriveRecoveryState(s.Handle.Liveness.Snapshot(), s.Queue.DeviceRecovery).Should().Be("running");
@@ -202,7 +202,7 @@ public sealed partial class QueueExecutionServiceTests {
       s.Begin().Should().BeTrue();
       using var cts = new CancellationTokenSource();
 
-      var run = s.Runner.RunAttemptAsync(s.Queue, s.Handle, s.Rebind, cts.Token);
+      var run = s.Runner.RunAttemptAsync(s.Queue, s.Handle, s.Rebind, s.Queue.EmulatorInstanceName, s.Queue.DeviceRecovery!.MaxAttempts, cts.Token);
       await Task.Delay(50);
       await cts.CancelAsync();
 
@@ -227,8 +227,8 @@ public sealed partial class QueueExecutionServiceTests {
         NullLogger.Instance, TimeSpan.FromMilliseconds(10), TimeSpan.FromMilliseconds(10));
 
       var results = await Task.WhenAll(
-        runnerA.RunAttemptAsync(a.Queue, a.Handle, a.Rebind, CancellationToken.None),
-        runnerB.RunAttemptAsync(b.Queue, b.Handle, b.Rebind, CancellationToken.None));
+        runnerA.RunAttemptAsync(a.Queue, a.Handle, a.Rebind, a.Queue.EmulatorInstanceName, a.Queue.DeviceRecovery!.MaxAttempts, CancellationToken.None),
+        runnerB.RunAttemptAsync(b.Queue, b.Handle, b.Rebind, b.Queue.EmulatorInstanceName, b.Queue.DeviceRecovery!.MaxAttempts, CancellationToken.None));
 
       results.Should().OnlyContain(r => r);
       a.Rebinds.Should().Be(1);
@@ -243,7 +243,7 @@ public sealed partial class QueueExecutionServiceTests {
       s.Queue.EmulatorInstanceName = null;
       s.Begin().Should().BeTrue();
 
-      var ok = await s.Runner.RunAttemptAsync(s.Queue, s.Handle, s.Rebind, CancellationToken.None);
+      var ok = await s.Runner.RunAttemptAsync(s.Queue, s.Handle, s.Rebind, s.Queue.EmulatorInstanceName, s.Queue.DeviceRecovery!.MaxAttempts, CancellationToken.None);
 
       ok.Should().BeFalse();
       s.Coordinator.Calls.Should().Be(0);

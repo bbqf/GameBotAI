@@ -155,7 +155,7 @@ Status vocabulary:
 | 118 | One format for timerTimeOfDay | Implemented |
 | 119 | Reject an unknown field in a reschedule-self payload | Implemented |
 | 120 | Queue Sequence Notifications | Implemented (iterated by 126) |
-| 121 | Device Not-Live Alert, Optional Recovery, and Capture Pile-Up Guard | Implemented |
+| 121 | Device Not-Live Alert, Optional Recovery, and Capture Pile-Up Guard | Implemented (iterated by 199) |
 | 122 | Exclude Helper Sequences From Success Notifications | Implemented |
 | 123 | Reschedule-Self Cancel | Implemented |
 | 125 | Reschedule-Self Keep Earliest | Implemented |
@@ -226,6 +226,7 @@ Status vocabulary:
 | 196 | Booked run uses the current entry parameter values | Implemented |
 | 197 | Do not read a stale capture frame in a step | Implemented |
 | 198 | Show the newest runs of a running queue in the execution log | Implemented |
+| 199 | Device Recovery Option in the Queue Form | Implemented |
 
 ## Numbering notes
 

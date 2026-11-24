@@ -144,6 +144,7 @@ public sealed class DeviceLivenessOpenApiTests {
     var schema = Schema(document, "QueueDeviceRecoveryDto");
 
     schema.GetProperty("description").GetString().Should().Contain("reboots its LDPlayer instance");
+    schema.GetProperty("description").GetString().Should().Contain("On PUT, an absent member keeps the stored settings and null clears them.");
     var props = schema.GetProperty("properties");
     foreach (var field in new[] { "action", "afterMs", "maxAttempts", "cooldownMs" }) {
       props.TryGetProperty(field, out var p).Should().BeTrue(field);

@@ -90,6 +90,40 @@ public sealed class DeviceRecoveryFlowTests {
     }
   }
 
+  // Feature 199 (FR-012a): a saved change of deviceRecovery applies to a run that is already open, with no stop
+  // and no new start. The save goes through the repository, as the settings import does: the limit of 60000 ms
+  // for afterMs on the HTTP route is too long for a test.
+  [Fact]
+  public async Task ARecoverySettingSavedOnARunningQueueAppliesAtTheNextCheck() {
+    var devices = new SimulatedDevices();
+    devices.Block(1);
+    var control = new SimulatedEmulatorControl(devices);
+    var dispatcher = new AlertCapturingDispatcher();
+    using var app = DeviceRecoveryHost.Create(devices, control, dispatcher);
+    var client = NewClient(app);
+    var id = await DeviceRecoveryHost.CreateQueueAsync(app, 1, null);
+    var svc = app.Services.GetRequiredService<IQueueExecutionService>();
+
+    (await StartAsync(client, id)).StatusCode.Should().Be(HttpStatusCode.OK);
+    try {
+      await DeviceRecoveryHost.WaitForAsync(() => dispatcher.Count(QueueAlertKind.NotLive, id) >= 1, what: "the 'not live' alert");
+      await Task.Delay(300);
+      control.Reboots.Should().Be(0, "the queue has no device recovery yet");
+      svc.IsRunning(id).Should().BeTrue();
+
+      var repo = app.Services.GetRequiredService<IQueueRepository>();
+      var stored = (await repo.GetAsync(id))!;
+      stored.DeviceRecovery = Reboot;
+      await repo.UpdateAsync(stored);
+
+      await DeviceRecoveryHost.WaitForAsync(() => control.Reboots >= 1, what: "the reboot after the saved change");
+      control.Starts.First().Name.Should().Be("LDPlayer-1");
+    }
+    finally {
+      await StopAsync(client, id);
+    }
+  }
+
   [Fact]
   public async Task AStopDuringTheRebootFreesTheSlot() {
     var devices = new SimulatedDevices();

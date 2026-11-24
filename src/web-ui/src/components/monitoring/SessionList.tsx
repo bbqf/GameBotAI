@@ -1,6 +1,7 @@
 import React from 'react';
 import { PhoneCard } from '../phone/PhoneCard';
 import type { MonitoredSessionDto, MonitoredSessionState } from '../../services/monitoringApi';
+import { NotLiveBadge } from '../queues/NotLiveBadge';
 import '../../features/execution/StatusChip.css';
 
 export type SessionListProps = {
@@ -40,7 +41,7 @@ export const SessionList: React.FC<SessionListProps> = ({ sessions, selectedId, 
         key={s.id}
         title={s.name}
         testId={`session-card-${s.id}`}
-        status={<SessionStateChip state={s.state} />}
+        status={<><SessionStateChip state={s.state} />{s.ownerQueueDeviceLiveness === 'not_live' && <NotLiveBadge />}</>}
         onOpen={() => onSelect(s.id)}
       />
     ) : (
@@ -54,6 +55,7 @@ export const SessionList: React.FC<SessionListProps> = ({ sessions, selectedId, 
         >
           <span className="monitoring-list__name">{s.name}</span>
           <SessionStateChip state={s.state} />
+          {s.ownerQueueDeviceLiveness === 'not_live' && <NotLiveBadge />}
         </button>
       </li>
     )))}

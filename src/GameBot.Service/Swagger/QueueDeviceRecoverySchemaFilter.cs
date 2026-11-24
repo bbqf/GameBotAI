@@ -15,7 +15,7 @@ internal sealed class QueueDeviceRecoverySchemaFilter : ISchemaFilter {
     "Optional device recovery (feature 121). Null or absent: the queue sends the 'device not live' alert only and "
     + "never repairs the device. With action 'reboot-instance', the queue reboots its LDPlayer instance when the "
     + "device stays not live for longer than afterMs. The service starts one reboot at a time, at least "
-    + "RecoveryStaggerMs apart. On PUT, an absent member clears the stored settings.";
+    + "RecoveryStaggerMs apart. On PUT, an absent member keeps the stored settings and null clears them. A saved change applies to a running queue at its next liveness check.";
 
   internal const string ActionDescription =
     "'none' (default): no recovery. 'reboot-instance': run 'ldconsole reboot --name <emulatorInstanceName>'. This "

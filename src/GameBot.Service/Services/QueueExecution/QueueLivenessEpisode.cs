@@ -21,7 +21,14 @@ internal sealed record QueueLivenessSnapshot(
   DeviceLivenessReport? LastReport,
   bool AlertSent = false,
   int Attempts = 0,
-  bool RecoveryRunning = false);
+  bool RecoveryRunning = false) {
+  /// <summary>
+  /// The state for a list mark (feature 199): <c>live</c> or <c>not_live</c>. Null when the episode has no
+  /// report, or the last state is <c>unknown</c>.
+  /// </summary>
+  public string? MarkState =>
+    LastReport is not null && (State == DeviceLivenessStates.Live || State == DeviceLivenessStates.NotLive) ? State : null;
+}
 
 /// <summary>
 /// The fault episode of one queue run (feature 106, data-model section 8, research R-012). An episode

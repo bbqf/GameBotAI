@@ -2,7 +2,7 @@
 
 **Feature Branch**: `199-device-recovery-ui`  
 **Created**: 2026-11-24  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: User description: "I need an option in the ui for the feature 121"
 
 ## Background

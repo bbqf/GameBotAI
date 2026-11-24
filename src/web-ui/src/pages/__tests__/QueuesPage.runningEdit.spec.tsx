@@ -147,7 +147,7 @@ describe('Edit page of a running queue (feature 173, US1)', () => {
     const emulator = screen.getByLabelText('Emulator *');
     expect(emulator).toHaveAttribute('readonly');
     expect(emulator).toBeDisabled();
-    expect(screen.getByText('Settings apply at the next start. Smart scheduling applies to the next booking.')).toBeInTheDocument();
+    expect(screen.getByText('Settings apply at the next start. Smart scheduling applies to the next booking. Device recovery applies within 1 minute.')).toBeInTheDocument();
   });
 
   it('does not show the settings note for a stopped queue', async () => {
@@ -157,7 +157,7 @@ describe('Edit page of a running queue (feature 173, US1)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Daily' }));
     await screen.findByRole('heading', { name: 'Edit Queue' });
 
-    expect(screen.queryByText('Settings apply at the next start. Smart scheduling applies to the next booking.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Settings apply at the next start. Smart scheduling applies to the next booking. Device recovery applies within 1 minute.')).not.toBeInTheDocument();
     expect(screen.queryByTestId('queue-monitor-stub')).not.toBeInTheDocument();
   });
 

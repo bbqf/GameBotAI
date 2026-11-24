@@ -51,7 +51,7 @@ public sealed partial class QueueExecutionServiceTests {
     }
 
     private sealed class Setup {
-      public FakeTimeProvider Clock { get; } = new(T0);
+      public FakeTimeProvider Clock { get; }
       public FakeSessionManager Sessions { get; } = new();
       public FakeSessionLivenessService Liveness { get; } = new() {
         Options = new DeviceLivenessOptions { QueueCheckIntervalMs = 10, QueueGracePeriodMs = 120000 }
@@ -71,7 +71,10 @@ public sealed partial class QueueExecutionServiceTests {
         int alertAfterMs = 300000,
         QueueDeviceRecovery? recovery = null,
         QueueDeviceRecoveryRunner? runner = null,
-        Func<ExecutionQueue, QueueRunHandle, Task>? rebind = null) {
+        Func<ExecutionQueue, QueueRunHandle, Task>? rebind = null,
+        Func<CancellationToken, Task<ExecutionQueue?>>? readQueue = null,
+        FakeTimeProvider? clock = null) {
+        Clock = clock ?? new FakeTimeProvider(T0);
         Liveness.Options.AlertAfterMs = alertAfterMs;
         Queue = new ExecutionQueue {
           Id = "q1", Name = "Q-q1", EmulatorSerial = "emu-1", FailurePolicy = policy,
@@ -81,7 +84,7 @@ public sealed partial class QueueExecutionServiceTests {
         Handle.SessionId = Sessions.CreateSession("queue:q1", "emu-1").Id;
         var evaluator = withEvaluator ? new QueueFailurePolicyEvaluator(Notifier, new FakeSequenceRepository(), Clock) : null;
         Watch = new QueueLivenessWatch(Queue, Handle, "root-1", Sessions, Liveness, Log, evaluator, Clock, NullLogger.Instance,
-          withAlerts ? Alerts : null, runner, rebind);
+          withAlerts ? Alerts : null, runner, rebind, readQueue);
       }
 
       public List<(string RootExecutionId, string QueueId, string Reason)> Faults() {
@@ -441,6 +444,156 @@ public sealed partial class QueueExecutionServiceTests {
       }
 
       coordinator.Calls.Should().Be(0);
+    }
+
+    // ---- Feature 199 (FR-012a): a saved change of deviceRecovery applies to the run ----
+
+    // The stored queue that the test changes. The read delegate gives a new object for each read, as the repository does.
+    private sealed class StoredQueue {
+      public QueueDeviceRecovery? Recovery { get; set; }
+      public string? InstanceName { get; set; } = "LDPlayer-1";
+      public Exception? Throws { get; set; }
+      public bool GiveNull { get; set; }
+
+      public Task<ExecutionQueue?> ReadAsync(CancellationToken ct) {
+        if (Throws is { } ex) throw ex;
+        if (GiveNull) return Task.FromResult<ExecutionQueue?>(null);
+        return Task.FromResult<ExecutionQueue?>(new ExecutionQueue {
+          Id = "q1", Name = "Q-q1", EmulatorSerial = "emu-1", EmulatorInstanceName = InstanceName, DeviceRecovery = Recovery
+        });
+      }
+    }
+
+    private static QueueDeviceRecovery Reboot(int afterMs = 60000, int maxAttempts = 2, int cooldownMs = 0) =>
+      new() { Action = "reboot-instance", AfterMs = afterMs, MaxAttempts = maxAttempts, CooldownMs = cooldownMs };
+
+    private static (Setup Setup, Fakes.FakeDeviceRecoveryCoordinator Coordinator, StoredQueue Stored) NewLiveApplySetup(
+      QueueDeviceRecovery? startRecovery, Task? gate = null) {
+      var coordinator = new Fakes.FakeDeviceRecoveryCoordinator { Result = false, Gate = gate };
+      var liveness = new FakeSessionLivenessService { Options = new DeviceLivenessOptions { QueueCheckIntervalMs = 10, RebootReadyTimeoutMs = 1000 } };
+      // The runner and the watch share one clock, so the end time of an attempt is on the same time line.
+      var clock = new FakeTimeProvider(T0);
+      var runner = new QueueDeviceRecoveryRunner(coordinator, new NoProbe(), new FakeSessionManager(), liveness, null, clock);
+      var stored = new StoredQueue { Recovery = startRecovery };
+      var s = new Setup(withAlerts: true, recovery: startRecovery, runner: runner, rebind: (_, _) => Task.CompletedTask, readQueue: stored.ReadAsync, clock: clock);
+      s.Liveness.SetNotLive(DeviceLivenessReasons.CaptureStalled);
+      return (s, coordinator, stored);
+    }
+
+    [Fact]
+    public async Task LiveApply_TurnOnDuringAnOldEpisodeStartsOneAttemptAtTheNextCheck() {
+      var (s, coordinator, stored) = NewLiveApplySetup(null);
+      await s.Watch.CheckOnceAsync();
+      s.Clock.Advance(TimeSpan.FromMinutes(2));
+      await s.Watch.CheckOnceAsync();
+      coordinator.Calls.Should().Be(0, "the run started with no recovery");
+
+      stored.Recovery = Reboot(afterMs: 60000, maxAttempts: 1);
+      await s.Watch.CheckOnceAsync();
+      await s.Watch.RecoveryTask;
+
+      coordinator.Calls.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task LiveApply_TurnOffStopsNewAttempts() {
+      var (s, coordinator, stored) = NewLiveApplySetup(Reboot(maxAttempts: 3));
+      await s.Watch.CheckOnceAsync();
+      s.Clock.Advance(TimeSpan.FromMinutes(2));
+      await s.Watch.CheckOnceAsync();
+      await s.Watch.RecoveryTask;
+      coordinator.Calls.Should().Be(1);
+
+      stored.Recovery = new QueueDeviceRecovery { Action = "none", AfterMs = 60000 };
+      for (var i = 0; i < 3; i++) {
+        s.Clock.Advance(TimeSpan.FromMinutes(1));
+        await s.Watch.CheckOnceAsync();
+        await s.Watch.RecoveryTask;
+      }
+
+      coordinator.Calls.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task LiveApply_LoweringMaxAttemptsBelowTheCountStopsNewAttempts() {
+      var (s, coordinator, stored) = NewLiveApplySetup(Reboot(maxAttempts: 3));
+      await s.Watch.CheckOnceAsync();
+      s.Clock.Advance(TimeSpan.FromMinutes(2));
+      await s.Watch.CheckOnceAsync();
+      await s.Watch.RecoveryTask;
+      coordinator.Calls.Should().Be(1);
+
+      stored.Recovery = Reboot(maxAttempts: 1);
+      for (var i = 0; i < 3; i++) {
+        s.Clock.Advance(TimeSpan.FromMinutes(1));
+        await s.Watch.CheckOnceAsync();
+        await s.Watch.RecoveryTask;
+      }
+
+      coordinator.Calls.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task LiveApply_AReadThatFailsOrGivesNullKeepsTheLastKnownSettings() {
+      var (s, coordinator, stored) = NewLiveApplySetup(Reboot(maxAttempts: 2));
+      await s.Watch.CheckOnceAsync();
+      stored.Throws = new InvalidOperationException("the file is locked");
+      s.Clock.Advance(TimeSpan.FromMinutes(2));
+
+      var throwing = async () => await s.Watch.CheckOnceAsync();
+      await throwing.Should().NotThrowAsync();
+      await s.Watch.RecoveryTask;
+      coordinator.Calls.Should().Be(1, "the watch used the last known settings");
+
+      stored.Throws = null;
+      stored.GiveNull = true;
+      s.Clock.Advance(TimeSpan.FromMinutes(1));
+      await s.Watch.CheckOnceAsync();
+      await s.Watch.RecoveryTask;
+      coordinator.Calls.Should().Be(2, "a null read keeps the last known settings, so the second attempt starts");
+    }
+
+    [Fact]
+    public async Task LiveApply_AChangeKeepsTheAttemptCountOfTheEpisode() {
+      var (s, _, stored) = NewLiveApplySetup(Reboot(maxAttempts: 3));
+      await s.Watch.CheckOnceAsync();
+      s.Clock.Advance(TimeSpan.FromMinutes(2));
+      await s.Watch.CheckOnceAsync();
+      await s.Watch.RecoveryTask;
+      s.Handle.Liveness.Snapshot().Attempts.Should().Be(1);
+
+      stored.Recovery = Reboot(afterMs: 120000, maxAttempts: 5);
+      s.Clock.Advance(TimeSpan.FromSeconds(10));
+      await s.Watch.CheckOnceAsync();
+      await s.Watch.RecoveryTask;
+
+      s.Handle.Liveness.Snapshot().Attempts.Should().Be(2, "the count continues; it does not start again at 0");
+    }
+
+    [Fact]
+    public async Task LiveApply_TurnOffDuringAnAttemptLetsTheAttemptEndAndStartsNoNewOne() {
+      var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+      var (s, coordinator, stored) = NewLiveApplySetup(Reboot(maxAttempts: 3), gate.Task);
+      await s.Watch.CheckOnceAsync();
+      s.Clock.Advance(TimeSpan.FromMinutes(2));
+      await s.Watch.CheckOnceAsync();
+      await WaitForAsync(() => coordinator.Calls == 1);
+      s.Handle.Liveness.Snapshot().RecoveryRunning.Should().BeTrue();
+
+      stored.Recovery = new QueueDeviceRecovery { Action = "none", AfterMs = 60000 };
+      await s.Watch.CheckOnceAsync();
+      s.Handle.Liveness.Snapshot().RecoveryRunning.Should().BeTrue("the attempt that runs is not stopped");
+
+      gate.SetResult();
+      await s.Watch.RecoveryTask;
+      s.Handle.Liveness.Snapshot().RecoveryRunning.Should().BeFalse();
+      for (var i = 0; i < 3; i++) {
+        s.Clock.Advance(TimeSpan.FromMinutes(1));
+        await s.Watch.CheckOnceAsync();
+        await s.Watch.RecoveryTask;
+      }
+
+      coordinator.Calls.Should().Be(1);
     }
 
     [Fact]

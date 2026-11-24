@@ -5,6 +5,25 @@ export type QueueStatus = 'Stopped' | 'Running';
 /** How much a queue tells the operator (feature 120). */
 export type NotificationLevel = 'none' | 'failure' | 'successAndFailure';
 
+/** Device recovery settings of a queue (feature 121). The form of feature 199 edits them. */
+export type QueueDeviceRecoveryDto = {
+  action: 'none' | 'reboot-instance';
+  afterMs: number;
+  maxAttempts: number;
+  cooldownMs: number;
+};
+
+/** The device state of a running queue in the detail health block (feature 121, read by feature 199). */
+export type QueueDeviceLivenessDto = {
+  state: 'live' | 'not_live';
+  reason?: string | null;
+  notLiveSince?: string | null;
+  gatedFirings?: number;
+  alertSent?: boolean;
+  recoveryAttempts?: number;
+  recoveryState?: 'idle' | 'running' | 'exhausted';
+};
+
 export type QueueDto = {
   id: string;
   name: string;
@@ -29,6 +48,10 @@ export type QueueDto = {
   smartScheduling?: boolean;
   /** The smart scheduling window in minutes, from 1 to 120 (feature 189). An absent value reads as 15. */
   smartSchedulingWindowMinutes?: number;
+  /** Device recovery settings (feature 121). Null when the queue has none. */
+  deviceRecovery?: QueueDeviceRecoveryDto | null;
+  /** The device state of a running queue (feature 199). Only the list sends it. It can be up to 1 minute old. */
+  deviceLiveness?: 'live' | 'not_live';
   status: QueueStatus;
   entryCount: number;
   linkedTemplateId: string | null;
@@ -55,6 +78,8 @@ export type QueueHealthDto = {
   pauseKind?: 'idle' | 'failurePolicy' | 'operator' | null;
   pauseReason?: string | null;
   operatorPause?: OperatorPauseState;
+  /** The device state of the run (feature 121). Absent when the run has no report. */
+  deviceLiveness?: QueueDeviceLivenessDto | null;
 };
 
 export type QueueDetailDto = QueueDto & {
@@ -78,6 +103,8 @@ export type QueueCreate = {
   smartScheduling?: boolean;
   /** Feature 189. From 1 to 120. Absent gives 15. */
   smartSchedulingWindowMinutes?: number;
+  /** Feature 199. Absent means no recovery. */
+  deviceRecovery?: QueueDeviceRecoveryDto | null;
 };
 
 export type QueueUpdate = {
@@ -92,6 +119,8 @@ export type QueueUpdate = {
   smartScheduling?: boolean;
   /** Feature 189. From 1 to 120. Absent keeps the stored value. */
   smartSchedulingWindowMinutes?: number;
+  /** Feature 199. Absent keeps the stored value. Null clears it. */
+  deviceRecovery?: QueueDeviceRecoveryDto | null;
 };
 
 const base = '/api/queues';

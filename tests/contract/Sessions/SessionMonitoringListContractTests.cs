@@ -9,6 +9,7 @@ using GameBot.Domain.Sessions;
 using GameBot.Emulator.Session;
 using GameBot.Service.Services.EnsureEmulatorRunning;
 using GameBot.Service.Services.Liveness;
+using GameBot.Service.Services.QueueExecution;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -139,5 +140,28 @@ public sealed class SessionMonitoringListContractTests : MonitoringContractTestB
     var health = await client.GetAsync(new Uri($"/api/sessions/{session.Id}/health", UriKind.Relative));
     health.StatusCode.Should().Be(HttpStatusCode.OK);
     (await ReadJsonAsync(health)).GetProperty("id").GetString().Should().Be(session.Id);
+  }
+
+  // Feature 199 (FR-011a): the owner queue state for the "Not live" mark.
+  [Fact]
+  public async Task ASessionOfARunningQueueWithANotLiveReportGivesTheOwnerQueueDeviceState() {
+    var sessions = new LivenessFakeSessionManager();
+    var owned = sessions.Add("emulator-5558", "queue:q-199");
+    owned.OwnerQueueId = "q-199";
+    var plain = sessions.Add("emulator-5560");
+    using var baseFactory = new WebApplicationFactory<Program>();
+    using var app = Factory(baseFactory, services => {
+      services.RemoveAll<ISessionManager>();
+      services.AddSingleton<ISessionManager>(sessions);
+    });
+    var handle = new QueueRunHandle { QueueId = "q-199", Cts = new System.Threading.CancellationTokenSource() };
+    handle.Liveness.Observe(FixedLivenessService.NotLive(DeviceLivenessReasons.CaptureStalled), DateTimeOffset.UtcNow);
+    app.Services.GetRequiredService<IQueueRunRegistry>().TryAdd("q-199", handle).Should().BeTrue();
+
+    var resp = await Client(app).GetAsync(ListUri);
+
+    var byId = Items(await ReadJsonAsync(resp)).ToDictionary(i => i.GetProperty("id").GetString()!);
+    byId[owned.Id].GetProperty("ownerQueueDeviceLiveness").GetString().Should().Be("not_live");
+    byId[plain.Id].GetProperty("ownerQueueDeviceLiveness").ValueKind.Should().Be(JsonValueKind.Null);
   }
 }
