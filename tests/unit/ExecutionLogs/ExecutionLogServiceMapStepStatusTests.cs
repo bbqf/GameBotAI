@@ -71,4 +71,17 @@ public sealed class ExecutionLogServiceMapStepStatusTests {
     ExecutionLogService.MapStepStatus("scheduled").Should().Be("success");
     ExecutionLogService.MapStepStatus("noop").Should().Be("skipped");
   }
+
+  // A primitive or WaitForImage step that a stop cut off has the outcome cancelled. Only a
+  // reschedule-self node gets success for it (feature 200, issue #414). This test guards the scope of that fix.
+  [Fact]
+  public void CancelledOutcomeStaysFailureInTheSharedMapping() {
+    ExecutionLogService.MapStepStatus("cancelled").Should().Be("failure");
+  }
+
+  // Feature 200: a reschedule-self Cancel that could not run has the outcome failed. Its status is failure.
+  [Fact]
+  public void FailedOutcomeOfARescheduleCancelIsFailure() {
+    ExecutionLogService.MapStepStatus("failed").Should().Be("failure");
+  }
 }

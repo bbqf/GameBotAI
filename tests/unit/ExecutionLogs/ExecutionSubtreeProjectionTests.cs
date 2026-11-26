@@ -1,3 +1,4 @@
+using System.Text.Json;
 using FluentAssertions;
 using GameBot.Domain.Logging;
 using GameBot.Service.Services.ExecutionLog;
@@ -123,6 +124,111 @@ public sealed class ExecutionSubtreeProjectionTests {
     commandNode.TimestampUtc.Should().Be(cmdTime);
     // The command's primitive tap step has no independently recorded execution time.
     commandNode.Children[0].TimestampUtc.Should().BeNull();
+  }
+
+  // Feature 200 (issue #414): a reschedule-self Cancel that removed its bookings did its work.
+  [Fact]
+  public void BuildSubtreeRendersARescheduleCancelThatRemovedBookingsAsSuccess() {
+    const string message = "Self-reschedule 'cancel-retry' cancelled: removed 1 pending booking(s) of this sequence; applies to the current run only";
+    var root = SequenceEntry("root-200a", "Cancel", "success", new[] {
+      new ExecutionStepOutcome(1, "reschedule-self", "cancelled", "cancelled", message, StepId: "cancel-retry")
+    });
+
+    var subtree = ExecutionLogService.BuildSubtree(root, new[] { root });
+
+    var node = subtree.Root.Children[0];
+    node.Status.Should().Be("success");
+    node.Message.Should().Be(message);
+  }
+
+  // Feature 200: a WaitForImage step that a stop cut off keeps the status failure.
+  [Fact]
+  public void BuildSubtreeKeepsACancelledWaitStepAsFailure() {
+    var root = SequenceEntry("root-200b", "Stopped", "failure", new[] {
+      new ExecutionStepOutcome(1, "waitForImage", "cancelled", "cancelled", "cancelled")
+    });
+
+    var subtree = ExecutionLogService.BuildSubtree(root, new[] { root });
+
+    subtree.Root.Children[0].Status.Should().Be("failure");
+  }
+
+  // Feature 200: a reschedule-self Cancel that has nothing to remove also did its work.
+  [Theory]
+  [InlineData("no pending booking of this sequence; nothing to cancel")]
+  [InlineData("originating queue run no longer active; nothing to cancel")]
+  [InlineData("no originating queue, no reschedule performed")]
+  public void BuildSubtreeRendersARescheduleCancelWithNothingToRemoveAsSuccess(string caseMessage) {
+    var text = $"Self-reschedule 'cancel-retry' noop: {caseMessage}";
+    var root = RescheduleNoopEntry("root-200c", text, new Dictionary<string, object?> {
+      ["stepOrder"] = 1,
+      ["stepType"] = "reschedule-self",
+      ["actionOutcome"] = "noop",
+      ["option"] = "Cancel",
+      ["removed"] = false
+    });
+
+    var subtree = ExecutionLogService.BuildSubtree(root, new[] { root });
+
+    subtree.Root.Children[0].Status.Should().Be("success");
+  }
+
+  // Feature 200: after a read from disk, the attribute values are JSON elements.
+  [Fact]
+  public void BuildSubtreeReadsTheCancelOptionFromAStoredJsonDetail() {
+    var root = RescheduleNoopEntry("root-200d", "Self-reschedule 'cancel-retry' noop: no pending booking of this sequence; nothing to cancel",
+      new Dictionary<string, object?> {
+        ["stepOrder"] = JsonSerializer.SerializeToElement(1),
+        ["stepType"] = JsonSerializer.SerializeToElement("reschedule-self"),
+        ["actionOutcome"] = JsonSerializer.SerializeToElement("noop"),
+        ["option"] = JsonSerializer.SerializeToElement("Cancel"),
+        ["removed"] = JsonSerializer.SerializeToElement(false)
+      });
+
+    var subtree = ExecutionLogService.BuildSubtree(root, new[] { root });
+
+    subtree.Root.Children[0].Status.Should().Be("success");
+  }
+
+  // Feature 200: a noop reschedule-self step with another option, or with no known option, keeps the status skipped.
+  [Theory]
+  [InlineData("Timer")]
+  [InlineData(null)]
+  public void BuildSubtreeKeepsANoopRescheduleWithAnotherOptionAsSkipped(string? option) {
+    var attributes = option is null
+      ? null
+      : new Dictionary<string, object?> {
+        ["stepOrder"] = 1,
+        ["stepType"] = "reschedule-self",
+        ["actionOutcome"] = "noop",
+        ["option"] = option
+      };
+    var root = RescheduleNoopEntry("root-200e", "Self-reschedule 'retry' noop: no originating queue, no reschedule performed", attributes);
+
+    var subtree = ExecutionLogService.BuildSubtree(root, new[] { root });
+
+    subtree.Root.Children[0].Status.Should().Be("skipped");
+  }
+
+  // Makes a sequence entry with one noop reschedule-self step. When attributes is null, the entry has no detail item for the step.
+  private static ExecutionLogEntry RescheduleNoopEntry(string id, string text, Dictionary<string, object?>? attributes) {
+    var entry = SequenceEntry(id, "Cancel", "success", new[] {
+      new ExecutionStepOutcome(1, "reschedule-self", "noop", "noop", text, StepId: "cancel-retry")
+    });
+    return attributes is null
+      ? entry
+      : new ExecutionLogEntry {
+        Id = entry.Id,
+        ExecutionType = entry.ExecutionType,
+        FinalStatus = entry.FinalStatus,
+        ObjectRef = entry.ObjectRef,
+        Navigation = entry.Navigation,
+        Hierarchy = entry.Hierarchy,
+        Summary = entry.Summary,
+        StepOutcomes = entry.StepOutcomes,
+        Details = new[] { new ExecutionDetailItem("step", text, attributes, "normal") },
+        RetentionExpiresUtc = entry.RetentionExpiresUtc
+      };
   }
 
   private static ExecutionLogEntry SequenceEntry(string id, string name, string status, ExecutionStepOutcome[] steps)

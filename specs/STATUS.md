@@ -157,7 +157,7 @@ Status vocabulary:
 | 120 | Queue Sequence Notifications | Implemented (iterated by 126) |
 | 121 | Device Not-Live Alert, Optional Recovery, and Capture Pile-Up Guard | Implemented (iterated by 199) |
 | 122 | Exclude Helper Sequences From Success Notifications | Implemented |
-| 123 | Reschedule-Self Cancel | Implemented |
+| 123 | Reschedule-Self Cancel | Implemented (iterated by 200) |
 | 125 | Reschedule-Self Keep Earliest | Implemented |
 | 126 | Failure Message Dedup By Last Sent Message | Implemented |
 | 127 | Step-Through Sequence Execution | Implemented |
@@ -227,6 +227,7 @@ Status vocabulary:
 | 197 | Do not read a stale capture frame in a step | Implemented |
 | 198 | Show the newest runs of a running queue in the execution log | Implemented |
 | 199 | Device Recovery Option in the Queue Form | Implemented |
+| 200 | Reschedule-Self Cancel step status in the execution log | Implemented |
 
 ## Numbering notes
 

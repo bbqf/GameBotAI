@@ -1038,9 +1038,18 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
       return new ActionDispatchResult("noop", $"self-reschedule not performed: {parseError}");
     }
 
-    // Feature 123: Cancel removes the pending bookings of the owner sequence. It never fails the run.
+    // Feature 123: Cancel removes the pending bookings of the owner sequence.
+    // Feature 200: an error during the cancel gives the outcome failed (status failure in the execution log),
+    // removed false, and the run continues.
     if (payload.Option == SelfRescheduleOption.Cancel) {
-      var cancel = _selfRescheduleCoordinator.CancelSelf(originatingQueueId!, sequenceId);
+      SelfRescheduleCancelResult cancel;
+      try {
+        cancel = _selfRescheduleCoordinator.CancelSelf(originatingQueueId!, sequenceId);
+      }
+      catch (Exception ex) {
+        if (_logger is not null) SequenceExecutionLog.CancelSelfFailed(_logger, sequenceId, originatingQueueId!, ex);
+        return new ActionDispatchResult("failed", $"cancel not performed: {ex.Message}", false);
+      }
       return cancel.Outcome switch {
         SelfRescheduleCancelOutcome.Cancelled => new ActionDispatchResult(
           "cancelled",
@@ -1562,4 +1571,7 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
 internal static partial class SequenceExecutionLog {
   [LoggerMessage(EventId = 1130, Level = LogLevel.Warning, Message = "Could not close abandoned sequence execution-log entry {ExecutionId}; it will keep reading as running")]
   public static partial void AbandonedFinalizeFailed(ILogger logger, string ExecutionId, Exception ex);
+
+  [LoggerMessage(EventId = 1137, Level = LogLevel.Warning, Message = "Sequence {SequenceId} could not cancel its pending bookings in queue {QueueId}. The step has the outcome failed and the run continues.")]
+  public static partial void CancelSelfFailed(ILogger logger, string SequenceId, string QueueId, Exception ex);
 }
