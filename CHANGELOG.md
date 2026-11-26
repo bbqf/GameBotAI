@@ -61,6 +61,13 @@ All notable changes to this project will be documented in this file.
   - **Version**: the patch version is now 1.12.19.
 
 ### Fixed
+- A reschedule-self Cancel step that runs has the status success in the execution log (200-fix-cancel-step-status, #414, B-046)
+  - **Problem**: a `reschedule-self` step with the option `Cancel` removed the pending bookings of its sequence, but the execution log gave the step node the status `failure`. The status calculation did not know the outcome `cancelled`. A `Cancel` step that found no booking had the outcome `noop` and the status `skipped`.
+  - **Change**: the execution log gives the status `success` to a `reschedule-self` step node with the outcome `cancelled`, and to a `reschedule-self` step node with the outcome `noop` and the option `Cancel` (no booking, no originating queue, or a queue run that is no longer active). The log calculates the status when it reads the log, so the logs stored before the fix also show it.
+  - **Error**: an error during the cancel gives the step outcome `failed`, the message `cancel not performed: <error text>`, `removed` `false`, and the status `failure`. The run continues. Before, the error ended the run with the status `failure`. The service writes the warning 1137.
+  - **Not changed**: the message text of a `Cancel` step that runs, the stored outcome, `actionOutcome`, `reasonCode`, the removal of bookings, the `commandOutcome` value of a `reschedule-self` step, and the status of the other options. A primitive or WaitForImage step that a stop cut off keeps the status `failure`.
+  - **Perf note**: the option look-up runs only for a `reschedule-self` node with the outcome `noop`.
+  - **Version**: the patch version is now 1.12.32.
 - The execution log shows the newest runs of a running queue (198-fix-queue-log-children, #408, B-044)
   - **Problem**: after a service start, the list of execution logs did not show the new root entry of a queue run, and the newest sequence runs of the queue were not visible. The entries were on disk. The retention cleanup read the in-memory list, deleted the expired files, and then set the list to its first copy. It did this without the write lock, so each root or child entry that a queue wrote between the read and the set was lost from the list until the queue stopped or the service started again. The root of the run before the service update kept the status `running`, so it looked like a log that stopped.
   - **Change**: the retention cleanup holds the write lock for its full remove step. It removes the expired entries from the current list and deletes their files. No write during a cleanup is lost from the list.

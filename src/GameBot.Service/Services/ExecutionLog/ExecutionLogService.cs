@@ -693,7 +693,7 @@ internal sealed class ExecutionLogService : IExecutionLogService {
       // A condition step IS its verdict, so a false result is that step's failure. Every other
       // kind of step merely carries the trace that explains a gate decision — a command whose
       // gate was false was skipped, not broken — so there its own outcome decides the status.
-      IsConditionStep(step) ? (step.ConditionTrace!.FinalResult ? "success" : "failure") : MapStepStatus(step.Outcome),
+      IsConditionStep(step) ? (step.ConditionTrace!.FinalResult ? "success" : "failure") : ResolveStepStatus(entry, step),
       step.ReasonText ?? step.ReasonCode,
       step.AppliedDelayMs,
       step.CommandName,
@@ -703,6 +703,52 @@ internal sealed class ExecutionLogService : IExecutionLogService {
       Array.Empty<ExecutionTreeNodeProjection>()) {
       Parameters = ReadStepParameters(entry, step.StepOrder)
     };
+
+  /// <summary>
+  /// Gives the status of a step node that is not a condition step. Feature 200 (issue #414): a reschedule-self
+  /// Cancel that removed its bookings did its work. Other steps with the outcome cancelled were cut off by a stop
+  /// and keep the status failure. The status is calculated when the log is read, so the logs stored before the
+  /// fix also show it.
+  /// </summary>
+  private static string ResolveStepStatus(ExecutionLogEntry entry, ExecutionStepOutcome step) {
+    if (string.Equals(step.StepType, "reschedule-self", StringComparison.OrdinalIgnoreCase)) {
+      if (string.Equals(step.Outcome, "cancelled", StringComparison.OrdinalIgnoreCase)) {
+        return "success";
+      }
+
+      // Feature 200: a Cancel that has nothing to remove also did its work. Only the stored step detail
+      // tells that a noop step is a Cancel step, so the option is read from it.
+      if (string.Equals(step.Outcome, "noop", StringComparison.OrdinalIgnoreCase)
+          && string.Equals(ReadRescheduleOption(entry, step.StepOrder), "Cancel", StringComparison.OrdinalIgnoreCase)) {
+        return "success";
+      }
+    }
+
+    return MapStepStatus(step.Outcome);
+  }
+
+  /// <summary>
+  /// Reads the option of a reschedule-self step from the "step" detail item of the entry with the same step
+  /// order (feature 200). The attributes are plain objects in memory and JSON elements after a read from disk,
+  /// so both go through one JSON element. Gives null when the entry has no such item or no option.
+  /// </summary>
+  private static string? ReadRescheduleOption(ExecutionLogEntry entry, int stepOrder) {
+    foreach (var item in entry.Details) {
+      if (!string.Equals(item.Kind, "step", StringComparison.Ordinal) || item.Attributes is null) continue;
+      if (!item.Attributes.TryGetValue("stepOrder", out var order)
+          || !item.Attributes.TryGetValue("stepType", out var type)
+          || !item.Attributes.TryGetValue("option", out var option)) continue;
+      var orderElement = JsonSerializer.SerializeToElement(order);
+      if (orderElement.ValueKind != JsonValueKind.Number || orderElement.GetInt32() != stepOrder) continue;
+      var typeElement = JsonSerializer.SerializeToElement(type);
+      if (typeElement.ValueKind != JsonValueKind.String
+          || !string.Equals(typeElement.GetString(), "reschedule-self", StringComparison.OrdinalIgnoreCase)) continue;
+      var optionElement = JsonSerializer.SerializeToElement(option);
+      return optionElement.ValueKind == JsonValueKind.String ? optionElement.GetString() : null;
+    }
+
+    return null;
+  }
 
   /// <summary>
   /// Reads the parameter values that the step used from the "parameters" detail item of the entry

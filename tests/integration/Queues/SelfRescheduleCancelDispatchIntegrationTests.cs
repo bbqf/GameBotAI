@@ -9,8 +9,10 @@ using GameBot.Domain.Commands.SelfReschedule;
 using GameBot.Service.Services.ExecutionLog;
 using GameBot.Service.Services.QueueExecution;
 using GameBot.Service.Services.SequenceExecution;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Xunit;
 
 namespace GameBot.IntegrationTests.Queues;
@@ -180,5 +182,86 @@ public sealed class SelfRescheduleCancelDispatchIntegrationTests {
     items.Should().ContainSingle();
     items[0].Attributes!["actionOutcome"].Should().Be("cancelled");
     items[0].Attributes!["removed"].Should().Be(true);
+  }
+
+  // Feature 200 (issue #414): the stored subtree gives each Cancel step that ran the status success.
+  [Theory]
+  [InlineData(true, "Self-reschedule 'cancel' cancelled: removed 1 pending booking(s) of this sequence; applies to the current run only")]
+  [InlineData(false, "Self-reschedule 'cancel' noop: no pending booking of this sequence; nothing to cancel")]
+  public async Task CancelStepNodesOfAStoredRunHaveTheStatusSuccess(bool bookFirst, string expectedMessage) {
+    using var app = new WebApplicationFactory<Program>();
+    _ = app.CreateClient();
+    var services = app.Services;
+    var sequenceId = bookFirst ? "seq-cancel-status-booked" : "seq-cancel-status-empty";
+    var steps = bookFirst
+      ? new[] { Reschedule(0, "book", "Timer", "00:30:00"), Reschedule(1, "cancel", "Cancel") }
+      : new[] { Reschedule(0, "cancel", "Cancel") };
+    await SeedAsync(services, sequenceId, steps).ConfigureAwait(false);
+    Register(services, "q-" + sequenceId);
+
+    var result = await RunAsync(services, sequenceId, "q-" + sequenceId).ConfigureAwait(false);
+    result.Status.Should().Be("Succeeded");
+
+    var log = services.GetRequiredService<IExecutionLogService>();
+    var page = await log.QueryAsync(new GameBot.Domain.Logging.ExecutionLogQuery { ObjectType = "sequence", PageSize = 50 }).ConfigureAwait(false);
+    var entry = page.Items.Where(e => e.ObjectRef.ObjectId == sequenceId)
+      .OrderByDescending(e => e.TimestampUtc)
+      .First();
+    var subtree = await log.GetSubtreeAsync(entry.Id).ConfigureAwait(false);
+
+    subtree.Should().NotBeNull();
+    var node = subtree!.Root.Children.Single(c => c.Message != null && c.Message.StartsWith("Self-reschedule 'cancel'", StringComparison.Ordinal));
+    node.Status.Should().Be("success");
+    node.Message.Should().Be(expectedMessage);
+  }
+
+  // Feature 200: an error during the cancel gives a failed step. The run continues.
+  [Fact]
+  public async Task CancelThatThrowsRecordsAFailedStepAndTheRunContinues() {
+    using var app = new WebApplicationFactory<Program>().WithWebHostBuilder(b => b.ConfigureServices(s => {
+      s.RemoveAll<ISelfRescheduleCoordinator>();
+      s.AddSingleton<SelfRescheduleCoordinator>();
+      s.AddSingleton<ISelfRescheduleCoordinator>(sp => new ThrowingCancelCoordinator(sp.GetRequiredService<SelfRescheduleCoordinator>()));
+    }));
+    _ = app.CreateClient();
+    var services = app.Services;
+    await SeedAsync(services, "seq-cancel-throws",
+      Reschedule(0, "cancel", "Cancel"),
+      Reschedule(1, "book", "Timer", "00:30:00")).ConfigureAwait(false);
+    Register(services, "q-cancel-throws");
+
+    var result = await RunAsync(services, "seq-cancel-throws", "q-cancel-throws").ConfigureAwait(false);
+
+    result.Status.Should().Be("Succeeded");
+    var cancelStep = result.Steps.Single(s => s.CommandId == "cancel");
+    cancelStep.ActionOutcome.Should().Be("failed");
+    cancelStep.Removed.Should().BeFalse();
+    cancelStep.Message.Should().Be("cancel not performed: store unavailable");
+    result.Steps.Single(s => s.CommandId == "book").ActionOutcome.Should().Be("scheduled");
+  }
+
+  /// <summary>Sends each call to the real coordinator, but <c>CancelSelf</c> throws (feature 200).</summary>
+  private sealed class ThrowingCancelCoordinator : ISelfRescheduleCoordinator {
+    private readonly SelfRescheduleCoordinator _inner;
+
+    public ThrowingCancelCoordinator(SelfRescheduleCoordinator inner) => _inner = inner;
+
+    public SelfRescheduleResult ScheduleSelf(
+      string queueId,
+      string sequenceId,
+      SelfRescheduleOption option,
+      TimeOnly? timerTimeOfDay,
+      TimeSpan? timerRelativeOffset,
+      GameBot.Domain.Parameters.ParameterScope? scope = null,
+      SelfRescheduleKeep keep = SelfRescheduleKeep.None,
+      string? runId = null,
+      SmartSchedulingRequest? smartScheduling = null)
+      => _inner.ScheduleSelf(queueId, sequenceId, option, timerTimeOfDay, timerRelativeOffset, scope, keep, runId, smartScheduling);
+
+    public SelfRescheduleCancelResult CancelSelf(string queueId, string sequenceId)
+      => throw new InvalidOperationException("store unavailable");
+
+    public DateTimeOffset ResolveTimerFireAt(TimeOnly? timerTimeOfDay, TimeSpan? timerRelativeOffset)
+      => _inner.ResolveTimerFireAt(timerTimeOfDay, timerRelativeOffset);
   }
 }

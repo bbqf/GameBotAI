@@ -2,7 +2,7 @@
 
 **Feature Branch**: `200-fix-cancel-step-status`  
 **Created**: 2026-11-26  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: GitHub issue #414, "B-046: reschedule-self Cancel removes the booking but the execution log gives the step the status failure". Closes #414. Labels: bug, P2.
 
 ## Background
