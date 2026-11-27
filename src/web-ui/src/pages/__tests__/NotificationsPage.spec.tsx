@@ -32,6 +32,12 @@ const target = (over: Partial<NotificationTargetDto> = {}): NotificationTargetDt
   ...over
 });
 
+const openDeleteDialog = (name = 'My phone') => {
+  fireEvent.click(screen.getByRole('button', { name: `More actions for ${name}` }));
+  fireEvent.click(screen.getByRole('menuitem', { name: /Delete/ }));
+  return screen.getByRole('dialog', { name: `Delete target ${name}?` });
+};
+
 describe('NotificationsPage', () => {
   beforeEach(() => {
     jest.resetAllMocks();
@@ -72,7 +78,7 @@ describe('NotificationsPage', () => {
     render(<NotificationsPage />);
     await screen.findByText('My phone');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Edit My phone' }));
 
     expect(screen.getByRole('form', { name: 'Edit target' })).toBeInTheDocument();
     expect(screen.getByLabelText('Name')).toHaveValue('My phone');
@@ -84,8 +90,7 @@ describe('NotificationsPage', () => {
     render(<NotificationsPage />);
     await screen.findByText('My phone');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }));
+    fireEvent.click(within(openDeleteDialog()).getByRole('button', { name: 'Delete' }));
 
     await waitFor(() => expect(mockDelete).toHaveBeenCalledWith('t1'));
     await waitFor(() => expect(screen.queryByText('My phone')).toBeNull());
@@ -97,8 +102,7 @@ describe('NotificationsPage', () => {
     render(<NotificationsPage />);
     await screen.findByText('My phone');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }));
+    fireEvent.click(within(openDeleteDialog()).getByRole('button', { name: 'Delete' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('HTTP 500');
     expect(screen.getByText('My phone')).toBeInTheDocument();
@@ -110,16 +114,16 @@ describe('NotificationsPage', () => {
     render(<NotificationsPage />);
     await screen.findByText('My phone');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Send test message' }));
-    expect(await screen.findByRole('status')).toHaveTextContent('The test message was sent.');
+    fireEvent.click(screen.getByRole('button', { name: 'Send test message My phone' }));
+    expect(await screen.findByText('The test message was sent.')).toBeInTheDocument();
 
     mockTest.mockResolvedValueOnce({ ok: false, reason: 'chat not found' });
-    fireEvent.click(screen.getByRole('button', { name: 'Send test message' }));
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('chat not found'));
+    fireEvent.click(screen.getByRole('button', { name: 'Send test message My phone' }));
+    expect(await screen.findByText(/chat not found/)).toBeInTheDocument();
 
     mockTest.mockRejectedValueOnce(new Error('HTTP 502'));
-    fireEvent.click(screen.getByRole('button', { name: 'Send test message' }));
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('HTTP 502'));
+    fireEvent.click(screen.getByRole('button', { name: 'Send test message My phone' }));
+    expect(await screen.findByText(/HTTP 502/)).toBeInTheDocument();
   });
 
   it('adds a saved target to the list and switches the form to edit', async () => {
@@ -144,7 +148,7 @@ describe('NotificationsPage', () => {
     mockUpdate.mockResolvedValue(target({ name: 'Renamed' }));
     render(<NotificationsPage />);
     await screen.findByText('My phone');
-    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Edit My phone' }));
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Renamed' } });
 
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
@@ -158,11 +162,49 @@ describe('NotificationsPage', () => {
     mockDelete.mockResolvedValue(undefined);
     render(<NotificationsPage />);
     await screen.findByText('My phone');
-    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Edit My phone' }));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }));
+    fireEvent.click(within(openDeleteDialog()).getByRole('button', { name: 'Delete' }));
 
     await waitFor(() => expect(screen.queryByRole('form', { name: 'Edit target' })).toBeNull());
+  });
+
+  it('closes the form when the footer Delete of the edit form is confirmed', async () => {
+    mockList.mockResolvedValue([target()]);
+    mockDelete.mockResolvedValue(undefined);
+    render(<NotificationsPage />);
+    await screen.findByText('My phone');
+    fireEvent.click(screen.getByRole('button', { name: 'Edit My phone' }));
+
+    fireEvent.click(within(screen.getByRole('form', { name: 'Edit target' })).getByRole('button', { name: 'Delete' }));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Delete target My phone?' })).getByRole('button', { name: 'Delete' }));
+
+    await waitFor(() => expect(mockDelete).toHaveBeenCalledWith('t1'));
+    await waitFor(() => expect(screen.queryByRole('form', { name: 'Edit target' })).toBeNull());
+  });
+
+  it('sends no delete call when the dialog is cancelled', async () => {
+    mockList.mockResolvedValue([target()]);
+    render(<NotificationsPage />);
+    await screen.findByText('My phone');
+
+    fireEvent.click(within(openDeleteDialog()).getByRole('button', { name: 'Cancel' }));
+
+    expect(mockDelete).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog', { name: /Delete target/ })).toBeNull();
+  });
+
+  it('turns the test icon off while the test call runs', async () => {
+    mockList.mockResolvedValue([target()]);
+    let finish: (value: { ok: boolean; reason: string | null }) => void = () => undefined;
+    mockTest.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+    render(<NotificationsPage />);
+    await screen.findByText('My phone');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Send test message My phone' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Send test message My phone' })).toBeDisabled());
+    finish({ ok: true, reason: null });
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Send test message My phone' })).toBeEnabled());
   });
 });

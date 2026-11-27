@@ -1,6 +1,6 @@
 # UI Guidelines
 
-Last reviewed: 2026-11-27
+Last reviewed: 2026-11-27 (feature 203)
 
 These rules give all pages of the web UI one design, on the phone and on the desktop. The phone layout is the base. The
 desktop layout uses the same parts, in the same order, with more space.
@@ -149,7 +149,8 @@ The buttons are flat. They have no gradient and do not move on hover.
   on the left (for example "Changes are not saved").
 - **F5. Errors.** A field with an error has a red border and the error text under it. Do not use a pop-up.
 - **F6. Choices.** On/off values use a toggle. A choice of 2 to 4 values uses a segmented control. More values use a
-  select.
+  select. Exception: a choice inside a fixed list row uses a select, because a segmented control does not fit the row on
+  the phone.
 - **F7. Two modes on one page** (for example Backup and Restore) use a segmented control at the top of the page.
 - **F8. Checkbox lists** use 56 px rows. The first row is "Select all" with a count.
 
@@ -213,8 +214,15 @@ only the tokens of section 1, and each hover rule is inside `@media (hover: hove
 - **ListView**: the list component. A table with fixed column widths and 56 px rows on the desktop, and two-line rows
   of 64 px on the phone. Rule: the columns do not change width when the data changes.
 - **RowActionMenu**: the "more" menu of a row. A danger item is last and is red. Rule: Delete is in the menu of a row.
-- **FooterBar**: the bar at the bottom of a form page (section 9). It has no user yet.
+- **FooterBar**: the bar at the bottom of a form page (section 9). The target form of the Notifications area uses it.
 - **ConfirmDialog**: the one confirmation dialog (rule D1). The focus starts on Cancel.
+- **SidePanel**: a form panel. It is 480 px wide at the right edge on the desktop, and a full page with a "Back" button on
+  the phone. The page stays visible on the desktop. The focus moves into the panel on open and back to the opener on
+  close. Escape closes it. Rule: D2.
+- **Toggle**: an on/off switch with a label (40 x 24 px, a 44 px hit area on the phone). Rule: F6.
+- **SectionHeader**: the title (`h3`) of a section of a page, with optional actions on the right.
+- **Form field classes**: `ui-form-card`, `ui-field`, `ui-field__label`, `ui-field__input`, `ui-field--error`,
+  `ui-field__error`, and `ui-field__help`. A field has its label above it, and an error text under it. Rules: F1, F5.
 
 The old `components/queues/IconButton.tsx` and `features/execution/StatusChip.tsx` are wrappers or old components
 until all pages move to the shared components.

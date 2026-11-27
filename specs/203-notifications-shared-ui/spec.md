@@ -2,7 +2,7 @@
 
 **Feature Branch**: `203-notifications-shared-ui`  
 **Created**: 2026-11-27  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: User description: "Move the Notifications area (PR 2 of the UI consistency work, after feature 202) to the shared UI components and to docs/ui-guidelines.md." The full description is in the pipeline call. The user approved the plan of one PR for each area on 2026-11-27.
 
 ## Background
