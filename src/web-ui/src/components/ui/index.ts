@@ -14,3 +14,6 @@ export type { ListColumn, RowAction, RowActions, ListState } from './types';
 export { RowActionMenu } from './RowActionMenu';
 export { FooterBar } from './FooterBar';
 export { ConfirmDialog } from './ConfirmDialog';
+export { SidePanel } from './SidePanel';
+export { Toggle } from './Toggle';
+export { SectionHeader } from './SectionHeader';

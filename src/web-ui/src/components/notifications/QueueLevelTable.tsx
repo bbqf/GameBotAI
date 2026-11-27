@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { NotificationLevel, QueueDto, listQueues, setQueueNotificationLevel } from '../../services/queues';
-import { useLayoutMode } from '../../hooks/useLayoutMode';
+import { useLayoutMode, type LayoutMode } from '../../hooks/useLayoutMode';
+import { ListView, SectionHeader, type ListColumn, type ListState } from '../ui';
 
 const levels: { value: NotificationLevel; label: string }[] = [
   { value: 'none', label: 'None' },
@@ -12,19 +13,22 @@ const levels: { value: NotificationLevel; label: string }[] = [
  * Table of all queues with a notification level select (feature 120). A change calls the level
  * route one time. The new level applies to the next sequence that finishes in the queue.
  */
-export const QueueLevelTable: React.FC = () => {
-  const phone = useLayoutMode() === 'phone';
+export const QueueLevelTable: React.FC<{ mode?: LayoutMode }> = ({ mode }) => {
+  const layout = useLayoutMode();
+  const phone = (mode ?? layout) === 'phone';
   const [queues, setQueues] = useState<QueueDto[]>([]);
   const [loading, setLoading] = useState(true);
+  // A load error shows in the list. A change error shows under the section header.
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    setLoadError(null);
     try {
       setQueues((await listQueues()) ?? []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'The queues could not be loaded.');
+      setLoadError(err instanceof Error ? err.message : 'The queues could not be loaded.');
     } finally {
       setLoading(false);
     }
@@ -44,10 +48,9 @@ export const QueueLevelTable: React.FC = () => {
     }
   };
 
-  if (loading) return <p>Wait. The queues load.</p>;
-
-  const levelSelect = (queue: QueueDto) => (
+  const levelSelect = (queue: QueueDto, className: string) => (
     <select
+      className={className}
       aria-label={`Notification level for ${queue.name}`}
       value={queue.notificationLevel ?? 'none'}
       onChange={(e) => void change(queue, e.target.value as NotificationLevel)}
@@ -58,39 +61,32 @@ export const QueueLevelTable: React.FC = () => {
     </select>
   );
 
+  const columns: ListColumn<QueueDto>[] = [
+    { id: 'queue', header: 'Queue', width: 'flex', render: (q) => q.name, text: (q) => q.name },
+    { id: 'level', header: 'Level', width: 240, render: (q) => levelSelect(q, 'ui-field__input') }
+  ];
+
+  let state: ListState = 'ready';
+  if (loading) state = { kind: 'loading' };
+  else if (loadError) state = { kind: 'error', text: loadError, onRetry: () => void load() };
+  else if (queues.length === 0) state = { kind: 'empty', text: 'No queue exists.' };
+
   return (
     <section aria-label="Queue notification levels">
-      <h3>Queue notification levels</h3>
+      <SectionHeader title="Queue notification levels" />
       {error && <div role="alert" className="form-error">{error}</div>}
-      {queues.length === 0 ? (
-        <p className="form-hint">No queue exists.</p>
-      ) : phone ? (
-        <ul className="phone-card-list">
-          {queues.map((queue) => (
-            <li key={queue.id} className="phone-row-card">
-              <span className="phone-card__title" title={queue.name}>{queue.name}</span>
-              {levelSelect(queue)}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <table className="queue-level-table">
-          <thead>
-            <tr>
-              <th>Queue</th>
-              <th>Level</th>
-            </tr>
-          </thead>
-          <tbody>
-            {queues.map((queue) => (
-              <tr key={queue.id}>
-                <td>{queue.name}</td>
-                <td>{levelSelect(queue)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      <ListView
+        ariaLabel="Queue notification levels"
+        tableClassName="queue-level-table"
+        columns={columns}
+        rows={queues}
+        getRowKey={(q) => q.id}
+        state={state}
+        mode={mode}
+        rowTestId={(q) => `level-row-${q.id}`}
+        phone={{ title: (q) => q.name }}
+        renderPhoneActions={phone ? (q) => levelSelect(q, 'ui-field__input ui-level-select--phone') : undefined}
+      />
     </section>
   );
 };

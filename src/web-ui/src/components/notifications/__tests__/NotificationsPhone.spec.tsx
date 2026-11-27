@@ -29,20 +29,29 @@ describe('Notifications on a phone', () => {
   });
   afterEach(() => mock.restore());
 
-  it('shows targets as cards, not a table, with all actions', () => {
+  it('shows targets as two-line rows, not a table, with a test icon and a menu', () => {
     const onEdit = jest.fn();
-    render(<TargetList targets={[target]} onEdit={onEdit} onDelete={jest.fn()} onTest={jest.fn()} />);
+    const onDelete = jest.fn();
+    const onTest = jest.fn();
+    render(<TargetList targets={[target]} onEdit={onEdit} onDelete={onDelete} onTest={onTest} />);
     expect(screen.queryByRole('table')).toBeNull();
     expect(screen.getByText('My phone')).toBeInTheDocument();
-    expect(screen.getByText(/-100123/)).toBeInTheDocument();
-    expect(screen.getByText(/••••Xy9z/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    expect(screen.getByText('On')).toBeInTheDocument();
+    expect(screen.getByText('Telegram · -100123')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Send test message My phone' }));
+    expect(onTest).toHaveBeenCalledWith('t1');
+
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for My phone' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /Edit/ }));
     expect(onEdit).toHaveBeenCalledWith(target);
-    expect(screen.getByRole('button', { name: 'Send test message' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for My phone' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /Delete/ }));
+    expect(onDelete).toHaveBeenCalledWith(target);
   });
 
-  it('shows queue levels as cards and saves a change', async () => {
+  it('shows queue levels as rows and saves a change', async () => {
     mockList.mockResolvedValue([queue]);
     mockSet.mockResolvedValue({ ...queue, notificationLevel: 'failure' });
     render(<QueueLevelTable />);

@@ -251,6 +251,15 @@
   cursor: pointer;
 }
 
+/* The row that is open in a side panel: a light blue background and a blue line on the left (rule D2). */
+tr.ui-list__row.ui-list__row--selected {
+  background: var(--gb-color-primary-soft);
+}
+
+.ui-list__row--selected > td:first-child {
+  box-shadow: inset 3px 0 0 var(--gb-color-primary);
+}
+
 @media (hover: hover) {
   .ui-list__row--clickable:hover {
     background: var(--gb-color-surface-alt);
@@ -478,6 +487,21 @@
   gap: var(--gb-space-2);
 }
 
+/* A button text in the footer stays on one line. */
+.ui-footer-bar .ui-button {
+  white-space: nowrap;
+}
+
+@media (max-width: 768px), (max-height: 500px) {
+  .ui-footer-bar {
+    padding: 0 var(--gb-space-3);
+  }
+
+  .ui-footer-bar .ui-button {
+    padding: 0 var(--gb-space-3);
+  }
+}
+
 /* ---- ConfirmDialog ---- */
 .ui-dialog__backdrop {
   position: fixed;
@@ -514,4 +538,271 @@
   display: flex;
   justify-content: flex-end;
   gap: var(--gb-space-2);
+}
+/* ---- Feature 203: SectionHeader ---- */
+.ui-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gb-space-3);
+  margin: var(--gb-space-5) 0 var(--gb-space-3);
+}
+
+.ui-section-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.ui-section-header__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--gb-space-2);
+}
+
+/* ---- Toggle ---- */
+.ui-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gb-space-3);
+  min-height: 40px;
+}
+
+.ui-toggle__switch {
+  position: relative;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: var(--gb-color-border-strong);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.ui-toggle__switch--on {
+  background: var(--gb-color-primary);
+}
+
+.ui-toggle__knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--gb-color-surface);
+  transition: transform 0.15s ease;
+}
+
+.ui-toggle__switch--on .ui-toggle__knob {
+  transform: translateX(16px);
+}
+
+.ui-toggle__switch:focus-visible {
+  outline: 3px solid var(--gb-color-focus);
+  outline-offset: 2px;
+}
+
+.ui-toggle__label {
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.ui-toggle--disabled {
+  opacity: 0.5;
+}
+
+.ui-toggle--disabled .ui-toggle__switch,
+.ui-toggle--disabled .ui-toggle__label {
+  cursor: not-allowed;
+}
+
+@media (max-width: 768px), (max-height: 500px) {
+  .ui-toggle {
+    min-height: 44px;
+  }
+
+  /* The general phone rule gives each button a minimum of 44 x 44 px. The switch keeps its track size; its ::after
+     area gives the 44 x 44 px hit area. */
+  .app--phone button.ui-toggle__switch[role="switch"] {
+    min-width: 40px;
+    min-height: 24px;
+  }
+
+  /* The hit area of the switch is 44 x 44 px. */
+  .ui-toggle__switch::after {
+    content: '';
+    position: absolute;
+    top: -10px;
+    right: -2px;
+    bottom: -10px;
+    left: -2px;
+  }
+}
+
+/* ---- SidePanel ---- */
+.ui-side-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: var(--gb-size-side-panel);
+  max-width: 100%;
+  border-left: 1px solid var(--gb-color-border);
+  background: var(--gb-color-surface);
+  box-shadow: var(--gb-shadow-raised);
+}
+
+.ui-side-panel:focus {
+  outline: none;
+}
+
+.ui-side-panel__header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gb-space-2);
+  box-sizing: border-box;
+  height: var(--gb-size-app-bar);
+  padding: 0 var(--gb-space-4) 0 20px;
+  border-bottom: 1px solid var(--gb-color-border);
+}
+
+.ui-side-panel__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.ui-side-panel__body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  background: var(--gb-color-bg);
+}
+
+.ui-side-panel__body > form {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.ui-side-panel__form-content {
+  flex: 1 1 auto;
+  padding: var(--gb-space-4) 20px;
+}
+
+.ui-side-panel .ui-footer-bar {
+  margin-top: auto;
+}
+
+.ui-side-panel--page {
+  position: static;
+  z-index: auto;
+  width: 100%;
+  border-left: 0;
+  box-shadow: none;
+}
+
+.ui-side-panel--page .ui-side-panel__header {
+  justify-content: flex-start;
+  padding: 0 var(--gb-space-2);
+}
+
+.ui-side-panel--page .ui-side-panel__body {
+  overflow-y: visible;
+}
+
+.ui-side-panel--page .ui-footer-bar {
+  position: sticky;
+  bottom: 0;
+}
+
+/* ---- Form field classes ---- */
+.ui-form-card {
+  margin-bottom: var(--gb-space-3);
+  padding: var(--gb-space-4) 20px;
+  border: 1px solid var(--gb-color-border);
+  border-radius: var(--gb-radius-md);
+  background: var(--gb-color-surface);
+}
+
+.ui-form-card h4 {
+  margin: 0 0 var(--gb-space-3);
+  font-size: 15px;
+}
+
+.ui-field {
+  margin-bottom: 14px;
+}
+
+.ui-field__label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ui-field__input {
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--gb-size-control);
+  padding: 0 var(--gb-space-3);
+  border: 1px solid var(--gb-color-border-strong);
+  border-radius: var(--gb-radius-control);
+  background: var(--gb-color-surface);
+  color: var(--gb-color-text);
+  font: inherit;
+  font-size: 14px;
+}
+
+.ui-field__input:focus-visible {
+  outline: 3px solid var(--gb-color-focus);
+  outline-offset: 1px;
+}
+
+.ui-field--error .ui-field__input {
+  border-color: var(--gb-color-danger);
+}
+
+.ui-field__error {
+  margin-top: var(--gb-space-1);
+  color: var(--gb-color-danger);
+  font-size: 12px;
+}
+
+.ui-field__help {
+  margin-top: var(--gb-space-1);
+  color: var(--gb-color-muted);
+  font-size: 12px;
+}
+
+@media (max-width: 768px), (max-height: 500px) {
+  .ui-field__input {
+    font-size: 16px;
+  }
+
+  .ui-level-select--phone {
+    width: 160px;
+  }
+}
+
+.ui-mono {
+  font-family: ui-monospace, Consolas, "Courier New", monospace;
+}
+
+/* The page makes room for the side panel on the desktop. */
+.notifications-page--panel-open {
+  padding-right: calc(var(--gb-size-side-panel) + var(--gb-space-4));
 }

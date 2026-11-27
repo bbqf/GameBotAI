@@ -75,4 +75,16 @@ describe('QueueLevelTable', () => {
     render(<QueueLevelTable />);
     expect(await screen.findByRole('alert')).toHaveTextContent('offline');
   });
+
+  it('shows the loading text, and Try again loads the list again', async () => {
+    mockList.mockRejectedValueOnce(new Error('offline'));
+    mockList.mockResolvedValueOnce([queue({ id: 'q1', name: 'Farm-1' })]);
+    render(<QueueLevelTable />);
+    expect(screen.getByText('Loading…')).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent('offline');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+    expect(await screen.findByLabelText('Notification level for Farm-1')).toBeInTheDocument();
+  });
 });

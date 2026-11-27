@@ -264,7 +264,8 @@ test.describe('Desktop-only areas on a phone', () => {
   test('reaches the notice from the More sheet', async ({ page }) => {
     await mockApi(page);
     await page.goto('/');
-    await page.getByRole('button', { name: /More/ }).click();
+    // Exact name: the queue rows have "More actions for <name>" buttons, which also match /More/.
+    await page.getByRole('button', { name: 'More', exact: true }).click();
     await expect(page.getByRole('button', { name: /Authoring/ })).toContainText('Desktop only');
     await page.getByRole('button', { name: /Authoring/ }).click();
     await expect(page.getByText('Use a larger screen for this area.')).toBeVisible();

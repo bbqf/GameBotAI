@@ -141,4 +141,82 @@ describe('TargetForm', () => {
 
     expect(onCancel).toHaveBeenCalled();
   });
+
+  it('an empty Name shows an error and sends no call', async () => {
+    render(<TargetForm target={null} onSaved={jest.fn()} onCancel={jest.fn()} />);
+    fireEvent.change(screen.getByLabelText('Chat ID'), { target: { value: '-100' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(await screen.findByText('Enter a name.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Name')).toHaveAttribute('aria-invalid', 'true');
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it('an empty Chat ID shows an error for Save and test and sends no call', async () => {
+    render(<TargetForm target={null} onSaved={jest.fn()} onCancel={jest.fn()} />);
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'My phone' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save and test' }));
+
+    expect(await screen.findByText('Enter a chat ID.')).toBeInTheDocument();
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(mockTest).not.toHaveBeenCalled();
+  });
+
+  it('typing in a field removes its error', async () => {
+    render(<TargetForm target={null} onSaved={jest.fn()} onCancel={jest.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(await screen.findByText('Enter a name.')).toBeInTheDocument();
+    expect(screen.getByText('Enter a chat ID.')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'A' } });
+    fireEvent.change(screen.getByLabelText('Chat ID'), { target: { value: '1' } });
+
+    expect(screen.queryByText('Enter a name.')).toBeNull();
+    expect(screen.queryByText('Enter a chat ID.')).toBeNull();
+  });
+
+  it('sends the value of the Enabled switch', async () => {
+    mockCreate.mockResolvedValue(saved());
+    render(<TargetForm target={null} onSaved={jest.fn()} onCancel={jest.fn()} />);
+    fill('My phone', '', '-100');
+    const sw = screen.getByRole('switch', { name: 'Enabled' });
+    expect(sw).toHaveAttribute('aria-checked', 'true');
+    fireEvent.click(sw);
+    expect(sw).toHaveAttribute('aria-checked', 'false');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(mockCreate).toHaveBeenCalledTimes(1));
+    expect(mockCreate.mock.calls[0][0].enabled).toBe(false);
+  });
+
+  it('shows the Delete button only in edit mode and calls onDelete', () => {
+    const onDelete = jest.fn();
+    const { rerender } = render(<TargetForm target={null} onSaved={jest.fn()} onCancel={jest.fn()} onDelete={onDelete} />);
+    expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull();
+
+    const item = saved();
+    rerender(<TargetForm target={item} onSaved={jest.fn()} onCancel={jest.fn()} onDelete={onDelete} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+
+    expect(onDelete).toHaveBeenCalledWith(item);
+  });
+
+  it('turns all footer buttons off while a save runs', async () => {
+    let finish: (value: NotificationTargetDto) => void = () => undefined;
+    mockCreate.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+    render(<TargetForm target={saved()} onSaved={jest.fn()} onCancel={jest.fn()} onDelete={jest.fn()} />);
+    mockUpdate.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled());
+    for (const name of ['Delete', 'Cancel', 'Save and test']) {
+      expect(screen.getByRole('button', { name })).toBeDisabled();
+    }
+    finish(saved());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled());
+  });
 });

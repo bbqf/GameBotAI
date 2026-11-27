@@ -40,7 +40,7 @@ test('bottom tab bar replaces the tabs on small screens', async ({ page }) => {
   await page.setViewportSize({ width: 480, height: 800 });
   await page.goto('/');
   await expect(page.getByRole('tab', { name: 'Authoring', exact: true })).toHaveCount(0);
-  await page.getByRole('button', { name: /More/ }).click();
+  await page.getByRole('button', { name: 'More', exact: true }).click();
   await page.getByRole('button', { name: 'Configuration' }).click();
   await expect(page.getByRole('heading', { name: 'Configuration' })).toBeVisible();
 });

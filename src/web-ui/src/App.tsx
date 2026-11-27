@@ -294,7 +294,6 @@ export const App: React.FC = () => {
 
   const renderNotifications = () => (
     <section id="notifications-panel" className="notifications">
-      {!phone && <h1>Notifications</h1>}
       <ErrorBoundary>
         <NotificationsPage />
       </ErrorBoundary>

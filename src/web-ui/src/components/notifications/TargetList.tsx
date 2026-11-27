@@ -1,96 +1,97 @@
-import React, { useState } from 'react';
-import { ConfirmDeleteModal } from '../ConfirmDeleteModal';
+import React from 'react';
 import type { NotificationTargetDto } from '../../services/notifications';
-import { useLayoutMode } from '../../hooks/useLayoutMode';
+import { useLayoutMode, type LayoutMode } from '../../hooks/useLayoutMode';
+import { ListView, StatusChip, type ListColumn, type ListState, type RowActions } from '../ui';
 
 type TargetListProps = {
   targets: NotificationTargetDto[];
+  state?: ListState;
   onEdit: (target: NotificationTargetDto) => void;
-  onDelete: (id: string) => void;
+  /** Asks to delete a target. The page shows the confirmation dialog. */
+  onDelete: (target: NotificationTargetDto) => void;
   /** Sends a test message to a saved target. */
   onTest?: (id: string) => void;
+  /** The id of the target whose test call runs. Its test icon is off. */
+  testingId?: string | null;
+  mode?: LayoutMode;
+  /** Desktop: show only Name, Enabled, and Actions (while the side panel is open). */
+  compact?: boolean;
+  /** The id of the target that is open in the side panel. Its row gets a mark. */
+  selectedId?: string | null;
 };
 
-/** The saved notification targets, with Edit, Delete (with a confirmation) and test actions (feature 120). */
-export const TargetList: React.FC<TargetListProps> = ({ targets, onEdit, onDelete, onTest }) => {
-  const [pendingDelete, setPendingDelete] = useState<NotificationTargetDto | null>(null);
-  const phone = useLayoutMode() === 'phone';
+const typeText = (target: NotificationTargetDto): string => (target.type === 'telegram' ? 'Telegram' : target.type);
+const chatIdText = (target: NotificationTargetDto): string => target.settings?.chatId ?? '';
+const tokenText = (target: NotificationTargetDto): string => {
+  if (!target.hasSecret) return 'Not set';
+  return target.secretHint ? `Saved (${target.secretHint})` : 'Saved';
+};
+const chip = (target: NotificationTargetDto) => (
+  <StatusChip state={target.enabled ? 'done' : 'stopped'} text={target.enabled ? 'On' : 'Off'} />
+);
 
-  if (targets.length === 0) {
-    return <p className="form-hint">No target is saved. Follow the guide and add one.</p>;
-  }
+const columns: ListColumn<NotificationTargetDto>[] = [
+  { id: 'name', header: 'Name', width: 'flex', render: (t) => t.name, text: (t) => t.name },
+  { id: 'type', header: 'Type', width: 120, render: typeText, text: typeText, secondary: true },
+  { id: 'enabled', header: 'Enabled', width: 132, render: chip },
+  {
+    id: 'chatId',
+    header: 'Chat ID',
+    width: 200,
+    secondary: true,
+    render: (t) => <span className="ui-mono">{chatIdText(t)}</span>,
+    text: chatIdText
+  },
+  { id: 'token', header: 'Bot token', width: 160, render: tokenText, text: tokenText, secondary: true }
+];
 
-  const actions = (target: NotificationTargetDto) => (
-    <>
-      <button type="button" className="btn btn-secondary" onClick={() => onEdit(target)}>
-        Edit
-      </button>{' '}
-      {onTest && (
-        <>
-          <button type="button" className="btn btn-secondary" onClick={() => onTest(target.id)}>
-            Send test message
-          </button>{' '}
-        </>
-      )}
-      <button type="button" className="btn btn-danger" onClick={() => setPendingDelete(target)}>
-        Delete
-      </button>
-    </>
-  );
+/** The saved notification targets in the shared list: a test icon, an edit icon, and a menu with Delete (feature 203). */
+export const TargetList: React.FC<TargetListProps> = ({ targets, state = 'ready', onEdit, onDelete, onTest, testingId, mode, compact, selectedId }) => {
+  const layout = useLayoutMode();
+  const phone = (mode ?? layout) === 'phone';
+
+  const rowActions = (target: NotificationTargetDto): RowActions => {
+    const test = {
+      id: 'test',
+      label: 'Send test message',
+      ariaLabel: `Send test message ${target.name}`,
+      icon: 'send' as const,
+      disabled: testingId === target.id || !onTest,
+      onSelect: () => onTest?.(target.id)
+    };
+    const edit = { id: 'edit', label: 'Edit', ariaLabel: `Edit ${target.name}`, icon: 'edit' as const, onSelect: () => onEdit(target) };
+    const remove = {
+      id: 'delete',
+      label: 'Delete',
+      ariaLabel: `Delete ${target.name}`,
+      icon: 'delete' as const,
+      tone: 'danger' as const,
+      onSelect: () => onDelete(target)
+    };
+    return phone ? { visible: [test], menu: [edit, remove] } : { visible: [test, edit], menu: [remove] };
+  };
 
   return (
-    <>
-      {phone ? (
-        <ul className="phone-card-list notification-target-list">
-          {targets.map((target) => (
-            <li key={target.id} className="phone-row-card">
-              <strong className="phone-card__title" title={target.name}>{target.name}</strong>
-              <span>Type: {target.type}</span>
-              <span>Enabled: {target.enabled ? 'Yes' : 'No'}</span>
-              <span>Chat ID: {target.settings?.chatId ?? ''}</span>
-              <span>Bot token: {target.hasSecret ? (target.secretHint ?? 'Saved') : 'Not set'}</span>
-              <div className="phone-row-card__actions">{actions(target)}</div>
-            </li>
-          ))}
-        </ul>
-      ) : (
-      <table className="notification-target-list">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Type</th>
-            <th>Enabled</th>
-            <th>Chat ID</th>
-            <th>Bot token</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {targets.map((target) => (
-            <tr key={target.id}>
-              <td>{target.name}</td>
-              <td>{target.type}</td>
-              <td>{target.enabled ? 'Yes' : 'No'}</td>
-              <td>{target.settings?.chatId ?? ''}</td>
-              <td>{target.hasSecret ? (target.secretHint ?? 'Saved') : 'Not set'}</td>
-              <td>{actions(target)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      )}
-      <ConfirmDeleteModal
-        open={pendingDelete !== null}
-        title="Delete target"
-        itemName={pendingDelete?.name}
-        message="The target gets no more messages."
-        onCancel={() => setPendingDelete(null)}
-        onConfirm={() => {
-          const id = pendingDelete?.id;
-          setPendingDelete(null);
-          if (id) onDelete(id);
-        }}
-      />
-    </>
+    <ListView
+      ariaLabel="Notification targets"
+      tableClassName="notification-target-list"
+      columns={columns}
+      rows={targets}
+      getRowKey={(t) => t.id}
+      onRowClick={onEdit}
+      rowActions={rowActions}
+      menuLabel={(t) => `More actions for ${t.name}`}
+      actionsColumn={{ header: 'Actions', width: 148 }}
+      state={state}
+      mode={mode}
+      compact={compact}
+      selectedRowKey={selectedId ?? undefined}
+      rowTestId={(t) => `target-row-${t.id}`}
+      phone={{
+        title: (t) => t.name,
+        chip,
+        meta: (t) => (chatIdText(t) ? `${typeText(t)} · ${chatIdText(t)}` : typeText(t))
+      }}
+    />
   );
 };

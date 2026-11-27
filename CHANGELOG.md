@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Move the Notifications area to the shared UI components (203-notifications-shared-ui)
+  - **Change**: the Notifications page uses the shared list, icon actions, and one Delete dialog. The target form opens in a side panel on the desktop and as a full page on the phone. The form shows an error under an empty Name or Chat ID.
+  - **Web UI**: the new shared parts are `SidePanel`, `Toggle`, `SectionHeader`, the icon `send`, and the form field classes. The target list has the columns Name, Type (120 px), Enabled (132 px), Chat ID (200 px), Bot token (160 px), and Actions (148 px). The level list has the columns Queue and Level (240 px).
+  - **Not changed**: the API, the stored data, and the other pages.
+  - **Version**: the patch version is now 1.12.36.
 - Add shared UI components and design tokens, and use them in the Queues list (202-ui-shared-components)
   - **Change**: the web UI uses one design for lists, buttons, icons, and status chips. The Queues list has fixed column widths and row heights on the desktop and the phone. Delete asks for confirmation in one dialog.
   - **Web UI**: the new folder `src/web-ui/src/components/ui/` has `Icon`, `Button`, `IconButton`, `PageHeader`, `StatusChip`, `ListView`, `RowActionMenu`, `FooterBar`, and `ConfirmDialog`. The desktop Queues list has the columns Name, Cycle (96 px), Status (132 px), Activity (320 px), and Actions (184 px), and rows of 56 px. Each row has Start (or Pause or Resume), Stop, Edit, and a menu with Duplicate and Delete. The phone list has rows of 64 px, one main icon, and a menu. The button "Create Queue" is now "Create queue".

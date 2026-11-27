@@ -70,7 +70,7 @@ describe('Top navigation', () => {
     setMatchMedia(true);
     render(<App />);
     expect(screen.queryByLabelText('Navigation menu')).toBeNull();
-    const more = screen.getByRole('button', { name: /More/ });
+    const more = screen.getByRole('button', { name: 'More', exact: true });
     more.focus();
     expect(more).toHaveFocus();
     fireEvent.click(more);
@@ -103,7 +103,7 @@ describe('Top navigation', () => {
     setMatchMedia(true);
     window.history.replaceState(null, '', '/');
     render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: /More/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'More', exact: true }));
     fireEvent.click(screen.getByRole('button', { name: 'Monitoring' }));
     expect(screen.getByTestId('monitoring-page-mock')).toBeInTheDocument();
   });
