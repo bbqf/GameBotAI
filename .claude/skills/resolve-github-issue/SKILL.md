@@ -40,7 +40,8 @@ autonomously, using `/speckit-pipeline` for the actual specify -> plan -> tasks
    calls. Write files with the Write tool, not `Set-Content` (it mangles UTF-8).
 6. Temporary files go in the session scratchpad directory, never in the repo.
 7. Execute Step 1 in its own Sub-Agent, Steps 2-4 in another one, Step 5 phase 1
-   in another one, and Step 5 phase 2 in a last, new one. Continue in this
+   in another one, and Step 5 phase 2 in a last, new one that uses the Sonnet
+   model. Continue in this
    session from Step 6 on. Each sub-agent starts with an empty context. Never
    tell a sub-agent to skip a step of a skill.
 8. **Name the session after the issue.** A sub-agent cannot rename the session,
@@ -60,9 +61,9 @@ git -C C:\src\GameBot branch --show-current
 - **Resume path:** if the current branch is a feature branch (not `master`) and
   it has a `specs/<branch>/spec.md` that references an issue which is still open
   and still labelled `in-progress`, this session is resuming that issue.
-  Skip Steps 2-4 and go straight to Step 5, restarting `/speckit-pipeline` with
-  an empty argument (it then picks the phase from the files on the branch: phase
-  2 if `tasks.md` and the design commit exist, else phase 1). Return the
+  Skip Steps 2-4 and go straight to Step 5. Pick the phase from the files on
+  the branch: phase 2 if `tasks.md` and the design commit exist and no
+  implementation commit exists, else phase 1. Return this phase and the
   issue number and title (`gh issue view <N> --json number,title`) so Step 5
   can name the session.
 - Otherwise start from `master`:
@@ -175,15 +176,18 @@ The `speckit-pipeline` skill has two phases. Run each phase in its own new
 sub-agent. This is the context break of the pipeline. Do not duplicate the
 pipeline steps here and do not second-guess them mid-run.
 
-- **Phase 1 sub-agent:** invoke `speckit-pipeline` with the description as its
-  argument. It runs specify to the design commit and stops with
-  `[pipeline] PHASE 1 COMPLETE`. It returns the branch, the spec directory, and
-  the design commit SHA. If it does not report PHASE 1 COMPLETE, go to Step 7.
-- **Phase 2 sub-agent:** after phase 1, start a NEW sub-agent. Tell it to check
-  out the branch, then invoke `speckit-pipeline` with an **empty** argument. It
-  runs implement, commit, version bump, push, CI, and PR. It returns the PR URL
-  and the CI result. Do not pass design details to it: it reads the spec files
-  from disk.
+- **Phase 1 sub-agent:** tell it that this run is **phase 1 only**. Then tell
+  it to invoke `speckit-pipeline` with the description as its argument (on the
+  resume path, with an empty argument). It runs specify to the design commit
+  and stops with `[pipeline] PHASE 1 COMPLETE`. It returns the branch, the spec
+  directory, and the design commit SHA. If it does not report PHASE 1
+  COMPLETE, go to Step 7.
+- **Phase 2 sub-agent:** after phase 1 (or at once, on the resume path in
+  phase 2), start a NEW sub-agent with `model: "sonnet"`, whatever model this
+  session uses. Tell it to check out the branch, then invoke
+  `speckit-pipeline` with the argument `--phase-2-here`. It runs implement,
+  commit, version bump, push, CI, and PR. It returns the PR URL and the CI
+  result. Do not pass design details to it: it reads the spec files from disk.
 
 ## Step 6 - Link the PR to the issue
 

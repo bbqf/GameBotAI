@@ -1,6 +1,6 @@
 ---
 name: "speckit-pipeline"
-description: "Orchestrate the full spec-kit pipeline end to end autonomously: specify -> clarify -> plan -> tasks -> analyze -> 2 loops of (fix -> analyze) -> commit -> context break -> implement -> commit -> wait for CI -> open PR, without stopping for manual review. The run has two phases. Phase 1 (design) ends at the design commit. Phase 2 (implementation) starts in a new, empty context."
+description: "Orchestrate the full spec-kit pipeline end to end autonomously: specify -> clarify -> plan -> tasks -> analyze -> 2 loops of (fix -> analyze) -> commit -> context break -> implement -> commit -> wait for CI -> open PR, without stopping for manual review. The run has two phases. Phase 1 (design) ends at the design commit. Phase 2 (implementation) then runs automatically in a new Sonnet sub-agent with an empty context."
 argument-hint: "Describe the feature to build (forwarded to /speckit-specify)"
 compatibility: "Requires spec-kit project structure with .specify/ directory"
 metadata:
@@ -16,16 +16,25 @@ $ARGUMENTS
 ```
 
 Treat the input above as the **feature description**. It is required for a fresh
-run and is forwarded verbatim to `/speckit-specify`. If it is empty, the spec
-already exists on the current branch. Then choose the phase:
+run and is forwarded verbatim to `/speckit-specify`. Two inputs are not a
+description:
 
-- If `tasks.md` exists in the feature directory, and the design commit exists,
-  and no implementation commit exists, start **phase 2** at step 9.
-- If not, start **phase 1** at step 2 (clarify).
+- **Exactly `--phase-2-here`:** this run is the phase 2 sub-agent. Do the
+  checks of step 9, then run steps 9 to 12 in this context. Do not start a
+  sub-agent.
+- **Empty:** the spec already exists on the current branch. Choose the phase:
+  - If `tasks.md` exists in the feature directory, and the design commit
+    exists, and no implementation commit exists, go to step 8 and hand phase 2
+    to a Sonnet sub-agent.
+  - If not, start **phase 1** at step 2 (clarify).
 
 Phase 1 is steps 1 to 7. Phase 2 is steps 9 to 12. Step 8 is the break between
-them. A run does **one phase only**: never run phase 2 in the same context as
-phase 1.
+them. Phase 2 **always** runs in a new sub-agent with the Sonnet model, which
+starts with an empty context. Never run phase 2 in the same context as phase 1.
+
+**Phase 1 only.** If the caller says that this run is "phase 1 only", or if you
+do not have the Agent tool (for example, this run is itself a sub-agent), stop
+at step 8 with the report. Then the caller must start phase 2.
 
 ## Goal
 
@@ -36,10 +45,12 @@ hard failure (see Halting rules) stops the run.
 
 ## Execution model
 
-- **The steps of one phase run in this one context.** Do not start sub-agents.
-  Each step reuses the context of the earlier steps of the same phase.
-- **Phase 2 never reuses the design context.** It starts with an empty context
-  and reads the spec, plan, and tasks from disk.
+- **The steps of one phase run in this one context.** Do not start sub-agents,
+  with one exception: step 8 starts one sub-agent for phase 2. Each step reuses
+  the context of the earlier steps of the same phase.
+- **Phase 2 never reuses the design context.** It runs in a new sub-agent with
+  `model: "sonnet"`, whatever model ran phase 1. The sub-agent starts with an
+  empty context and reads the spec, plan, and tasks from disk.
 - Run each step by invoking its skill with the Skill tool (or by doing the
   work directly where the step says so). Follow the rules from `CLAUDE.md`:
   PowerShell with absolute paths, no `cd dir;` prefix, commit messages via
@@ -83,14 +94,15 @@ hard failure (see Halting rules) stops the run.
    If that is so, skip the rest of step 6.
 
    So the full order is: specify, clarify, plan, tasks, analyze; then loop 1
-   (fix, analyze); then loop 2 (fix, analyze); then commit, and stop (step 8).
-   Phase 2 does the implementation. Never run a third loop.
+   (fix, analyze); then loop 2 (fix, analyze); then commit, then the context
+   break (step 8). Phase 2 does the implementation. Never run a third loop.
 7. **Commit** — run `/speckit-git-commit` to commit the spec, plan, tasks, and
    fixes before any implementation. This creates a clean checkpoint separating
    the design artifacts from the implementation. Keep the commit SHA.
 8. **Context break — MANDATORY. End phase 1 here.** Do **not** run step 9 in
-   this context. Do **not** run `/compact` (a sub-agent cannot run it). Stop
-   and print this report:
+   this context. Do **not** run `/compact` or `/clear`, and do not try to
+   change the model of this session: a skill cannot run these commands. First
+   print this report:
 
    ```
    [pipeline] PHASE 1 COMPLETE
@@ -100,15 +112,41 @@ hard failure (see Halting rules) stops the run.
    clarify answers: <list>
    analyze findings fixed: <list>
    findings left open: <list>
-   next: run the pipeline again with an empty argument in a NEW, empty context
+   next: phase 2 in a new Sonnet sub-agent
    ```
 
-   The caller (a user, or `resolve-github-issue`) must start phase 2 in a new
-   context. This is the only allowed stop that is not an error.
-9. **`/speckit-implement`** — (phase 2 starts here, in an empty context.) First
-   read `spec.md`, `plan.md`, and `tasks.md` from disk. Then execute the tasks.
-   Keep: tasks completed / skipped, test and build results, anything left
-   undone.
+   Then do one of these:
+   - **Phase 1 only** (see "User Input"): stop here. The caller (a user, or
+     `resolve-github-issue`) must start phase 2 in a new Sonnet sub-agent with
+     the argument `--phase-2-here`. This is the only allowed stop that is not
+     an error.
+   - **All other runs:** start phase 2 now. Call the Agent tool with
+     `subagent_type: "general-purpose"`, `model: "sonnet"`, a short
+     `description` such as "Pipeline phase 2", and this prompt (fill in the
+     values):
+
+     ```
+     You are the phase 2 sub-agent of the speckit-pipeline skill in
+     C:\src\GameBot. The branch is <branch>. The feature directory is
+     specs/<NNN-feature>/. The design commit is <sha>. Make sure that
+     <branch> is checked out. Then invoke the speckit-pipeline skill with
+     the Skill tool and the argument "--phase-2-here". Run it to the end,
+     fully autonomously. Do not start sub-agents. Return the final summary
+     of the skill: implementation commit SHA, new version, CI result for
+     each workflow, and the PR URL (or where and why it stopped).
+     ```
+
+     Do not give the sub-agent design details: it reads the spec, plan, and
+     tasks from disk. Wait for its result, print `[pipeline] phase 2
+     sub-agent - done`, and use its result for "On completion". Do not do
+     phase 2 work yourself in this context, also when the sub-agent fails:
+     report the failure as a halt.
+9. **`/speckit-implement`** — (phase 2 starts here, in the Sonnet sub-agent,
+   with the input `--phase-2-here`.) First make sure that `tasks.md` exists,
+   that the design commit exists, and that no implementation commit exists. If
+   a check fails, halt. Then read `spec.md`, `plan.md`, and `tasks.md` from
+   disk and execute the tasks. Keep: tasks completed / skipped, test and build
+   results, anything left undone.
 10. **Commit the implementation** — run `/speckit-git-commit` again to commit
     all changes produced by `implement`. **Before this commit, bump the
     version** (constitution, "Version bump"): compare
@@ -144,7 +182,8 @@ Stop **only** if a step throws a hard error or its required inputs are missing
 commit, `git push` is rejected). Report the error and where it stopped. Do
 **not** stop for consistency findings, clarify questions, or anything that
 would normally need human judgment — resolve those autonomously and keep going.
-The only other allowed stop is step 8, the end of phase 1.
+The only other allowed stop is step 8, the end of phase 1, and only for a
+"phase 1 only" run.
 
 **CI failure is a hard stop for the PR step only:** if any CI run fails, do
 **not** open the PR. Report the failing workflow and the diagnosis. You may
