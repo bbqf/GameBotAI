@@ -68,7 +68,7 @@ const PhoneRowActions: React.FC<{
 }> = ({ queue, disabled, lost, onToggle, onOpen, onChanged, onError }) => {
   const running = queue.status === 'Running';
   const pause = useQueuePauseCalls(queue, { onStart: () => undefined, onChanged, onError });
-  const menu: RowAction[] = [{ id: 'open', label: 'Open', ariaLabel: `Open ${queue.name}`, icon: 'expand', onSelect: onOpen }];
+  const menu: RowAction[] = [{ id: 'open', label: 'Open', ariaLabel: `Open ${queue.name}`, icon: 'open', onSelect: onOpen }];
   if (running) menu.push({ ...pause.slot1Action, disabled: pause.slot1Action.disabled || lost });
   return (
     <>

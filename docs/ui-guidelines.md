@@ -100,7 +100,7 @@ The buttons are flat. They have no gradient and do not move on hover.
 - **B3. One icon set.** All icons are inline SVG from one set (Material style, 24 px view box) in one shared module. Do
   not use text glyphs such as ⠿ ↑ ↓ ✕ ✓ ▶ ▾ ▸ ⋯ ☰ as icons.
 - **B4. One icon for one action.** The same action has the same icon on all pages: play, pause, stop, edit (pencil),
-  duplicate, delete (bin), more (⋮), back (arrow), close (✕ as SVG), drag handle, expand (chevron), upload, download,
+  duplicate, delete (bin), more (⋮), open (chevron to the right), back (arrow), close (✕ as SVG), drag handle, expand (chevron), upload, download,
   search, filter, add (+).
 - **B5. Delete.** Delete is red and always asks for confirmation (rule D1). In a row, Delete is always in the "⋮" menu.
 

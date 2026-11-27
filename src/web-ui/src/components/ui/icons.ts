@@ -27,6 +27,8 @@ export const ICON_PATHS = {
   close: CLOSE_PATH,
   drag: 'M11 18c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zm-2-8c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0-6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm6 4c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z',
   expand: 'M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6z',
+  // The icon of an action that opens an item (a chevron that points to the right).
+  open: 'M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z',
   collapse: 'M12 8l-6 6 1.41 1.41L12 10.83l4.59 4.58L18 14z',
   upload: 'M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z',
   download: 'M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z',

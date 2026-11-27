@@ -256,7 +256,6 @@ export const App: React.FC = () => {
 
   const renderQueues = () => (
     <section id="queues-panel" className="queues">
-      {!phone && <h1>Queues</h1>}
       <ErrorBoundary>
         {phone
           ? <PhoneQueuesView connectionState={connectionState} reloadSignal={reloadSignal} queueId={selectedQueueId} onOpenQueue={handleOpenQueue} entryId={selectedEntryId} onOpenEntry={handleOpenEntry} leaveRequest={leaveRequest} />
