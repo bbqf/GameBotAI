@@ -11,9 +11,13 @@ export type PageHeaderProps = {
   actions?: React.ReactNode;
 };
 
-/** The header of a page: an optional back button, the title, an optional status chip, and the actions. */
+/**
+ * The header of a page: an optional back button, the title, an optional status chip, and the actions.
+ * A top-level page (no back button) on the phone hides its title for the eye, because the phone app bar already
+ * shows the area name. Screen readers still read the title.
+ */
 export const PageHeader: React.FC<PageHeaderProps> = ({ title, onBack, status, actions }) => (
-  <header className="ui-page-header">
+  <header className={onBack ? 'ui-page-header' : 'ui-page-header ui-page-header--top'}>
     {onBack && <IconButton icon="back" label="Back" onClick={onBack} />}
     <h2 className="ui-page-header__title">{title}</h2>
     {status && <StatusChip state={status.state} text={status.text} />}

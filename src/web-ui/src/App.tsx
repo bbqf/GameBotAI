@@ -320,7 +320,6 @@ export const App: React.FC = () => {
 
   const renderMonitoring = () => (
     <section id="monitoring-panel" className="monitoring">
-      {!phone && <h1>Monitoring</h1>}
       <ErrorBoundary>
         <MonitoringPage layout={phone ? 'phone' : 'desktop'} connectionState={connectionState} reloadSignal={reloadSignal} />
       </ErrorBoundary>

@@ -1,63 +1,77 @@
 import React from 'react';
-import { PhoneCard } from '../phone/PhoneCard';
+import { ListView, StatusChip } from '../ui';
+import type { ListColumn, ListState } from '../ui';
+import type { LayoutMode } from '../../hooks/useLayoutMode';
 import type { MonitoredSessionDto, MonitoredSessionState } from '../../services/monitoringApi';
 import { NotLiveBadge } from '../queues/NotLiveBadge';
-import '../../features/execution/StatusChip.css';
+import { deviceKind, sessionChip } from './sessionView';
 
 export type SessionListProps = {
   sessions: MonitoredSessionDto[];
-  selectedId: string | null;
+  state?: ListState;
   onSelect: (id: string) => void;
-  /** True in the phone layout. Each item is then a PhoneCard. */
-  phone?: boolean;
-};
-
-const stateLabel: Record<MonitoredSessionState, string> = {
-  live: 'Live',
-  no_answer: 'No answer',
-  restarting: 'Restarting',
-  stopping: 'Stopping'
-};
-
-const stateClass: Record<MonitoredSessionState, string> = {
-  live: 'status-chip status-chip--succeeded',
-  no_answer: 'status-chip status-chip--failed',
-  restarting: 'status-chip status-chip--pending',
-  stopping: 'status-chip status-chip--stopping'
+  /** The default comes from the window size. */
+  mode?: LayoutMode;
 };
 
 export const SessionStateChip: React.FC<{ state: MonitoredSessionState }> = ({ state }) => (
-  <span className={stateClass[state] ?? 'status-chip status-chip--unknown'} data-testid="session-state">
-    <span className="status-chip__dot" aria-hidden />
-    <span>{stateLabel[state] ?? state}</span>
-  </span>
+  <StatusChip {...sessionChip(state)} testId="session-state" />
 );
 
-/** The list of all sessions with a state chip (feature 141, contract M-05 and M-11). */
-export const SessionList: React.FC<SessionListProps> = ({ sessions, selectedId, onSelect, phone = false }) => (
-  <ul className={phone ? 'phone-card-list' : 'monitoring-list'} aria-label="Sessions">
-    {sessions.map((s) => (phone ? (
-      <PhoneCard
-        key={s.id}
-        title={s.name}
-        testId={`session-card-${s.id}`}
-        status={<><SessionStateChip state={s.state} />{s.ownerQueueDeviceLiveness === 'not_live' && <NotLiveBadge />}</>}
-        onOpen={() => onSelect(s.id)}
-      />
-    ) : (
-      <li key={s.id} className="monitoring-list__item" data-testid={`session-row-${s.id}`}>
-        <button
-          type="button"
-          className={s.id === selectedId ? 'monitoring-list__button monitoring-list__button--selected' : 'monitoring-list__button'}
-          aria-pressed={s.id === selectedId}
-          aria-label={`Select ${s.name}`}
-          onClick={() => onSelect(s.id)}
-        >
-          <span className="monitoring-list__name">{s.name}</span>
-          <SessionStateChip state={s.state} />
-          {s.ownerQueueDeviceLiveness === 'not_live' && <NotLiveBadge />}
-        </button>
-      </li>
-    )))}
-  </ul>
+const deviceCell = (s: MonitoredSessionDto): React.ReactNode => {
+  const kind = deviceKind(s.ownerQueueDeviceLiveness);
+  if (kind === 'not_live') return <NotLiveBadge />;
+  return kind === 'live' ? 'Live' : '—';
+};
+
+const columns: ListColumn<MonitoredSessionDto>[] = [
+  { id: 'name', header: 'Name', width: 'flex', render: (s) => s.name, text: (s) => s.name },
+  { id: 'state', header: 'State', width: 132, render: (s) => <SessionStateChip state={s.state} /> },
+  {
+    id: 'device',
+    header: 'Device',
+    width: 120,
+    render: deviceCell,
+    text: (s) => ({ live: 'Live', not_live: 'Not live', none: '' })[deviceKind(s.ownerQueueDeviceLiveness)]
+  },
+  {
+    id: 'queue',
+    header: 'Queue',
+    width: 220,
+    render: (s) => s.ownerQueueName,
+    text: (s) => s.ownerQueueName ?? ''
+  },
+  {
+    id: 'sequence',
+    header: 'Sequence',
+    width: 260,
+    render: (s) => s.currentSequenceName,
+    text: (s) => s.currentSequenceName ?? ''
+  }
+];
+
+/** The list of all sessions with a state chip, on the shared list component. */
+export const SessionList: React.FC<SessionListProps> = ({ sessions, state = 'ready', onSelect, mode }) => (
+  <ListView
+    ariaLabel="Sessions"
+    tableClassName="session-list"
+    columns={columns}
+    rows={sessions}
+    getRowKey={(s) => s.id}
+    onRowClick={(s) => onSelect(s.id)}
+    rowTestId={(s) => `session-row-${s.id}`}
+    openLabel={(s) => `Open ${s.name}`}
+    state={state}
+    mode={mode}
+    phone={{
+      title: (s) => s.name,
+      chip: (s) => <SessionStateChip state={s.state} />,
+      meta: (s) => (
+        <>
+          {s.ownerQueueName ?? 'No queue'}
+          {deviceKind(s.ownerQueueDeviceLiveness) === 'not_live' && <> <NotLiveBadge /></>}
+        </>
+      )
+    }}
+  />
 );

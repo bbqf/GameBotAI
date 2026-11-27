@@ -5,6 +5,8 @@ export type ConfirmDialogProps = {
   open: boolean;
   title: string;
   message: string;
+  /** Extra content between the message and the buttons, for example a warning. */
+  details?: React.ReactNode;
   confirmText: string;
   cancelText?: string;
   danger?: boolean;
@@ -19,6 +21,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   open,
   title,
   message,
+  details,
   confirmText,
   cancelText = 'Cancel',
   danger,
@@ -52,6 +55,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
       <div className="ui-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId}>
         <h3 id={titleId} className="ui-dialog__title">{title}</h3>
         <p className="ui-dialog__message">{message}</p>
+        {details && <div className="ui-dialog__details">{details}</div>}
         <div className="ui-dialog__buttons">
           <Button ref={cancelRef} variant="secondary" disabled={busy} onClick={onCancel}>{cancelText}</Button>
           <Button variant={danger ? 'danger' : 'primary'} disabled={busy} onClick={onConfirm}>{confirmText}</Button>

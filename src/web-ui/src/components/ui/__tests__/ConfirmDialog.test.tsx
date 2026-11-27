@@ -64,4 +64,19 @@ describe('ConfirmDialog', () => {
     expect(trigger).toHaveFocus();
     trigger.remove();
   });
+
+  it('shows the details between the message and the buttons', () => {
+    renderDialog({ details: <p data-testid="extra">Careful.</p> });
+    const message = screen.getByText('You cannot undo this.');
+    const extra = screen.getByTestId('extra');
+    const cancel = screen.getByRole('button', { name: 'Cancel' });
+    expect(extra.closest('.ui-dialog__details')).not.toBeNull();
+    expect(message.compareDocumentPosition(extra) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(extra.compareDocumentPosition(cancel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('renders no details element when there are no details', () => {
+    renderDialog();
+    expect(document.querySelector('.ui-dialog__details')).toBeNull();
+  });
 });

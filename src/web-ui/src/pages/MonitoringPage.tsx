@@ -15,7 +15,9 @@ import {
 import { ScreenshotView } from '../components/monitoring/ScreenshotView';
 import { SessionList, SessionStateChip } from '../components/monitoring/SessionList';
 import { NotLiveBadge } from '../components/queues/NotLiveBadge';
-import { RestartEmulatorDialog } from '../components/monitoring/RestartEmulatorDialog';
+import { deviceKind, sessionChip, startedText } from '../components/monitoring/sessionView';
+import { Button, ConfirmDialog, FooterBar, PageHeader } from '../components/ui';
+import type { ListState } from '../components/ui';
 import './Monitoring.phone.css';
 
 export const MONITORING_AREA_PATH = '/monitoring';
@@ -213,47 +215,90 @@ export const MonitoringPage: React.FC<MonitoringPageProps> = ({ layout, connecti
     return null;
   };
 
-  const renderDetail = (session: MonitoredSessionDto) => (
-    <section className="monitoring-detail" data-testid="monitoring-detail">
-      {phone && (
-        <button type="button" className="monitoring-detail__back" onClick={closeDetail}>← Back</button>
-      )}
-      <h2 className="monitoring-detail__name">{session.name}</h2>
-      <div className="monitoring-detail__row">
-        <SessionStateChip state={session.state} />
-        {session.ownerQueueDeviceLiveness === 'not_live' && <NotLiveBadge />}
-        {session.state === 'no_answer' && session.reason && <span className="form-hint">{session.reason}</span>}
-      </div>
-      {session.currentSequenceName && (
-        <p className="form-hint" data-testid="monitoring-sequence">Sequence: {session.currentSequenceName}</p>
-      )}
-      <ScreenshotView sessionId={session.id} sessionName={session.name} enabled={!lost} />
-      <div className="monitoring-detail__actions">
-        <button
-          type="button"
-          className="monitoring-detail__restart"
-          disabled={restartDisabled}
-          onClick={() => setDialogOpen(true)}
-        >
-          Restart emulator
-        </button>
-        {!session.restartAvailable && (
-          <p className="form-hint" data-testid="restart-unavailable">Restart is not available for this session.</p>
-        )}
-      </div>
-      {renderRestartStatus()}
-      {restartMessage && <p className="form-hint" role="alert" data-testid="restart-message">{restartMessage}</p>}
-      {dialogOpen && (
-        <RestartEmulatorDialog
-          emulatorName={session.name}
-          queueName={session.ownerQueueName}
-          hasQueue={!!session.ownerQueueId}
+  const renderDetail = (session: MonitoredSessionDto) => {
+    const restartButton = (extraClass?: string) => (
+      <Button
+        variant="secondary"
+        icon="reload"
+        className={extraClass}
+        disabled={restartDisabled}
+        onClick={() => setDialogOpen(true)}
+      >
+        Restart emulator
+      </Button>
+    );
+    const kind = deviceKind(session.ownerQueueDeviceLiveness);
+    return (
+      <section className="monitoring-detail" data-testid="monitoring-detail">
+        <PageHeader
+          title={session.name}
+          onBack={phone ? closeDetail : () => select(null)}
+          status={sessionChip(session.state)}
+          actions={phone ? undefined : restartButton()}
+        />
+        <div className="ui-detail-grid">
+          <ScreenshotView sessionId={session.id} sessionName={session.name} enabled={!lost} />
+          <div className="ui-detail-side">
+            <dl className="ui-kv">
+              <div className="ui-kv__row">
+                <dt className="ui-kv__label">State</dt>
+                <dd className="ui-kv__value"><SessionStateChip state={session.state} /></dd>
+              </div>
+              <div className="ui-kv__row">
+                <dt className="ui-kv__label">Queue</dt>
+                <dd className="ui-kv__value">{session.ownerQueueName ?? '—'}</dd>
+              </div>
+              <div className="ui-kv__row">
+                <dt className="ui-kv__label">Device</dt>
+                <dd className="ui-kv__value">{kind === 'not_live' ? <NotLiveBadge /> : kind === 'live' ? 'Live' : '—'}</dd>
+              </div>
+              <div className="ui-kv__row">
+                <dt className="ui-kv__label">Sequence</dt>
+                {session.currentSequenceName ? (
+                  <dd className="ui-kv__value" data-testid="monitoring-sequence">{session.currentSequenceName}</dd>
+                ) : (
+                  <dd className="ui-kv__value">—</dd>
+                )}
+              </div>
+              {session.state === 'no_answer' && session.reason && (
+                <div className="ui-kv__row">
+                  <dt className="ui-kv__label">Reason</dt>
+                  <dd className="ui-kv__value">{session.reason}</dd>
+                </div>
+              )}
+              <div className="ui-kv__row">
+                <dt className="ui-kv__label">Started</dt>
+                <dd className="ui-kv__value">{startedText(session.startedAtUtc)}</dd>
+              </div>
+            </dl>
+            {renderRestartStatus()}
+            {restartMessage && <p className="form-hint" role="alert" data-testid="restart-message">{restartMessage}</p>}
+            {!session.restartAvailable && (
+              <p className="form-hint" data-testid="restart-unavailable">
+                Restart is not available for this session.
+                {session.restartUnavailableReason ? ` ${session.restartUnavailableReason}` : ''}
+              </p>
+            )}
+          </div>
+        </div>
+        {phone && <FooterBar right={restartButton('ui-button--block')} />}
+        <ConfirmDialog
+          open={dialogOpen}
+          title={`Restart emulator ${session.name}?`}
+          message="The whole emulator stops and starts again."
+          confirmText="Restart"
+          danger
+          details={session.ownerQueueId ? (
+            <p role="note" data-testid="restart-queue-warning">
+              Queue {session.ownerQueueName ?? '(no name)'} uses this emulator. The queue work will stop for a short time.
+            </p>
+          ) : undefined}
           onCancel={() => setDialogOpen(false)}
           onConfirm={() => { void confirmRestart(); }}
         />
-      )}
-    </section>
-  );
+      </section>
+    );
+  };
 
   /** On-screen back (phone): back in the history, or the list when this is the first entry. */
   function closeDetail() {
@@ -264,11 +309,10 @@ export const MonitoringPage: React.FC<MonitoringPageProps> = ({ layout, connecti
     select(null);
   }
 
-  const renderList = () => {
-    if (sessions === null) return <p role="status">Loading</p>;
-    if (sessions.length === 0) return <p>No running sessions.</p>;
-    return <SessionList sessions={sessions} selectedId={selectedId} onSelect={select} phone={phone} />;
-  };
+  let listState: ListState = 'ready';
+  if (sessions === null) listState = { kind: 'loading' };
+  else if (sessions.length === 0 && listError) listState = { kind: 'error', text: listError, onRetry: () => void loadList() };
+  else if (sessions.length === 0) listState = { kind: 'empty', text: 'No running sessions.' };
 
   const notices = (
     <>
@@ -277,26 +321,18 @@ export const MonitoringPage: React.FC<MonitoringPageProps> = ({ layout, connecti
     </>
   );
 
-  if (phone) {
-    return (
-      <div className="monitoring-page monitoring-page--phone" data-testid="monitoring-page">
-        {notices}
-        {current ? renderDetail(current) : renderList()}
-      </div>
-    );
-  }
-
   return (
-    <div className="monitoring-page monitoring-page--desktop" data-testid="monitoring-page">
-      <div className="monitoring-columns">
-        <aside className="monitoring-columns__list">
+    <div
+      className={`monitoring-page monitoring-page--${phone ? 'phone' : 'desktop'}`}
+      data-testid="monitoring-page"
+    >
+      {current ? renderDetail(current) : (
+        <>
+          <PageHeader title="Monitoring" />
           {notices}
-          {renderList()}
-        </aside>
-        <div className="monitoring-columns__detail">
-          {current ? renderDetail(current) : <p className="form-hint">Select a session to see its screen.</p>}
-        </div>
-      </div>
+          <SessionList sessions={sessions ?? []} state={listState} onSelect={select} mode={phone ? 'phone' : 'desktop'} />
+        </>
+      )}
     </div>
   );
 };

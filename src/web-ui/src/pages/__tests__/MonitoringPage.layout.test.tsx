@@ -33,7 +33,7 @@ describe('MonitoringPage layout (feature 141, US3)', () => {
   it('keeps the selected session after a switch from desktop to phone and back, with no remount', async () => {
     const view = render(<MonitoringPage layout="desktop" />);
     await flush();
-    fireEvent.click(screen.getByRole('button', { name: 'Select pns (emulator-b)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open pns (emulator-b)' }));
     await flush();
     expect(screen.getByRole('heading', { name: 'pns (emulator-b)' })).toBeInTheDocument();
     expect(screen.getByTestId('monitoring-page')).toHaveClass('monitoring-page--desktop');
@@ -59,7 +59,7 @@ describe('MonitoringPage layout (feature 141, US3)', () => {
     render(<MonitoringPage layout="phone" />);
     await flush();
     expect(screen.getByRole('list', { name: 'Sessions' })).toBeInTheDocument();
-    expect(screen.getByTestId('session-card-a')).toBeInTheDocument();
+    expect(screen.getByTestId('session-row-a')).toBeInTheDocument();
     expect(screen.queryByTestId('monitoring-detail')).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Open pns (emulator-a)' }));
@@ -69,7 +69,7 @@ describe('MonitoringPage layout (feature 141, US3)', () => {
     expect(screen.getByTestId('monitoring-detail')).toBeInTheDocument();
     expect(screen.queryByRole('list', { name: 'Sessions' })).toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: /Back/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
     expect(back).toHaveBeenCalledTimes(1);
   });
 
@@ -91,5 +91,41 @@ describe('MonitoringPage layout (feature 141, US3)', () => {
     render(<MonitoringPage layout="desktop" />);
     await flush();
     expect(screen.getByRole('heading', { name: 'pns (emulator-a)' })).toBeInTheDocument();
+  });
+
+  it('on the desktop opens the detail page in place of the list, and Back shows the list', async () => {
+    render(<MonitoringPage layout="desktop" />);
+    await flush();
+    expect(screen.getByRole('table', { name: 'Sessions' })).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('session-row-a'));
+    await flush();
+    expect(screen.getByTestId('monitoring-detail')).toBeInTheDocument();
+    expect(screen.queryByRole('table', { name: 'Sessions' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    await flush();
+    expect(screen.queryByTestId('monitoring-detail')).toBeNull();
+    expect(screen.getByRole('table', { name: 'Sessions' })).toBeInTheDocument();
+    expect(window.location.search).not.toContain('session=');
+  });
+
+  it('shows the list states: loading, empty, and an error with a retry', async () => {
+    api.listMonitoredSessions.mockReset();
+    api.listMonitoredSessions.mockRejectedValueOnce(new Error('Boom')).mockResolvedValue([]);
+    render(<MonitoringPage layout="desktop" />);
+    expect(screen.getByText('Loading…')).toBeInTheDocument();
+    await flush();
+    expect(screen.getAllByRole('alert')[0]).toHaveTextContent('Boom');
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    await flush();
+    expect(screen.getByText('No running sessions.')).toBeInTheDocument();
+  });
+
+  it('keeps the detail when a list call fails', async () => {
+    window.history.replaceState(null, '', '/?area=monitoring&session=a');
+    render(<MonitoringPage layout="desktop" />);
+    await flush();
+    api.listMonitoredSessions.mockRejectedValue(new Error('Boom'));
+    await advance(5000);
+    expect(screen.getByTestId('monitoring-detail')).toBeInTheDocument();
   });
 });

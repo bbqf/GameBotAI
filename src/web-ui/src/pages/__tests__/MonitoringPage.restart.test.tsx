@@ -18,7 +18,7 @@ const flush = () => advance(0);
 const openSession = async (ui: React.ReactElement) => {
   const view = render(ui);
   await flush();
-  fireEvent.click(screen.getByRole('button', { name: /^Select / }));
+  fireEvent.click(screen.getByRole('button', { name: /^Open / }));
   await flush();
   return view;
 };
@@ -72,16 +72,19 @@ describe('MonitoringPage restart (feature 141, US2)', () => {
       makeSession('a', { ownerQueueId: 'q-id-1', ownerQueueName: null, currentSequenceName: 'Help All' })
     ]);
     await openSession(<MonitoringPage layout="desktop" />);
-    expect(screen.getByTestId('monitoring-sequence')).toHaveTextContent('Sequence: Help All');
+    expect(screen.getByTestId('monitoring-sequence')).toHaveTextContent('Help All');
     expect(screen.queryByText(/q-id-1/)).toBeNull();
   });
 
-  it('shows the "Not live" mark in the header of the selected session when the owner queue device is not live (feature 199)', async () => {
+  it('shows the "Not live" mark in the Device row of the selected session when the owner queue device is not live (feature 199)', async () => {
     api.listMonitoredSessions.mockResolvedValue([
       makeSession('a', { ownerQueueId: 'q1', ownerQueueName: 'PNS', ownerQueueDeviceLiveness: 'not_live' })
     ]);
     await openSession(<MonitoringPage layout="desktop" />);
-    expect(within(screen.getByTestId('monitoring-detail')).getByText('Not live')).toBeInTheDocument();
+    const detail = within(screen.getByTestId('monitoring-detail'));
+    expect(detail.getByText('Not live')).toBeInTheDocument();
+    expect(detail.getByText('Device').closest('.ui-kv__row')).toContainElement(detail.getByText('Not live'));
+    expect(detail.getByRole('heading', { name: 'pns (emulator-a)' })).not.toContainElement(detail.getByText('Not live'));
   });
 
   it('shows no "Not live" mark in the header when the owner queue device is live (feature 199)', async () => {
@@ -92,10 +95,67 @@ describe('MonitoringPage restart (feature 141, US2)', () => {
     expect(within(screen.getByTestId('monitoring-detail')).queryByText('Not live')).toBeNull();
   });
 
-  it('shows no sequence line when the queue runs no sequence', async () => {
+  it('shows a dash and no test id when the queue runs no sequence', async () => {
     api.listMonitoredSessions.mockResolvedValue([makeSession('a', { ownerQueueId: 'q1', ownerQueueName: 'PNS' })]);
     await openSession(<MonitoringPage layout="desktop" />);
     expect(screen.queryByTestId('monitoring-sequence')).toBeNull();
+    expect(screen.getByText('Sequence').closest('.ui-kv__row')).toHaveTextContent('—');
+  });
+
+  it('shows the Reason row only for no answer, and a Started date', async () => {
+    api.listMonitoredSessions.mockResolvedValue([makeSession('a', { state: 'no_answer', reason: 'No change after input' })]);
+    const view = await openSession(<MonitoringPage layout="desktop" />);
+    expect(screen.getByText('Reason').closest('.ui-kv__row')).toHaveTextContent('No change after input');
+    expect(screen.getByText('Started').closest('.ui-kv__row')).not.toHaveTextContent('—');
+    view.unmount();
+    window.history.replaceState(null, '', '/?area=monitoring');
+    api.listMonitoredSessions.mockResolvedValue([makeSession('a', { state: 'live', reason: 'old' })]);
+    await openSession(<MonitoringPage layout="desktop" />);
+    expect(screen.queryByText('Reason')).toBeNull();
+  });
+
+  it('shows the reason after the text when the restart is not available', async () => {
+    api.listMonitoredSessions.mockResolvedValue([
+      makeSession('a', { restartAvailable: false, restartUnavailableReason: 'The emulator is not an LDPlayer instance.' })
+    ]);
+    await openSession(<MonitoringPage layout="desktop" />);
+    expect(screen.getByTestId('restart-unavailable')).toHaveTextContent(
+      'Restart is not available for this session. The emulator is not an LDPlayer instance.'
+    );
+  });
+
+  it('names the dialog after the session and shows the message', async () => {
+    await openSession(<MonitoringPage layout="desktop" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Restart emulator' }));
+    expect(screen.getByRole('dialog', { name: 'Restart emulator pns (emulator-a)?' })).toBeInTheDocument();
+    expect(screen.getByText('The whole emulator stops and starts again.')).toBeInTheDocument();
+  });
+
+  it('closes the dialog with Escape and sends no call', async () => {
+    await openSession(<MonitoringPage layout="desktop" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Restart emulator' }));
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(api.startRestart).not.toHaveBeenCalled();
+  });
+
+  it('puts the focus on Cancel when the dialog opens', async () => {
+    await openSession(<MonitoringPage layout="desktop" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Restart emulator' }));
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus();
+  });
+
+  it('shows no queue warning without a queue', async () => {
+    await openSession(<MonitoringPage layout="desktop" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Restart emulator' }));
+    expect(screen.queryByTestId('restart-queue-warning')).toBeNull();
+  });
+
+  it('shows "(no name)" in the warning when the queue has no name', async () => {
+    api.listMonitoredSessions.mockResolvedValue([makeSession('a', { ownerQueueId: 'q1', ownerQueueName: null })]);
+    await openSession(<MonitoringPage layout="desktop" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Restart emulator' }));
+    expect(screen.getByTestId('restart-queue-warning')).toHaveTextContent('Queue (no name) uses this emulator.');
   });
 
   it('shows the step text while the restart runs and the control is off', async () => {
