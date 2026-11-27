@@ -42,6 +42,12 @@ All notable changes to this project will be documented in this file.
   - **Version**: the patch version is now 1.12.23.
 
 ### Changed
+- Run phase 2 of the spec-kit pipeline in a Sonnet sub-agent (tooling)
+  - **Change**: after the design commit, the `speckit-pipeline` skill starts phase 2 (implement, commit, push, CI, PR) automatically in a new sub-agent with the Sonnet model and an empty context. Phase 2 always uses Sonnet, whatever model ran phase 1. The new input `--phase-2-here` tells the sub-agent to do the phase 2 work itself. A "phase 1 only" run, or a run with no Agent tool, still stops at the end of phase 1.
+  - **resolve-github-issue**: the phase 1 sub-agent runs "phase 1 only", and the phase 2 sub-agent uses the Sonnet model with `--phase-2-here`. The resume path finds the next phase itself.
+  - **Test fix**: two tests in `ConcurrentQueueRunTests` read `lastOutcome` from the monitor one time after the status changed to Stopped. The run leaves the registry a short time after that change, and in that time the monitor returns the running view with no `lastOutcome`. The tests now wait until the monitor reports that the run is not running.
+  - **Not changed**: the product code and the steps of each phase.
+  - **Version**: the patch version is now 1.12.34.
 - Remove noise from the service traces (190-trace-noise-cleanup)
   - **Change**: the service does not write the "Slow image match" Warning. It came for almost each image-match evaluation and told of no fault. The "target not detected after N retry cycles" message of a PrimitiveTap step (event 6012) is now Debug, not Warning. The execution log records this normal result. Events 6002, 6006, and 6007 are removed, because no code wrote them.
   - **Not changed**: all other trace messages, the execution log, the image-match results, and the logging policy file.
