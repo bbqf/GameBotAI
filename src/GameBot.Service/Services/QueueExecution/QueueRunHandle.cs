@@ -24,8 +24,35 @@ internal sealed class QueueRunHandle {
   /// <summary>The queue-run execution-log root id for this run.</summary>
   public string? RootExecutionId { get; set; }
 
-  /// <summary>The emulator session opened for this run; null until connected.</summary>
+  /// <summary>
+  /// The emulator session of this run. Null until connected. After a bind of a lost session fails, it is
+  /// null again: null means "no bound session" (feature 201).
+  /// </summary>
   public string? SessionId { get; set; }
+
+  /// <summary>
+  /// The lock of each bind of a lost session and of each rebind of a device recovery (feature 201, FR-011).
+  /// It makes sure that the run loop and the liveness watch never bind two sessions for one queue.
+  /// </summary>
+  public object SessionBindLock { get; } = new();
+
+  private volatile bool _deviceRecoveryReboots;
+
+  /// <summary>
+  /// True when the stored <c>deviceRecovery.action</c> of the queue is <c>reboot-instance</c> (feature 201).
+  /// The run sets it at the start. The liveness watch sets it from the stored queue at each check. When it
+  /// is true, a run with no bound session holds its firings and does not end.
+  /// </summary>
+  public bool DeviceRecoveryReboots {
+    get => _deviceRecoveryReboots;
+    set => _deviceRecoveryReboots = value;
+  }
+
+  /// <summary>
+  /// True after the warning for the first failed bind of the current "no session" period (feature 201,
+  /// FR-010a). A bind that succeeds clears it. Read and written only under <see cref="SessionBindLock"/>.
+  /// </summary>
+  public bool LostSessionWarned { get; set; }
 
   /// <summary>
   /// The ADB serial this run claimed at start (feature 079). Exclusively held for the run's lifetime,

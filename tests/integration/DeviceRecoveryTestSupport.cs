@@ -44,6 +44,17 @@ internal sealed class SimulatedDevices {
 
   public bool IsBlocked(string? serial) => serial is not null && _blocked.TryGetValue(serial, out var b) && b;
 
+  private readonly ConcurrentDictionary<string, bool> _unlisted = new(StringComparer.OrdinalIgnoreCase);
+
+  /// <summary>Feature 201: ADB does not list <paramref name="serial"/> until <see cref="List"/>. A session bind for it fails.</summary>
+  public void Unlist(string serial) => _unlisted[serial] = true;
+
+  /// <summary>Feature 201: ADB lists <paramref name="serial"/> again.</summary>
+  public void List(string serial) => _unlisted.TryRemove(serial, out _);
+
+  /// <summary>True when ADB lists <paramref name="serial"/>. Each serial is listed until a test unlists it.</summary>
+  public bool IsListed(string? serial) => serial is null || !_unlisted.ContainsKey(serial);
+
   public void UnblockInstance(string? instanceName) {
     if (instanceName is null) return;
     foreach (var pair in _instanceOfSerial) {
@@ -58,12 +69,21 @@ internal sealed class SimulatedDevices {
 /// </summary>
 internal sealed class SerialSessionManager : ISessionManager {
   private readonly List<EmulatorSession> _sessions = new();
+  private readonly SimulatedDevices? _devices;
+
+  public SerialSessionManager(SimulatedDevices? devices = null) {
+    _devices = devices;
+  }
 
   public int ActiveCount { get { lock (_sessions) return _sessions.Count; } }
 
   public bool CanCreateSession => true;
 
   public EmulatorSession CreateSession(string gameIdOrPath, string? preferredDeviceSerial = null) {
+    // Feature 201: a serial that ADB does not list cannot get a session, as with the real session manager.
+    if (_devices is not null && !_devices.IsListed(preferredDeviceSerial)) {
+      throw new KeyNotFoundException($"ADB device '{preferredDeviceSerial}' not found");
+    }
     var session = new EmulatorSession {
       Id = Guid.NewGuid().ToString("N"),
       GameId = gameIdOrPath,
@@ -125,6 +145,12 @@ internal sealed class SimulatedEmulatorControl : IEmulatorControl {
   /// <summary>How long a reboot command takes.</summary>
   public TimeSpan Duration { get; set; } = TimeSpan.FromMilliseconds(100);
 
+  /// <summary>
+  /// Feature 201: called with the instance name at the start of each reboot. A test can unlist the serial here,
+  /// so that the rebind of the recovery fails.
+  /// </summary>
+  public Action<string?>? OnReboot { get; set; }
+
   /// <summary>When true, a reboot waits until its token is cancelled.</summary>
   public bool Hang { get; set; }
 
@@ -138,6 +164,7 @@ internal sealed class SimulatedEmulatorControl : IEmulatorControl {
   public async Task<bool> RebootAsync(string? instanceName, int? instanceIndex, CancellationToken ct = default) {
     Interlocked.Increment(ref _reboots);
     Starts.Enqueue((instanceName, DateTimeOffset.UtcNow));
+    OnReboot?.Invoke(instanceName);
     if (Hang) await Task.Delay(Timeout.Infinite, ct).ConfigureAwait(false);
     await Task.Delay(Duration, ct).ConfigureAwait(false);
     _devices.UnblockInstance(instanceName);
@@ -183,17 +210,19 @@ internal static class DeviceRecoveryHost {
     SimulatedEmulatorControl control,
     AlertCapturingDispatcher dispatcher,
     int alertAfterMs = 1000,
-    int staggerMs = 0) {
+    int staggerMs = 0,
+    int queueCheckIntervalMs = 50,
+    int rebootReadyTimeoutMs = 10000) {
     var options = new DeviceLivenessOptions {
-      QueueCheckIntervalMs = 50,
+      QueueCheckIntervalMs = queueCheckIntervalMs,
       QueueGracePeriodMs = 600000,
       AlertAfterMs = alertAfterMs,
       RecoveryStaggerMs = staggerMs,
-      RebootReadyTimeoutMs = 10000
+      RebootReadyTimeoutMs = rebootReadyTimeoutMs
     };
     return new WebApplicationFactory<Program>().WithWebHostBuilder(b => b.ConfigureTestServices(s => {
       s.RemoveAll<ISessionManager>();
-      s.AddSingleton<ISessionManager>(new SerialSessionManager());
+      s.AddSingleton<ISessionManager>(new SerialSessionManager(devices));
       s.RemoveAll<ISessionLivenessService>();
       s.AddSingleton<ISessionLivenessService>(new SimulatedLivenessService(devices, options));
       s.RemoveAll<IEmulatorControl>();
@@ -213,10 +242,17 @@ internal static class DeviceRecoveryHost {
   }
 
   /// <summary>Writes a template with one once-per-run entry and a queue for device <paramref name="n"/>. Returns the queue ID.</summary>
-  public static async Task<string> CreateQueueAsync(WebApplicationFactory<Program> app, int n, QueueDeviceRecovery? recovery, string? sequenceId = null) {
+  /// <param name="keepAlive">
+  /// Feature 201: also add a relative timer entry that is due after one hour. The non-cycling run then stays
+  /// active after the once-per-run entry ran, so that a test can read its session.
+  /// </param>
+  public static async Task<string> CreateQueueAsync(WebApplicationFactory<Program> app, int n, QueueDeviceRecovery? recovery, string? sequenceId = null, bool keepAlive = false) {
     var templates = app.Services.GetRequiredService<IQueueTemplateRepository>();
     var template = new QueueTemplate { Id = "tpl-" + Guid.NewGuid().ToString("N"), Name = "Recovery " + Guid.NewGuid().ToString("N") };
     template.Entries.Add(new QueueTemplateEntry { SequenceId = sequenceId ?? "seq-" + Guid.NewGuid().ToString("N"), ScheduleType = ScheduleType.OncePerRun });
+    if (keepAlive) {
+      template.Entries.Add(new QueueTemplateEntry { SequenceId = "seq-later-" + Guid.NewGuid().ToString("N"), ScheduleType = ScheduleType.Timer, TimerRelativeOffset = TimeSpan.FromHours(1) });
+    }
     template = await templates.CreateAsync(template);
     var queues = app.Services.GetRequiredService<IQueueRepository>();
     var queue = await queues.CreateAsync(new ExecutionQueue {

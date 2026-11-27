@@ -61,6 +61,14 @@ All notable changes to this project will be documented in this file.
   - **Version**: the patch version is now 1.12.19.
 
 ### Fixed
+- A recovery reboot no longer stops the queue (201-fix-recovery-reboot-session, #416, B-047)
+  - **Problem**: a recovery reboot (`deviceRecovery` `reboot-instance`) no longer stops the queue with 'emulator connection lost mid-run'. Before, the rebind of the recovery stopped the old session, and the bind of the new session failed because ADB did not list the device during the reboot. Before the next firing, the run loop tried one bind, the bind failed again, and the run ended. No second attempt started and no "recovery failed" alert was sent.
+  - **Change**: the queue stays Running, holds its firings, and binds a new session when the device is available again (#416). While no session is bound, each held firing has the reason `transport_not_ready`. The first held firing of each sequence writes one failed entry `device_not_live: transport_not_ready`. The queue tries a bind before each firing and at each liveness check. One lock makes sure that a queue never has two sessions.
+  - **Alerts and recovery**: while no session is bound, the liveness check continues. It sends the "device not live" alert, starts the next recovery attempt, and sends one "recovery failed" alert after the last attempt. `GET /api/queues/{id}` shows `health.deviceLiveness` with `reason` `transport_not_ready` and `recoveryState`.
+  - **Logs**: the first failed bind of a period gives the warning 1145. The next failed binds give the debug line 1146. A bind that succeeds gives the warning 1131.
+  - **Not changed**: a queue with `deviceRecovery` `none` (or no `deviceRecovery`) still ends its run with "emulator connection lost mid-run". The API schema, the `deviceRecovery` schema, the not-live rules, the manual start, and the stop are the same.
+  - **Perf note**: a bind try runs only while no session is bound, at most one time for each liveness check and each firing.
+  - **Version**: the patch version is now 1.12.33.
 - A reschedule-self Cancel step that runs has the status success in the execution log (200-fix-cancel-step-status, #414, B-046)
   - **Problem**: a `reschedule-self` step with the option `Cancel` removed the pending bookings of its sequence, but the execution log gave the step node the status `failure`. The status calculation did not know the outcome `cancelled`. A `Cancel` step that found no booking had the outcome `noop` and the status `skipped`.
   - **Change**: the execution log gives the status `success` to a `reschedule-self` step node with the outcome `cancelled`, and to a `reschedule-self` step node with the outcome `noop` and the option `Cancel` (no booking, no originating queue, or a queue run that is no longer active). The log calculates the status when it reads the log, so the logs stored before the fix also show it.

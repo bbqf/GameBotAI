@@ -2,7 +2,7 @@
 
 **Feature Branch**: `201-fix-recovery-reboot-session`  
 **Created**: 2026-11-27  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: GitHub issue #416, "B-047: Recovery reboot (deviceRecovery reboot-instance) leaves the queue Stopped with emulator connection lost mid-run". Closes #416. Labels: bug, P1.
 
 ## Background

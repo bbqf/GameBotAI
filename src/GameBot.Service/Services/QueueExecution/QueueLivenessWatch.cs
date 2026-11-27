@@ -28,6 +28,11 @@ namespace GameBot.Service.Services.QueueExecution;
 /// The watch reads the stored queue at the start of each check, so a saved change of <c>deviceRecovery</c>
 /// or of the instance name applies to the run at its next check (feature 199). The episode and its attempt
 /// count do not change.
+/// Feature 201: when the run has no bound session (a recovery reboot removed it, and the bind failed), each
+/// check first tries to bind a session through the <c>tryBind</c> callback. When the bind fails and the queue
+/// has recovery on, the check uses the hard report <c>transport_not_ready</c> in place of an evaluation. So the
+/// alerts, the next recovery attempt, the "recovery failed" alert and the fault cycle continue with no session.
+/// With recovery off, a check with no session does nothing, and the run loop ends the run as before.
 /// The watch never stops the run. The watch repairs the device only through the recovery runner, and only
 /// when the queue asks for it. A stop policy that the operator configured acts through the evaluator, as for
 /// each other failed cycle. The watch never throws: it logs each exception and continues.
@@ -46,6 +51,7 @@ internal sealed class QueueLivenessWatch {
   private readonly QueueDeviceRecoveryRunner? _recovery;
   private readonly Func<ExecutionQueue, QueueRunHandle, Task>? _rebind;
   private readonly Func<CancellationToken, Task<ExecutionQueue?>>? _readQueue;
+  private readonly Func<ExecutionQueue, QueueRunHandle, string?>? _tryBind;
   private QueueDeviceRecovery? _recoverySettings;
   private string? _instanceName;
   private CancellationToken _stopToken = CancellationToken.None;
@@ -64,7 +70,8 @@ internal sealed class QueueLivenessWatch {
     INotificationDispatcher? notifications = null,
     QueueDeviceRecoveryRunner? recovery = null,
     Func<ExecutionQueue, QueueRunHandle, Task>? rebind = null,
-    Func<CancellationToken, Task<ExecutionQueue?>>? readQueue = null) {
+    Func<CancellationToken, Task<ExecutionQueue?>>? readQueue = null,
+    Func<ExecutionQueue, QueueRunHandle, string?>? tryBind = null) {
     _queue = queue;
     _handle = handle;
     _rootId = rootId;
@@ -78,6 +85,7 @@ internal sealed class QueueLivenessWatch {
     _recovery = recovery;
     _rebind = rebind;
     _readQueue = readQueue;
+    _tryBind = tryBind;
     _recoverySettings = queue.DeviceRecovery;
     _instanceName = queue.EmulatorInstanceName;
   }
@@ -132,12 +140,8 @@ internal sealed class QueueLivenessWatch {
   public async Task<bool> CheckOnceAsync() {
     try {
       await RefreshRecoverySettingsAsync().ConfigureAwait(false);
-      var sessionId = _handle.SessionId;
-      if (sessionId is null) return false;
-      var session = _sessions.GetSession(sessionId);
-      if (session is null) return false;
-
-      var report = _liveness.Evaluate(session);
+      var report = EvaluateOrNoSession();
+      if (report is null) return false;
       var now = _time.GetLocalNow();
       _handle.Liveness.Observe(report, now);
       SendAlerts(report, now);
@@ -162,6 +166,19 @@ internal sealed class QueueLivenessWatch {
     }
   }
 
+  // Feature 201: the report of the session of the run. With no session, try a bind first. When the bind fails
+  // and the queue has recovery on, the report is NoSessionReport. Else null: the check does nothing.
+  private DeviceLivenessReport? EvaluateOrNoSession() {
+    var sessionId = _handle.SessionId;
+    var session = sessionId is null ? null : _sessions.GetSession(sessionId);
+    if (session is null && _tryBind is not null) {
+      var boundId = _tryBind(_queue, _handle);
+      session = boundId is null ? null : _sessions.GetSession(boundId);
+    }
+    if (session is not null) return _liveness.Evaluate(session);
+    return _handle.DeviceRecoveryReboots ? QueueExecutionService.NoSessionReport : null;
+  }
+
   // Feature 199 (FR-012a): read the stored queue and take its recovery settings and instance name. When the
   // read fails or gives null, keep the last known values.
   private async Task RefreshRecoverySettingsAsync() {
@@ -173,6 +190,8 @@ internal sealed class QueueLivenessWatch {
         return;
       }
       _recoverySettings = stored.DeviceRecovery;
+      // Feature 201: the run loop reads this value to choose "hold" or "end the run" when no session is bound.
+      _handle.DeviceRecoveryReboots = stored.DeviceRecovery is { Reboots: true };
       _instanceName = stored.EmulatorInstanceName;
     }
     catch (OperationCanceledException) {

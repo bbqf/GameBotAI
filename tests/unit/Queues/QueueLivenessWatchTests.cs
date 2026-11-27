@@ -73,7 +73,8 @@ public sealed partial class QueueExecutionServiceTests {
         QueueDeviceRecoveryRunner? runner = null,
         Func<ExecutionQueue, QueueRunHandle, Task>? rebind = null,
         Func<CancellationToken, Task<ExecutionQueue?>>? readQueue = null,
-        FakeTimeProvider? clock = null) {
+        FakeTimeProvider? clock = null,
+        Func<ExecutionQueue, QueueRunHandle, string?>? tryBind = null) {
         Clock = clock ?? new FakeTimeProvider(T0);
         Liveness.Options.AlertAfterMs = alertAfterMs;
         Queue = new ExecutionQueue {
@@ -84,7 +85,7 @@ public sealed partial class QueueExecutionServiceTests {
         Handle.SessionId = Sessions.CreateSession("queue:q1", "emu-1").Id;
         var evaluator = withEvaluator ? new QueueFailurePolicyEvaluator(Notifier, new FakeSequenceRepository(), Clock) : null;
         Watch = new QueueLivenessWatch(Queue, Handle, "root-1", Sessions, Liveness, Log, evaluator, Clock, NullLogger.Instance,
-          withAlerts ? Alerts : null, runner, rebind, readQueue);
+          withAlerts ? Alerts : null, runner, rebind, readQueue, tryBind);
       }
 
       public List<(string RootExecutionId, string QueueId, string Reason)> Faults() {
@@ -594,6 +595,104 @@ public sealed partial class QueueExecutionServiceTests {
       }
 
       coordinator.Calls.Should().Be(1);
+    }
+
+    // ---- Feature 201: the watch with no bound session ----
+
+    private static (Setup Setup, Fakes.FakeDeviceRecoveryCoordinator Coordinator, AlertRecorder RunnerAlerts) NewNoSessionSetup(
+      int maxAttempts = 2, Func<ExecutionQueue, QueueRunHandle, string?>? tryBind = null) {
+      var coordinator = new Fakes.FakeDeviceRecoveryCoordinator { Result = false };
+      var liveness = new FakeSessionLivenessService { Options = new DeviceLivenessOptions { QueueCheckIntervalMs = 10, RebootReadyTimeoutMs = 1000 } };
+      var clock = new FakeTimeProvider(T0);
+      var runnerAlerts = new AlertRecorder();
+      var runner = new QueueDeviceRecoveryRunner(coordinator, new NoProbe(), new FakeSessionManager(), liveness, runnerAlerts, clock);
+      var s = new Setup(withAlerts: true, alertAfterMs: 1000, recovery: Reboot(afterMs: 60000, maxAttempts: maxAttempts), runner: runner,
+        rebind: (_, _) => Task.CompletedTask, clock: clock, tryBind: tryBind ?? ((_, _) => null));
+      s.Handle.SessionId = null;
+      s.Handle.DeviceRecoveryReboots = true;
+      return (s, coordinator, runnerAlerts);
+    }
+
+    [Fact]
+    public async Task NoSession_TheWatchObservesTransportNotReadyAlertsAndStartsARecoveryAttempt() {
+      var (s, coordinator, _) = NewNoSessionSetup();
+
+      (await s.Watch.CheckOnceAsync()).Should().BeFalse();
+      var snapshot = s.Handle.Liveness.Snapshot();
+      snapshot.State.Should().Be(DeviceLivenessStates.NotLive);
+      snapshot.Reason.Should().Be(DeviceLivenessReasons.TransportNotReady);
+      s.Liveness.Evaluations.Should().Be(0, "there is no session to evaluate");
+
+      s.Clock.Advance(TimeSpan.FromSeconds(2));
+      await s.Watch.CheckOnceAsync();
+      s.Alerts.Sent.Should().ContainSingle(a => a.Kind == QueueAlertKind.NotLive)
+        .Which.Reason.Should().Be(DeviceLivenessReasons.TransportNotReady);
+      coordinator.Calls.Should().Be(0, "the episode is younger than afterMs");
+
+      s.Clock.Advance(TimeSpan.FromMinutes(1));
+      await s.Watch.CheckOnceAsync();
+      await s.Watch.RecoveryTask;
+      coordinator.Calls.Should().Be(1);
+      s.Handle.Liveness.Snapshot().Attempts.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task NoSession_AllAttemptsFailedGivesExactlyOneRecoveryFailedAlert() {
+      var (s, coordinator, runnerAlerts) = NewNoSessionSetup(maxAttempts: 2);
+      await s.Watch.CheckOnceAsync();
+      for (var i = 0; i < 5; i++) {
+        s.Clock.Advance(TimeSpan.FromMinutes(1.5));
+        await s.Watch.CheckOnceAsync();
+        await s.Watch.RecoveryTask;
+      }
+
+      coordinator.Calls.Should().Be(2);
+      runnerAlerts.Sent.Count(a => a.Kind == QueueAlertKind.RecoveryFailed).Should().Be(1);
+      s.Handle.Cts.IsCancellationRequested.Should().BeFalse("the watch never stops the run");
+    }
+
+    [Fact]
+    public async Task NoSession_ABindThatGivesASessionMakesTheWatchEvaluateIt() {
+      Setup? holder = null;
+      string? bound = null;
+      var (s, _, _) = NewNoSessionSetup(tryBind: (_, h) => {
+        bound ??= holder!.Sessions.CreateSession("queue:q1", "emu-1").Id;
+        h.SessionId = bound;
+        return bound;
+      });
+      holder = s;
+      s.Liveness.SetNotLive(DeviceLivenessReasons.CaptureStalled);
+
+      await s.Watch.CheckOnceAsync();
+
+      bound.Should().NotBeNull();
+      s.Liveness.Evaluations.Should().Be(1);
+      s.Handle.Liveness.Snapshot().Reason.Should().Be(DeviceLivenessReasons.CaptureStalled);
+    }
+
+    [Fact]
+    public async Task NoSession_WithRecoveryOffTheCheckDoesNothing() {
+      var (s, coordinator, _) = NewNoSessionSetup();
+      s.Handle.DeviceRecoveryReboots = false;
+
+      (await s.Watch.CheckOnceAsync()).Should().BeFalse();
+
+      s.Handle.Liveness.Snapshot().LastReport.Should().BeNull();
+      coordinator.Calls.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task TheStoredRecoverySettingSetsTheFlagOfTheHandleAtEachCheck() {
+      var (s, _, stored) = NewLiveApplySetup(Reboot());
+      s.Handle.DeviceRecoveryReboots = true;
+      stored.Recovery = new QueueDeviceRecovery { Action = "none", AfterMs = 60000 };
+
+      await s.Watch.CheckOnceAsync();
+      s.Handle.DeviceRecoveryReboots.Should().BeFalse();
+
+      stored.Recovery = Reboot();
+      await s.Watch.CheckOnceAsync();
+      s.Handle.DeviceRecoveryReboots.Should().BeTrue();
     }
 
     [Fact]

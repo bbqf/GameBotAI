@@ -91,6 +91,48 @@ public sealed partial class QueueExecutionServiceTests {
       await WaitUntilStoppedAsync(s.Service, "q1");
     }
 
+    // Feature 201 (research R-003): a rebind that cannot bind leaves "no session", not the ID of the removed session.
+    [Fact]
+    public async Task RebindSession_LeavesNoSessionIdWhenTheBindFails() {
+      var s = new Setup(new QueueTemplateEntry { SequenceId = "A", ScheduleType = ScheduleType.Timer, TimerRelativeOffset = TimeSpan.FromHours(1) });
+      await s.Service.StartAsync("q1");
+      await WaitForAsync(() => s.Registry.TryGet("q1", out var h) && h.SessionId is not null);
+      var handle = s.Handle;
+      var oldId = handle.SessionId!;
+      s.Sessions.CreateThrows = new KeyNotFoundException("ADB device 'emu-1' not found");
+
+      var rebind = () => s.Service.RebindSessionAsync(s.Queue, handle);
+
+      await rebind.Should().ThrowAsync<KeyNotFoundException>();
+      handle.SessionId.Should().BeNull();
+      s.Sessions.Stopped.Should().Contain(oldId);
+      await s.Service.StopAsync("q1");
+      await WaitUntilStoppedAsync(s.Service, "q1");
+    }
+
+    // Feature 201: after a failed rebind the handle has no session. The next attempt binds a new one and stops nothing.
+    [Fact]
+    public async Task RebindSession_WithNoSessionBindsANewSessionAndStopsNothing() {
+      var s = new Setup(new QueueTemplateEntry { SequenceId = "A", ScheduleType = ScheduleType.Timer, TimerRelativeOffset = TimeSpan.FromHours(1) });
+      await s.Service.StartAsync("q1");
+      await WaitForAsync(() => s.Registry.TryGet("q1", out var h) && h.SessionId is not null);
+      var handle = s.Handle;
+      s.Sessions.CreateThrows = new KeyNotFoundException("ADB device 'emu-1' not found");
+      var failed = () => s.Service.RebindSessionAsync(s.Queue, handle);
+      await failed.Should().ThrowAsync<KeyNotFoundException>();
+      var stoppedBefore = s.Sessions.Stopped.Count;
+      s.Sessions.CreateThrows = null;
+
+      await s.Service.RebindSessionAsync(s.Queue, handle);
+
+      handle.SessionId.Should().NotBeNull();
+      s.Sessions.GetSession(handle.SessionId!).Should().NotBeNull();
+      s.Sessions.Stopped.Count.Should().Be(stoppedBefore);
+      handle.LostSessionWarned.Should().BeFalse();
+      await s.Service.StopAsync("q1");
+      await WaitUntilStoppedAsync(s.Service, "q1");
+    }
+
     [Fact]
     public async Task TheRunLoop_FollowsTheHandleSessionForTheNextFiring() {
       var s = new Setup(new QueueTemplateEntry { SequenceId = "A", ScheduleType = ScheduleType.Timer, TimerRelativeOffset = TimeSpan.FromHours(1) });

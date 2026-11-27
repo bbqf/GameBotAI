@@ -401,6 +401,8 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
         }
         else {
           // 2. Connect to the bound emulator (FR-003/FR-004).
+          // Feature 201: the run keeps the recovery setting on the handle; the watch refreshes it at each check.
+          handle.DeviceRecoveryReboots = queue.DeviceRecovery is { Reboots: true };
           try {
             sessionId = BindQueueSession(queue);
             handle.SessionId = sessionId;
@@ -424,29 +426,27 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
             // queue-owned sessions are exempt from the idle sweep — but if it has gone for any other
             // reason while the device is still attached, bind a fresh one on the same serial (once)
             // and carry on with it. Only a device that cannot be re-bound fails the run.
-            void EnsureSessionBound() {
+            // Feature 201: returns false when no session is bound and the queue has device recovery on. The site
+            // then holds its firing, and the run stays Running. With recovery off, a failed bind ends the run.
+            bool TryEnsureSessionBound() {
               // Feature 121 (R-009): a device recovery can rebind the session from the watch. The loop
               // follows the value of the handle, so the gate, the watch and the loop use one session.
               var current = handle.SessionId;
               if (current is not null && !string.Equals(current, sessionId, StringComparison.Ordinal)
                   && _sessions.GetSession(current) is not null) {
                 sessionId = current;
-                return;
+                return true;
               }
-              if (_sessions.GetSession(sessionId) is not null) return;
-              var lostId = sessionId!;
-              try { _captureService?.StopCapture(lostId); }
-              catch (Exception ex) { QueueExecutionLog.DisconnectFailed(_logger, queue.Id, ex); }
-              string reboundId;
-              try {
-                reboundId = BindQueueSession(queue);
+              if (current is not null && _sessions.GetSession(sessionId!) is not null) return true;
+              var boundId = TryBindLostSession(queue, handle, out var bindError);
+              if (boundId is not null) {
+                sessionId = boundId;
+                return true;
               }
-              catch (Exception ex) when (ex is InvalidOperationException or KeyNotFoundException) {
-                throw new QueueConnectionLostException(ex.Message, ex);
-              }
-              sessionId = reboundId;
-              handle.SessionId = reboundId;
-              QueueExecutionLog.SessionRebound(_logger, queue.Id, queue.EmulatorSerial, lostId, reboundId);
+              if (_liveness is not null && handle.DeviceRecoveryReboots) return false;
+              throw bindError is null
+                ? new QueueConnectionLostException("no session")
+                : new QueueConnectionLostException(bindError.Message, bindError);
             }
 
             // Every-step pass: run each template EveryStep entry, then each self-reschedule EveryStep
@@ -465,7 +465,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
 
               foreach (var esEntry in plan.EveryStep) {
                 ct.ThrowIfCancellationRequested();
-                EnsureSessionBound();
+                if (!TryEnsureSessionBound()) return;
                 var esOk = await RunOneSequenceAsync(esEntry.SequenceId, rootId, ++index, sessionId, queue.Id, EntryScope(esEntry), ct).ConfigureAwait(false);
                 handle.Schedule?.MarkEntryRan(esEntry);
                 if (!esOk) failed++;
@@ -476,7 +476,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
               // firing's own re-registration cannot grow the pass (loop-safe).
               foreach (var injection in handle.EveryStepInjections.Values.ToList()) {
                 ct.ThrowIfCancellationRequested();
-                EnsureSessionBound();
+                if (!TryEnsureSessionBound()) return;
                 var injOk = await RunOneSequenceAsync(injection.SequenceId, rootId, ++index, sessionId, queue.Id, BookingScope(injection), ct, injection.Id).ConfigureAwait(false);
                 if (!injOk) failed++;
                 handle.Cycles.RecordEntry(injection.SequenceId, injOk);
@@ -494,7 +494,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
 
               foreach (var berEntry in plan.BeforeEachRun) {
                 ct.ThrowIfCancellationRequested();
-                EnsureSessionBound();
+                if (!TryEnsureSessionBound()) return;
                 var berOk = await RunOneSequenceAsync(berEntry.SequenceId, rootId, ++index, sessionId, queue.Id, EntryScope(berEntry), ct).ConfigureAwait(false);
                 handle.Schedule?.MarkEntryRan(berEntry);
                 if (!berOk) failed++;
@@ -525,6 +525,17 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
             // True when the gate holds the firing group of `sequenceId`.
             async Task<bool> HoldIfNotLiveAsync(string sequenceId) {
               if (_liveness is null) return false;
+              // Feature 201: with no bound session (a recovery reboot removed it, and the bind fails), the gate
+              // holds the firing with the hard reason transport_not_ready. The run stays Running and tries a
+              // bind again before the next firing.
+              if (!TryEnsureSessionBound()) {
+                var now = _timeProvider.GetLocalNow();
+                handle.Liveness.Observe(NoSessionReport, now);
+                await TryGateOnLivenessAsync(queue, handle, rootId, null, sequenceId, NoSessionReport, () => ++index).ConfigureAwait(false);
+                held = true;
+                holdReport = NoSessionReport;
+                return true;
+              }
               var hold = await TryGateOnLivenessAsync(queue, handle, rootId, handle.SessionId ?? sessionId, sequenceId, held ? holdReport : null, () => ++index).ConfigureAwait(false);
               if (hold is null) return false;
               held = true;
@@ -560,7 +571,11 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
               if (await HoldIfNotLiveAsync(sequenceId).ConfigureAwait(false)) return null;
               if (beforeEachRun) await RunBeforeEachRunPassAsync().ConfigureAwait(false);
               ct.ThrowIfCancellationRequested();
-              EnsureSessionBound();
+              if (!TryEnsureSessionBound()) {
+                held = true;
+                holdReport ??= NoSessionReport;
+                return null;
+              }
               return await RunOneSequenceAsync(sequenceId, rootId, ++index, sessionId, queue.Id, scope, ct, originActionId).ConfigureAwait(false);
             }
 
@@ -595,7 +610,6 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
             for (var startPos = 0; startPos < plan.AtQueueStart.Count; startPos++) {
               var startEntry = plan.AtQueueStart[startPos];
               ct.ThrowIfCancellationRequested();
-              EnsureSessionBound();
               var startOk = await FireGroupAsync(startEntry.SequenceId, EntryScope(startEntry), beforeEachRun: false).ConfigureAwait(false);
               if (startOk is null) {
                 // Feature 106: this pass runs one time and has no register. The held entry and the
@@ -739,7 +753,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                   if (await HoldIfNotLiveAsync(retryEntry.SequenceId).ConfigureAwait(false)) continue;
                   await RunBeforeEachRunPassAsync().ConfigureAwait(false);
                   ct.ThrowIfCancellationRequested();
-                  EnsureSessionBound();
+                  if (!TryEnsureSessionBound()) continue;
                   QueueExecutionLog.DailyRetryFiring(_logger, retryEntry.SequenceId, attempt);
                   var retryOk = await RunOneSequenceAsync(retryEntry.SequenceId, rootId, ++index, sessionId, queue.Id, EntryScope(retryEntry), ct).ConfigureAwait(false);
                   if (!retryOk) failed++;
@@ -825,7 +839,6 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                     foreach (var (entry, entryIndex) in plan.OncePerRun) {
                       if (oncePerRunPassHeld && schedule.OncePerRunCompletedThisCycle(entryIndex)) continue;
                       ct.ThrowIfCancellationRequested();
-                      EnsureSessionBound();
                       handle.Cycles.SetCurrentEntryIndex(entryIndex);
                       var result = await FireGroupAsync(entry.SequenceId, EntryScope(entry), beforeEachRun: false).ConfigureAwait(false);
                       if (result is not { } ok) {
@@ -940,7 +953,12 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                     && !handle.OperatorPauseRequested
                     && nextDue is { } dueAt
                     && dueAt - pollNow > TimeSpan.FromSeconds(thresholdSeconds)) {
-                  await IdlePauseHoldAsync(dueAt, sessionId!, handle, now => schedule.ComputeNextDue(handle, now), ct).ConfigureAwait(false);
+                  // Feature 201: with no bound session there is no game to back out. Wait one check interval.
+                  if (!TryEnsureSessionBound()) {
+                    await Task.Delay(HeldIterationWait(), _timeProvider, ct).ConfigureAwait(false);
+                    continue;
+                  }
+                  await IdlePauseHoldAsync(dueAt, handle.SessionId ?? sessionId!, handle, now => schedule.ComputeNextDue(handle, now), ct).ConfigureAwait(false);
                 }
                 else {
                   await Task.Delay(RelativeTimerPollInterval, ct).ConfigureAwait(false);
@@ -1103,7 +1121,8 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
   private Task? StartLivenessWatch(ExecutionQueue queue, QueueRunHandle handle, string rootId, CancellationToken ct) {
     if (_liveness is null) return null;
     var watch = new QueueLivenessWatch(queue, handle, rootId, _sessions, _liveness, _log, _failurePolicy, _timeProvider, _logger,
-      _notifications, _recoveryRunner, RebindSessionAsync, _ => _queues.GetAsync(queue.Id)!);
+      _notifications, _recoveryRunner, RebindSessionAsync, _ => _queues.GetAsync(queue.Id)!,
+      (q, h) => TryBindLostSession(q, h, out _));
     return Task.Run(() => watch.RunAsync(ct), CancellationToken.None);
   }
 
@@ -1112,21 +1131,81 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
   /// the capture loop and the old session, binds a new session on the same serial, and sets
   /// <c>handle.SessionId</c>. The run loop follows <c>handle.SessionId</c> before its next firing. The held
   /// firings stay in the state of the run loop. Throws when the device cannot be bound.
+  /// <para>
+  /// Feature 201: it sets <c>handle.SessionId</c> to null before the bind. Thus a bind that throws leaves
+  /// "no session", not the ID of a removed session. It holds <see cref="QueueRunHandle.SessionBindLock"/>.
+  /// </para>
   /// </summary>
   internal Task RebindSessionAsync(ExecutionQueue queue, QueueRunHandle handle) {
     ArgumentNullException.ThrowIfNull(queue);
     ArgumentNullException.ThrowIfNull(handle);
-    var oldId = handle.SessionId;
-    if (oldId is not null) {
-      try { _captureService?.StopCapture(oldId); }
-      catch (Exception ex) { QueueExecutionLog.DisconnectFailed(_logger, queue.Id, ex); }
-      try { _sessions.StopSession(oldId); }
-      catch (Exception ex) { QueueExecutionLog.DisconnectFailed(_logger, queue.Id, ex); }
+    lock (handle.SessionBindLock) {
+      var oldId = handle.SessionId;
+      if (oldId is not null) {
+        try { _captureService?.StopCapture(oldId); }
+        catch (Exception ex) { QueueExecutionLog.DisconnectFailed(_logger, queue.Id, ex); }
+        try { _sessions.StopSession(oldId); }
+        catch (Exception ex) { QueueExecutionLog.DisconnectFailed(_logger, queue.Id, ex); }
+      }
+      handle.SessionId = null;
+      var newId = BindQueueSession(queue);
+      handle.SessionId = newId;
+      handle.LostSessionWarned = false;
+      QueueExecutionLog.SessionRebound(_logger, queue.Id, queue.EmulatorSerial, oldId ?? string.Empty, newId);
     }
-    var newId = BindQueueSession(queue);
-    handle.SessionId = newId;
-    QueueExecutionLog.SessionRebound(_logger, queue.Id, queue.EmulatorSerial, oldId ?? string.Empty, newId);
     return Task.CompletedTask;
+  }
+
+  /// <summary>
+  /// The liveness report of a run with no bound session (feature 201, research R-004): <c>not_live</c> with
+  /// the hard reason <c>transport_not_ready</c>. The gate holds the firings with it, and the watch observes it.
+  /// </summary>
+  internal static readonly DeviceLivenessReport NoSessionReport = new(
+    DeviceLivenessStates.NotLive, DeviceLivenessReasons.TransportNotReady, null, null, true, null, null, false);
+
+  /// <summary>
+  /// The one place that binds a session again for a lost session (feature 201, research R-003). The run loop
+  /// and the liveness watch call it. It holds <see cref="QueueRunHandle.SessionBindLock"/>, so two callers
+  /// never bind two sessions (FR-011).
+  /// </summary>
+  /// <returns>
+  /// The ID of the bound session. That is the current session when it exists, or a new session. Null when a
+  /// recovery attempt runs (the runner owns the rebind then) or when the bind fails. A failed bind sets
+  /// <c>handle.SessionId</c> to null.
+  /// </returns>
+  /// <param name="error">The exception of a failed bind, else null.</param>
+  internal string? TryBindLostSession(ExecutionQueue queue, QueueRunHandle handle, out Exception? error) {
+    ArgumentNullException.ThrowIfNull(queue);
+    ArgumentNullException.ThrowIfNull(handle);
+    error = null;
+    lock (handle.SessionBindLock) {
+      var current = handle.SessionId;
+      if (current is not null && _sessions.GetSession(current) is not null) return current;
+      if (handle.Liveness.Snapshot().RecoveryRunning) return null;
+      if (current is not null) {
+        try { _captureService?.StopCapture(current); }
+        catch (Exception ex) { QueueExecutionLog.DisconnectFailed(_logger, queue.Id, ex); }
+      }
+      try {
+        var newId = BindQueueSession(queue);
+        handle.SessionId = newId;
+        handle.LostSessionWarned = false;
+        QueueExecutionLog.SessionRebound(_logger, queue.Id, queue.EmulatorSerial, current ?? string.Empty, newId);
+        return newId;
+      }
+      catch (Exception ex) when (ex is InvalidOperationException or KeyNotFoundException) {
+        error = ex;
+        handle.SessionId = null;
+        if (!handle.LostSessionWarned) {
+          handle.LostSessionWarned = true;
+          QueueExecutionLog.LostSessionBindFailed(_logger, queue.Id, queue.EmulatorSerial, ex.Message);
+        }
+        else {
+          QueueExecutionLog.LostSessionBindFailedAgain(_logger, queue.Id, queue.EmulatorSerial, ex.Message);
+        }
+        return null;
+      }
+    }
   }
 
   /// <summary>Stops the liveness watch and waits for it. Never throws.</summary>
@@ -1643,4 +1722,10 @@ internal static partial class QueueExecutionLog {
 
   [LoggerMessage(EventId = 1139, Level = LogLevel.Information, Message = "Queue {QueueId} fires the run-next request for entry {EntryId} (sequence {SequenceId}).")]
   public static partial void RunNextFiring(ILogger logger, string QueueId, string EntryId, string SequenceId);
+
+  [LoggerMessage(EventId = 1145, Level = LogLevel.Warning, Message = "Queue {QueueId}: the queue has no session, and device {Serial} could not be bound ({Error}). The queue holds its firings and tries again at each check.")]
+  public static partial void LostSessionBindFailed(ILogger logger, string QueueId, string Serial, string Error);
+
+  [LoggerMessage(EventId = 1146, Level = LogLevel.Debug, Message = "Queue {QueueId}: device {Serial} could not be bound again ({Error}).")]
+  public static partial void LostSessionBindFailedAgain(ILogger logger, string QueueId, string Serial, string Error);
 }
