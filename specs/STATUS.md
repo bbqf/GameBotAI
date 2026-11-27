@@ -229,6 +229,7 @@ Status vocabulary:
 | 199 | Device Recovery Option in the Queue Form | Implemented |
 | 200 | Reschedule-Self Cancel step status in the execution log | Implemented |
 | 201 | Recovery reboot keeps the queue Running and binds a new session | Implemented |
+| 202 | Shared UI components and design tokens; Queues list | Implemented |
 
 ## Numbering notes
 

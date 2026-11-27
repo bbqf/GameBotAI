@@ -1,0 +1,517 @@
+/* Feature 202: the shared UI components. Only theme variables are used. Hover rules are for a pointer that can hover. */
+
+/* ---- IconButton ---- */
+.ui-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: var(--gb-size-icon-button);
+  height: var(--gb-size-icon-button);
+  padding: 0;
+  border: 0;
+  border-radius: var(--gb-radius-control);
+  background: transparent;
+  color: var(--gb-color-muted);
+  cursor: pointer;
+}
+
+.ui-icon-button--touch {
+  width: var(--gb-size-icon-button-touch);
+  height: var(--gb-size-icon-button-touch);
+}
+
+.ui-icon-button--danger {
+  color: var(--gb-color-danger);
+}
+
+@media (hover: hover) {
+  .ui-icon-button:hover:not(:disabled) {
+    background: var(--gb-color-primary-soft);
+    color: var(--gb-color-primary);
+  }
+
+  .ui-icon-button--danger:hover:not(:disabled) {
+    background: var(--gb-color-danger-soft);
+    color: var(--gb-color-danger);
+  }
+}
+
+.ui-icon-button:focus-visible {
+  outline: 2px solid var(--gb-color-focus);
+  outline-offset: 2px;
+}
+
+.ui-icon-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+@media (max-width: 768px), (max-height: 500px) {
+  .ui-icon-button {
+    width: var(--gb-size-icon-button-touch);
+    height: var(--gb-size-icon-button-touch);
+  }
+}
+
+/* ---- Button ---- */
+.ui-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gb-space-2);
+  height: var(--gb-size-control);
+  padding: 0 var(--gb-space-4);
+  border: 1px solid var(--gb-color-border-strong);
+  border-radius: var(--gb-radius-control);
+  background: var(--gb-color-surface);
+  color: var(--gb-color-text);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.ui-button--primary {
+  border-color: var(--gb-color-primary);
+  background: var(--gb-color-primary);
+  color: var(--gb-color-surface);
+}
+
+.ui-button--danger-outline {
+  border-color: var(--gb-color-danger);
+  background: var(--gb-color-surface);
+  color: var(--gb-color-danger);
+}
+
+.ui-button--danger {
+  border-color: var(--gb-color-danger);
+  background: var(--gb-color-danger);
+  color: var(--gb-color-surface);
+}
+
+@media (hover: hover) {
+  .ui-button:hover:not(:disabled) {
+    background: var(--gb-color-surface-alt);
+  }
+
+  .ui-button--primary:hover:not(:disabled) {
+    background: var(--gb-color-primary);
+    filter: brightness(0.92);
+  }
+
+  .ui-button--danger-outline:hover:not(:disabled) {
+    background: var(--gb-color-danger-soft);
+  }
+
+  .ui-button--danger:hover:not(:disabled) {
+    background: var(--gb-color-danger);
+    filter: brightness(0.92);
+  }
+}
+
+.ui-button:focus-visible {
+  outline: 3px solid var(--gb-color-focus);
+  outline-offset: 2px;
+}
+
+.ui-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---- StatusChip ---- */
+.ui-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: var(--gb-size-chip-width);
+  height: var(--gb-size-chip-height);
+  padding: 0 var(--gb-space-2);
+  border-radius: var(--gb-radius-pill);
+  background: var(--gb-color-idle-soft);
+  color: var(--gb-color-idle);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  letter-spacing: 0;
+}
+
+.ui-chip__dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.ui-chip--running,
+.ui-chip--done {
+  background: var(--gb-color-success-soft);
+  color: var(--gb-color-success);
+}
+
+.ui-chip--paused {
+  background: var(--gb-color-warning-soft);
+  color: var(--gb-color-warning);
+}
+
+.ui-chip--failed {
+  background: var(--gb-color-danger-soft);
+  color: var(--gb-color-danger);
+}
+
+@media (max-width: 768px), (max-height: 500px) {
+  .ui-chip {
+    width: auto;
+    height: 20px;
+  }
+}
+/* ---- PageHeader ---- */
+.ui-page-header {
+  display: flex;
+  align-items: center;
+  gap: var(--gb-space-3);
+  min-height: 44px;
+  margin-bottom: var(--gb-space-3);
+}
+
+.ui-page-header__title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-page-header__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--gb-space-2);
+  margin-inline-start: auto;
+}
+
+@media (max-width: 768px), (max-height: 500px) {
+  .ui-page-header__title {
+    font-size: 20px;
+  }
+}
+
+/* ---- ListView: desktop table ---- */
+.ui-list {
+  overflow-x: auto;
+  border: 1px solid var(--gb-color-border);
+  border-radius: var(--gb-radius-md);
+  background: var(--gb-color-surface);
+}
+
+.ui-list__table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.ui-list__table th {
+  box-sizing: border-box;
+  height: var(--gb-size-header-row);
+  padding: 0 var(--gb-space-4);
+  border-bottom: 1px solid var(--gb-color-border);
+  color: var(--gb-color-muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-align: start;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.ui-list__table td {
+  box-sizing: border-box;
+  padding: 0 var(--gb-space-4);
+  border-bottom: 1px solid var(--gb-color-border);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.ui-list__table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.ui-list__row {
+  height: var(--gb-size-row);
+}
+
+.ui-list__row--clickable {
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .ui-list__row--clickable:hover {
+    background: var(--gb-color-surface-alt);
+  }
+}
+
+.ui-list__table .ui-list__cell--end {
+  text-align: end;
+}
+
+.ui-list__table .ui-list__actions {
+  overflow: visible;
+  text-align: end;
+}
+
+.ui-list__actions-inner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* The open button looks like text. The global button rule gives a border and a height. */
+.ui-list__open,
+.ui-list__phone-open {
+  display: block;
+  width: 100%;
+  height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.ui-list__open {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--gb-color-text);
+  font-weight: 600;
+}
+
+@media (hover: hover) {
+  .ui-list__open:hover:not(:disabled),
+  .ui-list__phone-open:hover:not(:disabled) {
+    background: transparent;
+  }
+
+  .ui-list__open:hover:not(:disabled) {
+    text-decoration: underline;
+  }
+}
+
+.ui-list__open:focus-visible,
+.ui-list__phone-open:focus-visible {
+  outline: 2px solid var(--gb-color-focus);
+  outline-offset: 2px;
+}
+
+.ui-list__state td,
+.ui-list__state {
+  color: var(--gb-color-muted);
+}
+
+.ui-list__table .ui-list__state td {
+  height: var(--gb-size-row);
+  white-space: normal;
+}
+
+.ui-list__error {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gb-space-3);
+  color: var(--gb-color-danger);
+}
+
+/* ---- ListView: phone list ---- */
+.ui-list__phone {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--gb-color-border);
+  border-radius: var(--gb-radius-md);
+  background: var(--gb-color-surface);
+}
+
+.ui-list__phone-row {
+  display: flex;
+  align-items: center;
+  gap: var(--gb-space-1);
+  box-sizing: border-box;
+  height: var(--gb-size-row-phone);
+  padding: 0 var(--gb-space-2) 0 var(--gb-space-4);
+  border-bottom: 1px solid var(--gb-color-border);
+}
+
+.ui-list__phone-row:last-child {
+  border-bottom: 0;
+}
+
+.ui-list__phone-open {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: var(--gb-size-icon-button-touch);
+  touch-action: manipulation;
+}
+
+.ui-list__phone-title {
+  display: block;
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-list__phone-line {
+  display: flex;
+  align-items: center;
+  gap: var(--gb-space-2);
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.ui-list__phone-meta {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--gb-color-muted);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-list__phone-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+}
+
+.ui-list__phone > .ui-list__state {
+  padding: var(--gb-space-4);
+}
+
+/* ---- RowActionMenu ---- */
+.ui-menu {
+  position: fixed;
+  z-index: 1000;
+  box-sizing: border-box;
+  min-width: 200px;
+  margin: 0;
+  padding: var(--gb-space-1) 0;
+  list-style: none;
+  border: 1px solid var(--gb-color-border);
+  border-radius: var(--gb-radius-md);
+  background: var(--gb-color-surface);
+  box-shadow: var(--gb-shadow-raised);
+}
+
+.ui-menu__item {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--gb-space-3);
+  width: 100%;
+  height: 44px;
+  padding: 0 var(--gb-space-4);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--gb-color-text);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: start;
+  cursor: pointer;
+}
+
+.ui-menu__item--danger {
+  color: var(--gb-color-danger);
+}
+
+.ui-menu__item[aria-disabled='true'] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+@media (hover: hover) {
+  .ui-menu__item:hover:not([aria-disabled='true']) {
+    background: var(--gb-color-primary-soft);
+  }
+
+  .ui-menu__item--danger:hover:not([aria-disabled='true']) {
+    background: var(--gb-color-danger-soft);
+  }
+}
+
+.ui-menu__item:focus-visible {
+  outline: 2px solid var(--gb-color-focus);
+  outline-offset: -2px;
+}
+
+/* ---- FooterBar ---- */
+.ui-footer-bar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gb-space-3);
+  box-sizing: border-box;
+  height: var(--gb-size-footer);
+  padding: 0 var(--gb-space-4);
+  border-top: 1px solid var(--gb-color-border);
+  background: var(--gb-color-surface);
+}
+
+.ui-footer-bar__left,
+.ui-footer-bar__right {
+  display: flex;
+  align-items: center;
+  gap: var(--gb-space-2);
+}
+
+/* ---- ConfirmDialog ---- */
+.ui-dialog__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--gb-space-4);
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.ui-dialog {
+  box-sizing: border-box;
+  width: 440px;
+  max-width: 100%;
+  padding: var(--gb-space-5);
+  border-radius: var(--gb-radius-dialog);
+  background: var(--gb-color-surface);
+  box-shadow: var(--gb-shadow-raised);
+}
+
+.ui-dialog__title {
+  margin: 0 0 var(--gb-space-2);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.ui-dialog__message {
+  margin: 0 0 var(--gb-space-5);
+}
+
+.ui-dialog__buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--gb-space-2);
+}

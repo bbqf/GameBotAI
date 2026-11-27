@@ -64,16 +64,16 @@ describe('PhoneQueuesView list', () => {
     const card = await screen.findByTestId('queue-card-q1');
     expect(within(card).getByText('Daily')).toBeInTheDocument();
     expect(within(card).getByText('Stopped', { selector: '[data-testid="queue-status"] span' })).toBeInTheDocument();
-    expect(within(card).getByRole('button', { name: 'Start' })).toBeInTheDocument();
+    expect(within(card).getByRole('button', { name: 'Start Daily' })).toBeInTheDocument();
     const running = screen.getByTestId('queue-card-q2');
-    expect(within(running).getByRole('button', { name: 'Stop' })).toBeInTheDocument();
+    expect(within(running).getByRole('button', { name: `Stop ${LONG_NAME}` })).toBeInTheDocument();
   });
 
   it('ends a long name with an ellipsis and keeps the full name in the detail', async () => {
     queuesMock.getQueue.mockResolvedValue(detail({ id: 'q2', name: LONG_NAME }));
     render(<View />);
     const title = (await screen.findAllByText(LONG_NAME))[0];
-    expect(title).toHaveClass('phone-card__title');
+    expect(title).toHaveClass('ui-list__phone-title');
     expect(title).toHaveAttribute('title', LONG_NAME);
     fireEvent.click(screen.getByRole('button', { name: `Open ${LONG_NAME}` }));
     expect(await screen.findByRole('heading', { name: LONG_NAME })).toBeInTheDocument();
@@ -82,24 +82,24 @@ describe('PhoneQueuesView list', () => {
   it('starts a queue', async () => {
     queuesMock.startQueue.mockResolvedValue(queue({ status: 'Running' }));
     render(<View />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Start' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Start Daily' }));
     await waitFor(() => expect(queuesMock.startQueue).toHaveBeenCalledWith('q1'));
-    await waitFor(() => expect(within(screen.getByTestId('queue-card-q1')).getByRole('button', { name: 'Stop' })).toBeInTheDocument());
+    await waitFor(() => expect(within(screen.getByTestId('queue-card-q1')).getByRole('button', { name: 'Stop Daily' })).toBeInTheDocument());
   });
 
   it('stops a queue', async () => {
     queuesMock.stopQueue.mockResolvedValue(queue({ id: 'q2', name: LONG_NAME, status: 'Stopped' }));
     render(<View />);
     const card = await screen.findByTestId('queue-card-q2');
-    fireEvent.click(within(card).getByRole('button', { name: 'Stop' }));
+    fireEvent.click(within(card).getByRole('button', { name: `Stop ${LONG_NAME}` }));
     await waitFor(() => expect(queuesMock.stopQueue).toHaveBeenCalledWith('q2'));
   });
 
   it('disables Start and Stop when the connection is lost', async () => {
     render(<View connectionState="lost" />);
     const card = await screen.findByTestId('queue-card-q1');
-    expect(within(card).getByRole('button', { name: 'Start' })).toBeDisabled();
-    expect(within(screen.getByTestId('queue-card-q2')).getByRole('button', { name: 'Stop' })).toBeDisabled();
+    expect(within(card).getByRole('button', { name: 'Start Daily' })).toBeDisabled();
+    expect(within(screen.getByTestId('queue-card-q2')).getByRole('button', { name: `Stop ${LONG_NAME}` })).toBeDisabled();
   });
 
   it('shows no create, edit, duplicate, delete, schedule, or reorder control', async () => {
@@ -329,7 +329,7 @@ describe('PhoneQueuesView pause states on the card (feature 173, US6)', () => {
     render(<View />);
 
     const card = await screen.findByTestId('queue-card-q1');
-    await waitFor(() => expect(card.querySelector('.phone-card__summary')?.textContent).toBe('Running'));
+    await waitFor(() => expect(card.querySelector('.ui-list__phone-meta')?.textContent).toBe('Running'));
   });
 });
 

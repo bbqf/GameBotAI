@@ -25,6 +25,7 @@ const renderActions = (q: Props['queue'], h = handlers()) => {
 };
 
 const names = () => screen.getAllByRole('button').map((b) => b.getAttribute('aria-label'));
+const openMenu = (name = 'Daily') => fireEvent.click(screen.getByRole('button', { name: `More actions for ${name}` }));
 
 beforeEach(() => {
   jest.resetAllMocks();
@@ -32,19 +33,20 @@ beforeEach(() => {
   resumeMock.mockResolvedValue({ resumed: true } as any);
 });
 
-describe('QueueRowActions icons for each state (feature 173, US3)', () => {
-  it('shows Start, Edit, Duplicate, and Delete for a stopped queue', () => {
+describe('QueueRowActions slots for each state', () => {
+  it('shows Start, a Stop that is off, Edit, and the menu button for a stopped queue', () => {
     renderActions(queue());
 
-    expect(names()).toEqual(['Start Daily', 'Edit Daily', 'Duplicate Daily', 'Delete Daily']);
-    expect(screen.getByRole('button', { name: 'Delete Daily' })).toBeEnabled();
+    expect(names()).toEqual(['Start Daily', 'Stop Daily', 'Edit Daily', 'More actions for Daily']);
+    expect(screen.getByRole('button', { name: 'Stop Daily' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Start Daily' })).toBeEnabled();
   });
 
-  it('shows Pause, Stop, Edit, Duplicate, and a disabled Delete for a running queue', () => {
+  it('shows Pause, Stop, Edit, and the menu button for a running queue', () => {
     renderActions(queue({ status: 'Running', operatorPause: 'none' }));
 
-    expect(names()).toEqual(['Pause Daily', 'Stop Daily', 'Edit Daily', 'Duplicate Daily', 'Delete Daily']);
-    expect(screen.getByRole('button', { name: 'Delete Daily' })).toBeDisabled();
+    expect(names()).toEqual(['Pause Daily', 'Stop Daily', 'Edit Daily', 'More actions for Daily']);
+    expect(screen.getByRole('button', { name: 'Stop Daily' })).toBeEnabled();
   });
 
   it('treats a running queue with no pause state as not paused', () => {
@@ -56,21 +58,20 @@ describe('QueueRowActions icons for each state (feature 173, US3)', () => {
   it('shows Cancel pause in place of Pause while the queue is pausing', () => {
     renderActions(queue({ status: 'Running', operatorPause: 'pausing' }));
 
-    expect(names()).toEqual(['Cancel pause Daily', 'Stop Daily', 'Edit Daily', 'Duplicate Daily', 'Delete Daily']);
-    expect(screen.getByRole('button', { name: 'Delete Daily' })).toBeDisabled();
+    expect(names()).toEqual(['Cancel pause Daily', 'Stop Daily', 'Edit Daily', 'More actions for Daily']);
   });
 
   it('shows Resume in place of Pause while the queue is paused', () => {
     renderActions(queue({ status: 'Running', operatorPause: 'paused' }));
 
-    expect(names()).toEqual(['Resume Daily', 'Stop Daily', 'Edit Daily', 'Duplicate Daily', 'Delete Daily']);
+    expect(names()).toEqual(['Resume Daily', 'Stop Daily', 'Edit Daily', 'More actions for Daily']);
   });
 
-  it('gives each button the tooltip of the action alone', () => {
+  it('gives each visible button the tooltip of the action alone', () => {
     renderActions(queue({ status: 'Running', operatorPause: 'paused' }));
 
-    const tooltips = screen.getAllByRole('button').map((b) => b.getAttribute('title'));
-    expect(tooltips).toEqual(['Resume', 'Stop', 'Edit', 'Duplicate', 'Delete']);
+    const tooltips = screen.getAllByRole('button').slice(0, 3).map((b) => b.getAttribute('title'));
+    expect(tooltips).toEqual(['Resume', 'Stop', 'Edit']);
   });
 
   it('puts the queue name in every accessible name, so two rows stay apart', () => {
@@ -78,43 +79,56 @@ describe('QueueRowActions icons for each state (feature 173, US3)', () => {
 
     screen.getAllByRole('button').forEach((b) => expect(b.getAttribute('aria-label')).toMatch(/ Arena farm$/));
   });
+});
 
-  it('marks Delete as the destructive action', () => {
+describe('QueueRowActions menu', () => {
+  it('has Duplicate and a Delete that is on for a stopped queue', () => {
     renderActions(queue());
+    openMenu();
 
-    expect(screen.getByRole('button', { name: 'Delete Daily' })).toHaveClass('icon-button--destructive');
-    expect(screen.getByRole('button', { name: 'Edit Daily' })).not.toHaveClass('icon-button--destructive');
+    const items = screen.getAllByRole('menuitem');
+    expect(items.map((i) => i.textContent)).toEqual(['Duplicate', 'Delete']);
+    expect(items[1]).not.toHaveAttribute('aria-disabled');
+    expect(items[1]).toHaveClass('ui-menu__item--danger');
+  });
+
+  it('has a Delete that is off while the queue runs', () => {
+    const h = renderActions(queue({ status: 'Running' }));
+    openMenu();
+
+    const del = screen.getByRole('menuitem', { name: 'Delete' });
+    expect(del).toHaveAttribute('aria-disabled', 'true');
+    fireEvent.click(del);
+    expect(h.onDelete).not.toHaveBeenCalled();
+  });
+
+  it('calls Duplicate and Delete', () => {
+    const h = renderActions(queue());
+    openMenu();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Duplicate' }));
+    openMenu();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }));
+
+    expect(h.onDuplicate).toHaveBeenCalledWith('q1');
+    expect(h.onDelete).toHaveBeenCalledWith('q1');
   });
 });
 
 describe('QueueRowActions behavior', () => {
-  it('does what the text buttons did: Start, Stop, Edit, Duplicate, and Delete call the page', () => {
+  it('calls Start, Edit for a stopped queue', () => {
     const stopped = renderActions(queue());
     fireEvent.click(screen.getByRole('button', { name: 'Start Daily' }));
     fireEvent.click(screen.getByRole('button', { name: 'Edit Daily' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Duplicate Daily' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Delete Daily' }));
 
     expect(stopped.onStart).toHaveBeenCalledWith('q1');
     expect(stopped.onEdit).toHaveBeenCalledWith('q1');
-    expect(stopped.onDuplicate).toHaveBeenCalledWith('q1');
-    expect(stopped.onDelete).toHaveBeenCalledWith('q1');
   });
 
-  it('calls Stop for a running queue', () => {
+  it('calls Stop for a running queue and does not call it for a stopped queue', () => {
     const running = renderActions(queue({ status: 'Running' }));
-
     fireEvent.click(screen.getByRole('button', { name: 'Stop Daily' }));
 
     expect(running.onStop).toHaveBeenCalledWith('q1');
-  });
-
-  it('does not call Delete while the queue runs', () => {
-    const running = renderActions(queue({ status: 'Running' }));
-
-    fireEvent.click(screen.getByRole('button', { name: 'Delete Daily' }));
-
-    expect(running.onDelete).not.toHaveBeenCalled();
   });
 
   it('calls pauseQueue for Pause and tells the page', async () => {
@@ -126,7 +140,7 @@ describe('QueueRowActions behavior', () => {
     await waitFor(() => expect(h.onChanged).toHaveBeenCalledTimes(1));
   });
 
-  it('calls resumeQueue for Resume and for Cancel pause', async () => {
+  it('calls resumeQueue for Resume', async () => {
     const paused = renderActions(queue({ status: 'Running', operatorPause: 'paused' }));
     fireEvent.click(screen.getByRole('button', { name: 'Resume Daily' }));
     await waitFor(() => expect(resumeMock).toHaveBeenCalledWith('q1'));
@@ -150,6 +164,15 @@ describe('QueueRowActions behavior', () => {
 
     await waitFor(() => expect(h.onError).toHaveBeenCalledWith('The queue is not running.'));
     expect(h.onChanged).not.toHaveBeenCalled();
+  });
+
+  it('uses a default text when the refusal has no message', async () => {
+    pauseMock.mockRejectedValue('x');
+    const h = renderActions(queue({ status: 'Running', operatorPause: 'none' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pause Daily' }));
+
+    await waitFor(() => expect(h.onError).toHaveBeenCalledWith('The request failed.'));
   });
 
   it('turns the pause button off while its call runs, so a second click does nothing', async () => {

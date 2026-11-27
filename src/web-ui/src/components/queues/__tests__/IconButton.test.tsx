@@ -37,7 +37,8 @@ describe('IconButton (feature 173, US3)', () => {
       return shape;
     });
 
-    expect(new Set(shapes).size).toBe(ICON_NAMES.length);
+    // Feature 202: `close` is the same drawing as the old `remove`, so one name is an alias.
+    expect(new Set(shapes).size).toBe(ICON_NAMES.length - 1);
     shapes.forEach((shape) => expect(shape).not.toBe(''));
   });
 

@@ -82,8 +82,8 @@ const bigScreenText = async (expected: string): Promise<string> => {
 const phoneText = async (expected: string): Promise<string> => {
   render(<PhoneQueuesView queueId={null} onOpenQueue={() => undefined} />);
   const card = await screen.findByTestId('queue-card-q1');
-  const summary = card.querySelector('.phone-card__summary') as HTMLElement;
-  await waitFor(() => expect((card.querySelector('.phone-card__summary') as HTMLElement).textContent).toBe(expected));
+  const summary = card.querySelector('.ui-list__phone-meta') as HTMLElement;
+  await waitFor(() => expect((card.querySelector('.ui-list__phone-meta') as HTMLElement).textContent).toBe(expected));
   return summary.textContent ?? '';
 };
 
@@ -124,7 +124,9 @@ describe('Action names parity (feature 173, FR-022)', () => {
   const bigScreenVerbs = async (): Promise<string[]> => {
     render(<QueuesPage />);
     const row = await screen.findByRole('row', { name: /Daily/ });
+    // A button that is off (Stop of a stopped queue) is not an action that the operator can use.
     return within(row).getAllByRole('button')
+      .filter((b) => !(b as HTMLButtonElement).disabled)
       .map((b) => (b.getAttribute('aria-label') ?? '').replace(/ Daily$/, ''))
       .filter((name) => VERBS.includes(name))
       .sort();

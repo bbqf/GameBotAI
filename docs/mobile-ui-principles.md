@@ -1,8 +1,11 @@
 # Mobile UI Principles
 
-Last reviewed: 2026-11-09 (features 139, 140, 171, 173, 184, and 185)
+Last reviewed: 2026-11-27 (features 139, 140, 171, 173, 184, 185, and 202)
 
 Each UI feature must state its **phone support level** and follow these rules. Reviewers use the checklist at the end.
+
+The shared design rules for the phone and the desktop are in [ui-guidelines.md](ui-guidelines.md). They replace rule 5
+("Cards, not tables") and rule 11 ("Desktop does not change") of this document.
 
 ## Layout mode
 
@@ -151,6 +154,7 @@ Do this check on a real phone before a release that changes the phone UI. Record
 
 ## Related files
 
+- `docs/ui-guidelines.md`: the shared design rules for the phone and the desktop. They replace rules 5 and 11 of this document.
 - `docs/ui-audit.md`: the authoring audit with a link to this checklist.
 - `docs/phone-access.md`: how to reach the UI from a phone.
 - `specs/139-mobile-friendly-ui/contracts/phone-ui-contract.md`: the rules that tests check.

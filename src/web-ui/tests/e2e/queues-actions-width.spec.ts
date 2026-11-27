@@ -7,6 +7,8 @@ import { expect, test, Page } from '@playwright/test';
  * Old width: the text buttons Pause, Stop, Schedule, Edit, Duplicate, and Delete measured 418 px at a 1280 px window.
  */
 const OLD_ACTIONS_WIDTH = 418;
+/** The fixed width of the Actions column (feature 202). */
+const ACTIONS_WIDTH = 184;
 
 const json = { 'content-type': 'application/json' };
 
@@ -60,7 +62,8 @@ test.describe('Queues list Actions column', () => {
     // eslint-disable-next-line no-console
     console.log(`Actions column width: ${Math.round(width)} px, row height: ${Math.round(rowHeight)} px`);
 
-    expect(OLD_ACTIONS_WIDTH, 'Set OLD_ACTIONS_WIDTH to the width of the old list (task T001)').toBeGreaterThan(0);
+    // Feature 202: the Actions column has a fixed width of 184 px (3 icons and the menu button).
+    expect(Math.abs(width - ACTIONS_WIDTH)).toBeLessThanOrEqual(1);
     expect(width).toBeLessThanOrEqual(OLD_ACTIONS_WIDTH / 2);
   });
 

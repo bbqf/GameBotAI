@@ -23,10 +23,10 @@ html, body, #root { height: 100%; margin: 0; }
 
 .actions { margin: var(--gb-space-3) 0; }
 
-button { height: var(--gb-button-height); padding: var(--gb-button-padding-y) var(--gb-button-padding-x); border: 1px solid var(--gb-color-border-strong); border-radius: var(--gb-button-radius); background: linear-gradient(90deg, var(--gb-color-primary-soft), #f5f7ff); color: var(--gb-color-text); font-weight: var(--gb-button-font-weight); font-size: var(--gb-button-font-size); letter-spacing: 0.01em; display: inline-flex; align-items: center; justify-content: center; gap: var(--gb-button-gap); cursor: pointer; transition: background 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease; }
-button:hover { background: #eff4ff; box-shadow: 0 8px 18px rgba(37, 99, 235, 0.16); transform: translateY(-1px); }
+button { height: var(--gb-button-height); padding: var(--gb-button-padding-y) var(--gb-button-padding-x); border: 1px solid var(--gb-color-border-strong); border-radius: var(--gb-button-radius); background: var(--gb-color-surface); color: var(--gb-color-text); font-weight: var(--gb-button-font-weight); font-size: var(--gb-button-font-size); letter-spacing: 0.01em; display: inline-flex; align-items: center; justify-content: center; gap: var(--gb-button-gap); cursor: pointer; transition: background 0.18s ease; }
+@media (hover: hover) { button:hover:not(:disabled) { background: var(--gb-color-surface-alt); } }
 button:focus-visible { outline: 3px solid var(--gb-color-focus); outline-offset: 2px; }
-button:disabled { opacity: 0.55; cursor: not-allowed; transform: none; box-shadow: none; }
+button:disabled { opacity: 0.55; cursor: not-allowed; }
 
 .authoring, .configuration, .execution, .execution-logs, .not-found { margin-top: var(--gb-space-3); }
 .message { margin-top: var(--gb-space-2); color: var(--gb-color-text); }

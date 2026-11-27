@@ -1,7 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
-
 :root {
-  --gb-font-family: 'Space Grotesk','Segoe UI Variable','Segoe UI',system-ui,sans-serif;
+  --gb-font-family: 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
   --gb-font-size-base: 16px;
   --gb-font-size-label: 14px;
   --gb-line-height-base: 1.55;
@@ -22,6 +20,14 @@
   --gb-color-danger: #b91c1c;
   --gb-color-success: #15803d;
   --gb-color-warning: #b45309;
+  --gb-color-text-muted: #475467;
+  --gb-color-danger-soft: #fdecec;
+  --gb-color-success-soft: #e7f6ec;
+  --gb-color-warning-soft: #fdf1e3;
+  --gb-color-idle: #64748b;
+  --gb-color-idle-soft: #eef1f5;
+  --gb-color-loop: #7c3aed;
+  --gb-color-if: #0891b2;
   --gb-ambient-spot: radial-gradient(32% 32% at 18% 12%, rgba(59, 130, 246, 0.08) 0%, rgba(59, 130, 246, 0) 100%),
     radial-gradient(24% 26% at 82% 18%, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0) 100%);
 
@@ -37,6 +43,24 @@
   --gb-radius-lg: 14px;
   --gb-radius-xl: 18px;
   --gb-radius-pill: 999px;
+  --gb-radius-control: 8px;
+  --gb-radius-dialog: 14px;
+
+  --gb-size-app-bar: 56px;
+  --gb-size-control: 40px;
+  --gb-size-icon-button: 36px;
+  --gb-size-icon-button-touch: 44px;
+  --gb-size-icon: 20px;
+  --gb-size-row: 56px;
+  --gb-size-row-phone: 64px;
+  --gb-size-header-row: 40px;
+  --gb-size-key-value-row: 40px;
+  --gb-size-footer: 68px;
+  --gb-size-side-panel: 480px;
+  --gb-size-form-width: 720px;
+  --gb-size-chip-width: 96px;
+  --gb-size-chip-height: 24px;
+  --gb-size-thumbnail: 40px;
 
   --gb-button-height: 44px;
   --gb-button-padding-x: 16px;

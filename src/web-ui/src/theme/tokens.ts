@@ -15,6 +15,13 @@ export type ThemeTokens = {
     danger: string;
     success: string;
     warning: string;
+    dangerSoft: string;
+    successSoft: string;
+    warningSoft: string;
+    idle: string;
+    idleSoft: string;
+    loop: string;
+    ifBlock: string;
     ambientSpot: string;
   };
   spacing: {
@@ -31,6 +38,25 @@ export type ThemeTokens = {
     lg: string;
     xl: string;
     pill: string;
+    control: string;
+    dialog: string;
+  };
+  size: {
+    appBar: string;
+    control: string;
+    iconButton: string;
+    iconButtonTouch: string;
+    icon: string;
+    row: string;
+    rowPhone: string;
+    headerRow: string;
+    keyValueRow: string;
+    footer: string;
+    sidePanel: string;
+    formWidth: string;
+    chipWidth: string;
+    chipHeight: string;
+    thumbnail: string;
   };
   typography: {
     fontFamily: string;
@@ -85,6 +111,13 @@ export const tokens: ThemeTokens = {
     danger: '#b91c1c',
     success: '#15803d',
     warning: '#b45309',
+    dangerSoft: '#fdecec',
+    successSoft: '#e7f6ec',
+    warningSoft: '#fdf1e3',
+    idle: '#64748b',
+    idleSoft: '#eef1f5',
+    loop: '#7c3aed',
+    ifBlock: '#0891b2',
     ambientSpot:
       'radial-gradient(32% 32% at 18% 12%, rgba(59, 130, 246, 0.08) 0%, rgba(59, 130, 246, 0) 100%), radial-gradient(24% 26% at 82% 18%, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0) 100%)'
   },
@@ -101,10 +134,29 @@ export const tokens: ThemeTokens = {
     md: '10px',
     lg: '14px',
     xl: '18px',
-    pill: '999px'
+    pill: '999px',
+    control: '8px',
+    dialog: '14px'
+  },
+  size: {
+    appBar: '56px',
+    control: '40px',
+    iconButton: '36px',
+    iconButtonTouch: '44px',
+    icon: '20px',
+    row: '56px',
+    rowPhone: '64px',
+    headerRow: '40px',
+    keyValueRow: '40px',
+    footer: '68px',
+    sidePanel: '480px',
+    formWidth: '720px',
+    chipWidth: '96px',
+    chipHeight: '24px',
+    thumbnail: '40px'
   },
   typography: {
-    fontFamily: "'Space Grotesk','Segoe UI Variable','Segoe UI',system-ui,sans-serif",
+    fontFamily: "'Segoe UI', system-ui, -apple-system, Roboto, sans-serif",
     baseSize: '16px',
     labelSize: '14px',
     lineHeight: '1.55',
@@ -133,7 +185,7 @@ export const tokens: ThemeTokens = {
   }
 };
 
-const cssVarMap: Record<string, string> = {
+export const cssVarMap: Record<string, string> = {
   '--gb-font-family': tokens.typography.fontFamily,
   '--gb-font-size-base': tokens.typography.baseSize,
   '--gb-font-size-label': tokens.typography.labelSize,
@@ -154,6 +206,14 @@ const cssVarMap: Record<string, string> = {
   '--gb-color-danger': tokens.colors.danger,
   '--gb-color-success': tokens.colors.success,
   '--gb-color-warning': tokens.colors.warning,
+  '--gb-color-text-muted': tokens.colors.muted,
+  '--gb-color-danger-soft': tokens.colors.dangerSoft,
+  '--gb-color-success-soft': tokens.colors.successSoft,
+  '--gb-color-warning-soft': tokens.colors.warningSoft,
+  '--gb-color-idle': tokens.colors.idle,
+  '--gb-color-idle-soft': tokens.colors.idleSoft,
+  '--gb-color-loop': tokens.colors.loop,
+  '--gb-color-if': tokens.colors.ifBlock,
   '--gb-ambient-spot': tokens.colors.ambientSpot,
   '--gb-space-1': tokens.spacing.xs,
   '--gb-space-2': tokens.spacing.sm,
@@ -166,6 +226,23 @@ const cssVarMap: Record<string, string> = {
   '--gb-radius-lg': tokens.radii.lg,
   '--gb-radius-xl': tokens.radii.xl,
   '--gb-radius-pill': tokens.radii.pill,
+  '--gb-radius-control': tokens.radii.control,
+  '--gb-radius-dialog': tokens.radii.dialog,
+  '--gb-size-app-bar': tokens.size.appBar,
+  '--gb-size-control': tokens.size.control,
+  '--gb-size-icon-button': tokens.size.iconButton,
+  '--gb-size-icon-button-touch': tokens.size.iconButtonTouch,
+  '--gb-size-icon': tokens.size.icon,
+  '--gb-size-row': tokens.size.row,
+  '--gb-size-row-phone': tokens.size.rowPhone,
+  '--gb-size-header-row': tokens.size.headerRow,
+  '--gb-size-key-value-row': tokens.size.keyValueRow,
+  '--gb-size-footer': tokens.size.footer,
+  '--gb-size-side-panel': tokens.size.sidePanel,
+  '--gb-size-form-width': tokens.size.formWidth,
+  '--gb-size-chip-width': tokens.size.chipWidth,
+  '--gb-size-chip-height': tokens.size.chipHeight,
+  '--gb-size-thumbnail': tokens.size.thumbnail,
   '--gb-button-height': tokens.button.height,
   '--gb-button-padding-x': tokens.button.paddingX,
   '--gb-button-padding-y': tokens.button.paddingY,

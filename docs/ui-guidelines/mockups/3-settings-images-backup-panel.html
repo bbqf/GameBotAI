@@ -1,0 +1,301 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="common.css">
+<style>
+body{width:1960px}
+.sec{margin-bottom:40px}
+.sec h3{font-size:18px;margin:0 0 4px}
+.sec .why{color:var(--muted);margin:0 0 14px;font-size:14px}
+.phone,.desk{height:640px}
+.legend{width:300px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px 20px;margin-bottom:12px}
+.card h4{margin:0 0 12px;font-size:15px;display:flex;align-items:center;gap:8px}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
+.field .input,.field .select{color:var(--text)}
+.help{font-size:12px;color:var(--muted);margin-top:4px}
+.footer{height:68px;background:var(--surface);border-top:1px solid var(--border);display:flex;align-items:center;gap:8px;padding:0 16px;flex:none}
+.sub2{display:flex;gap:4px;padding:0 24px;background:var(--surface);border-bottom:1px solid var(--border);height:44px;flex:none}
+.sub2 .tab{font-size:13px}
+.mrow{height:56px;display:flex;align-items:center;gap:14px;padding:0 8px 0 16px;border-bottom:1px solid var(--border);font-size:15px}
+.mrow:last-child{border-bottom:0}
+.mrow svg{width:22px;height:22px;color:var(--muted)}
+.mrow .x{flex:1}
+.mrow .s{font-size:13px;color:var(--muted)}
+.h{color:#94a3b8;display:inline-flex;width:24px}
+.h svg{width:20px;height:20px}
+.thumb{width:40px;height:40px;border-radius:6px;background:linear-gradient(135deg,#fbbf24,#f97316);flex:none;display:inline-block;vertical-align:middle}
+.thumb.b{background:linear-gradient(135deg,#60a5fa,#2563eb)} .thumb.g{background:linear-gradient(135deg,#4ade80,#15803d)} .thumb.p{background:linear-gradient(135deg,#c084fc,#7c3aed)}
+.cb{width:20px;height:20px;border-radius:5px;border:2px solid #94a3b8;flex:none;display:inline-flex;align-items:center;justify-content:center}
+.cb.on{background:var(--primary);border-color:var(--primary);color:#fff}
+.cb svg{width:16px;height:16px}
+.drop{border:2px dashed #b9cdfb;border-radius:10px;background:#f6f9ff;height:96px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--primary);font-size:14px;font-weight:600;gap:4px}
+.drop span{color:var(--muted);font-weight:400;font-size:12px}
+.step{height:56px;display:flex;align-items:center;gap:8px;padding:0 4px;border-bottom:1px solid var(--border);background:var(--surface)}
+.step .no{width:28px;font-size:12px;color:var(--muted);text-align:right}
+.step .ty{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;background:var(--primary-soft);color:var(--primary);flex:none}
+.step .ty svg{width:18px;height:18px}
+.step .tx{flex:1;min-width:0}
+.step .tx b{display:block;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.step .tx span{display:block;font-size:12px;color:var(--muted)}
+.step.cur{background:#eef4ff;box-shadow:inset 3px 0 0 var(--primary)}
+.block{border-left:4px solid #7c3aed;background:#faf7ff}
+.block .ty{background:#efe7ff;color:#7c3aed}
+.child{padding-left:28px}
+.panel{width:480px;background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;box-shadow:-8px 0 24px rgba(15,23,42,.08)}
+.panel .ph2{height:56px;display:flex;align-items:center;gap:8px;padding:0 8px 0 20px;border-bottom:1px solid var(--border)}
+.seg{display:flex;border:1px solid #cbd5e1;border-radius:8px;overflow:hidden;height:40px}
+.seg span{flex:1;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;color:var(--muted)}
+.seg span.on{background:var(--primary-soft);color:var(--primary)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}
+.warn{background:var(--warn-soft);color:var(--warn);border-radius:8px;padding:10px 12px;font-size:13px;display:flex;gap:8px;align-items:flex-start;margin-bottom:10px}
+</style></head><body>
+<svg width="0" height="0" style="position:absolute"><defs>
+
+  <symbol id="play" viewBox="0 0 24 24"><path fill="currentColor" d="M8 5v14l11-7z"/></symbol>
+  <symbol id="pause" viewBox="0 0 24 24"><path fill="currentColor" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></symbol>
+  <symbol id="stop" viewBox="0 0 24 24"><path fill="currentColor" d="M6 6h12v12H6z"/></symbol>
+  <symbol id="edit" viewBox="0 0 24 24"><path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></symbol>
+  <symbol id="more" viewBox="0 0 24 24"><path fill="currentColor" d="M12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm0 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></symbol>
+  <symbol id="add" viewBox="0 0 24 24"><path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></symbol>
+  <symbol id="search" viewBox="0 0 24 24"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></symbol>
+  <symbol id="queue" viewBox="0 0 24 24"><path fill="currentColor" d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></symbol>
+  <symbol id="monitor" viewBox="0 0 24 24"><path fill="currentColor" d="M17 1H7a2 2 0 0 0-2 2v18a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2zm0 18H7V5h10v14z"/></symbol>
+  <symbol id="bell" viewBox="0 0 24 24"><path fill="currentColor" d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4a1.5 1.5 0 0 0-3 0v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></symbol>
+  <symbol id="gear" viewBox="0 0 24 24"><path fill="currentColor" d="M19.14 12.94a7.07 7.07 0 0 0 0-1.88l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7 7 0 0 0-1.62-.94l-.36-2.54A.5.5 0 0 0 13.9 2h-3.84a.5.5 0 0 0-.49.42l-.36 2.54a7.4 7.4 0 0 0-1.62.94l-2.39-.96a.5.5 0 0 0-.61.22L2.67 8.48a.5.5 0 0 0 .12.64l2.03 1.58a7.07 7.07 0 0 0 0 1.88l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.39.3.61.22l2.39-.96c.5.38 1.04.7 1.62.94l.36 2.54c.05.24.25.42.49.42h3.84c.24 0 .45-.18.49-.42l.36-2.54a7.4 7.4 0 0 0 1.62-.94l2.39.96c.22.08.48 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.6a3.6 3.6 0 1 1 0-7.2 3.6 3.6 0 0 1 0 7.2z"/></symbol>
+  <symbol id="build" viewBox="0 0 24 24"><path fill="currentColor" d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></symbol>
+  <symbol id="back" viewBox="0 0 24 24"><path fill="currentColor" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></symbol>
+  <symbol id="del" viewBox="0 0 24 24"><path fill="currentColor" d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></symbol>
+  <symbol id="copy" viewBox="0 0 24 24"><path fill="currentColor" d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z"/></symbol>
+ 
+<symbol id="drag" viewBox="0 0 24 24"><path fill="currentColor" d="M9 4a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm6 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM9 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm6 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm-6 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm6 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></symbol>
+<symbol id="cr" viewBox="0 0 24 24"><path fill="currentColor" d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></symbol>
+<symbol id="loop" viewBox="0 0 24 24"><path fill="currentColor" d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></symbol>
+<symbol id="tap" viewBox="0 0 24 24"><path fill="currentColor" d="M9 11.24V7.5a2.5 2.5 0 0 1 5 0v3.74c1.21-.81 2-2.18 2-3.74a4.5 4.5 0 0 0-9 0c0 1.56.79 2.93 2 3.74zm9.84 4.63-4.54-2.26a1.3 1.3 0 0 0-.54-.11H13v-6a1.5 1.5 0 0 0-3 0v10.74l-3.43-.72a1 1 0 0 0-.93.27l-.79.8 4.94 4.94c.27.27.65.44 1.06.44h6.79c.75 0 1.33-.55 1.44-1.28l.75-5.27a1.5 1.5 0 0 0-.99-1.55z"/></symbol>
+<symbol id="img" viewBox="0 0 24 24"><path fill="currentColor" d="M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2zM8.5 13.5l2.5 3 3.5-4.5 4.5 6H5l3.5-4.5z"/></symbol>
+<symbol id="timer" viewBox="0 0 24 24"><path fill="currentColor" d="M15 1H9v2h6V1zm-4 13h2V8h-2v6zm8.03-6.61 1.42-1.42c-.43-.51-.9-.99-1.41-1.41l-1.42 1.42A9 9 0 1 0 21 13a8.96 8.96 0 0 0-1.97-5.61zM12 20a7 7 0 1 1 0-14 7 7 0 0 1 0 14z"/></symbol>
+<symbol id="close" viewBox="0 0 24 24"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></symbol>
+<symbol id="check" viewBox="0 0 24 24"><path fill="currentColor" d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></symbol>
+<symbol id="upload" viewBox="0 0 24 24"><path fill="currentColor" d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></symbol>
+<symbol id="download" viewBox="0 0 24 24"><path fill="currentColor" d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></symbol>
+<symbol id="list" viewBox="0 0 24 24"><path fill="currentColor" d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></symbol>
+<symbol id="pkg" viewBox="0 0 24 24"><path fill="currentColor" d="M20 6h-8l-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2z"/></symbol>
+<symbol id="sys" viewBox="0 0 24 24"><path fill="currentColor" d="M21 10.12h-6.78l2.74-2.82a7.03 7.03 0 0 0-9.88-.1 6.88 6.88 0 0 0 0 9.8 7.02 7.02 0 0 0 9.88 0A6.5 6.5 0 0 0 19 12.1h2a8.4 8.4 0 0 1-2.64 6.22 9.04 9.04 0 0 1-12.7 0 8.83 8.83 0 0 1 0-12.58 9 9 0 0 1 12.65 0L21 3v7.12z"/></symbol>
+<symbol id="key" viewBox="0 0 24 24"><path fill="currentColor" d="M12.65 10A6 6 0 0 0 1 12a6 6 0 0 0 11.65 2H17v4h4v-4h2v-4H12.65zM7 14a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"/></symbol>
+<symbol id="warnI" viewBox="0 0 24 24"><path fill="currentColor" d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></symbol>
+</defs></svg>
+
+<h1 class="sheet">GameBot UI guideline — proposal 3: Settings/More, Configuration, Images, Backup &amp; Restore, step side panel</h1>
+<p class="sub">Decided: step edit = side panel 480 px on desktop · Logs, Configuration, Gamepacks, Update go under Settings (desktop) / More (phone) · colors and system font as in the mockups.</p>
+
+<!-- E + F -->
+<div class="sec">
+<h3>E/F. Settings area and Configuration page</h3>
+<p class="why">Phone "More" = a menu list of the same 4 sub-pages that desktop shows as sub-tabs. Configuration parameters use the normal list component.</p>
+<div class="wrap">
+ <div><div class="label">Phone · More tab</div>
+ <div class="frame phone">
+  <div class="appbar" style="padding:0 12px"><div class="brand" style="margin:0">GameBot</div><div class="spacer"></div><div class="conn"><span class="dot"></span>Online</div></div>
+  <div class="content">
+   <div class="ph"><h2>More</h2></div>
+   <div class="list">
+    <div class="mrow"><svg><use href="#list"/></svg><div class="x">Execution logs<div class="s">3 failed today</div></div><svg><use href="#cr"/></svg></div>
+    <div class="mrow"><svg><use href="#gear"/></svg><div class="x">Configuration</div><svg><use href="#cr"/></svg></div>
+    <div class="mrow"><svg><use href="#pkg"/></svg><div class="x">Gamepacks<div class="s">1 update available</div></div><svg><use href="#cr"/></svg></div>
+    <div class="mrow"><svg><use href="#sys"/></svg><div class="x">Update<div class="s">Version 3.14.2</div></div><svg><use href="#cr"/></svg></div>
+   </div>
+   <div class="label" style="margin-top:20px">Desktop only</div>
+   <div class="list" style="opacity:.55">
+    <div class="mrow"><svg><use href="#build"/></svg><div class="x">Authoring<div class="s">Use a computer</div></div></div>
+   </div>
+  </div>
+  <div class="tabbar"><div class="tb"><svg><use href="#queue"/></svg>Queues</div><div class="tb"><svg><use href="#monitor"/></svg>Monitor</div><div class="tb"><svg><use href="#bell"/></svg>Alerts</div><div class="tb on"><svg><use href="#more"/></svg>More</div></div>
+ </div></div>
+ <div><div class="label">Desktop · Settings › Configuration</div>
+ <div class="frame desk">
+  <div class="appbar"><div class="brand">GameBot</div><div class="tabs"><div class="tab"><svg width="20" height="20"><use href="#queue"/></svg>Queues</div><div class="tab"><svg width="20" height="20"><use href="#monitor"/></svg>Monitor</div><div class="tab"><svg width="20" height="20"><use href="#bell"/></svg>Alerts</div><div class="tab"><svg width="20" height="20"><use href="#build"/></svg>Authoring</div><div class="tab on"><svg width="20" height="20"><use href="#gear"/></svg>Settings</div></div><div class="spacer"></div><div class="conn"><span class="dot"></span>Online</div></div>
+  <div class="sub2"><div class="tab">Execution logs</div><div class="tab on">Configuration</div><div class="tab">Gamepacks</div><div class="tab">Update</div></div>
+  <div class="content">
+   <div class="ph"><h2>Configuration</h2><span class="btn secondary"><svg><use href="#add"/></svg>Add parameter</span></div>
+   <div class="card" style="padding:14px 20px 2px"><h4><svg width="18" height="18" style="color:var(--muted)"><use href="#key"/></svg>Connection</h4>
+    <div class="grid2"><div class="field"><label>Service URL</label><div class="input">http://localhost:5081</div></div><div class="field"><label>Access token</label><div class="input">••••••••••••••••</div></div></div>
+   </div>
+   <div class="list">
+    <table><colgroup><col style="width:48px"><col style="width:260px"><col><col style="width:120px"><col style="width:120px"></colgroup>
+     <thead><tr><th></th><th>Parameter</th><th>Value</th><th>Type</th><th style="text-align:right">Actions</th></tr></thead>
+     <tbody>
+      <tr><td><span class="h"><svg><use href="#drag"/></svg></span></td><td class="name">AdbPath</td><td class="mono">C:\platform-tools\adb.exe</td><td class="meta">Text</td><td><div class="acts"><span class="ib"><svg><use href="#edit"/></svg></span><span class="ib"><svg><use href="#more"/></svg></span></div></td></tr>
+      <tr><td><span class="h"><svg><use href="#drag"/></svg></span></td><td class="name">ScreenshotIntervalMs</td><td class="mono">500</td><td class="meta">Number</td><td><div class="acts"><span class="ib"><svg><use href="#edit"/></svg></span><span class="ib"><svg><use href="#more"/></svg></span></div></td></tr>
+      <tr><td><span class="h"><svg><use href="#drag"/></svg></span></td><td class="name">RecoveryReboot</td><td><span class="chip c-run" style="width:auto"><span class="dot"></span>On</span></td><td class="meta">On/off</td><td><div class="acts"><span class="ib"><svg><use href="#edit"/></svg></span><span class="ib"><svg><use href="#more"/></svg></span></div></td></tr>
+      <tr><td><span class="h"><svg><use href="#drag"/></svg></span></td><td class="name">LogRetentionDays</td><td class="mono">14</td><td class="meta">Number</td><td><div class="acts"><span class="ib"><svg><use href="#edit"/></svg></span><span class="ib"><svg><use href="#more"/></svg></span></div></td></tr>
+     </tbody></table>
+   </div>
+  </div>
+ </div></div>
+ <div class="legend"><div class="label">Rules</div><ol>
+  <li><b>Phone "More"</b> = the desktop sub-tabs of Settings, same names, same order, same icons.</li>
+  <li>Menu rows: 56 px, icon · name + one status line · chevron.</li>
+  <li>Desktop-only pages are listed on phone, dimmed, with "Use a computer" (not hidden, so the user knows they exist).</li>
+  <li>Second-level navigation on desktop = sub-tabs under the main tabs (same for Authoring and Settings).</li>
+  <li>Configuration parameters = normal list with a drag column; values in monospace; secrets are masked.</li>
+ </ol></div>
+</div></div>
+
+<!-- G -->
+<div class="sec">
+<h3>G. Images</h3>
+<p class="why">Images also use the list component; a 40 px thumbnail fits in the 56 px row. Upload is the primary button; drop also works on desktop.</p>
+<div class="wrap">
+ <div><div class="label">Phone · Images (read-only on phone)</div>
+ <div class="frame phone">
+  <div class="appbar" style="padding:0 4px"><span class="ib"><svg><use href="#back"/></svg></span><b style="font-size:17px">Images</b></div>
+  <div class="content">
+   <div class="fbar"><div class="input" style="flex:1"><svg><use href="#search"/></svg>Filter by ID</div></div>
+   <div class="list">
+    <div class="prow"><span class="thumb"></span><div class="t"><div class="n">reward-chest</div><div class="m">96 × 96 · used in 4 steps</div></div><span class="ib"><svg><use href="#more"/></svg></span></div>
+    <div class="prow"><span class="thumb b"></span><div class="t"><div class="n">claim-button</div><div class="m">180 × 64 · used in 7 steps</div></div><span class="ib"><svg><use href="#more"/></svg></span></div>
+    <div class="prow"><span class="thumb g"></span><div class="t"><div class="n">boss-gate</div><div class="m">240 × 240 · used in 1 step</div></div><span class="ib"><svg><use href="#more"/></svg></span></div>
+    <div class="prow"><span class="thumb p"></span><div class="t"><div class="n">mail-icon-with-a-long-identifier</div><div class="m">64 × 64 · not used</div></div><span class="ib"><svg><use href="#more"/></svg></span></div>
+   </div>
+  </div>
+ </div></div>
+ <div><div class="label">Desktop · Authoring › Images</div>
+ <div class="frame desk">
+  <div class="appbar"><div class="brand">GameBot</div><div class="tabs"><div class="tab"><svg width="20" height="20"><use href="#queue"/></svg>Queues</div><div class="tab"><svg width="20" height="20"><use href="#monitor"/></svg>Monitor</div><div class="tab"><svg width="20" height="20"><use href="#bell"/></svg>Alerts</div><div class="tab on"><svg width="20" height="20"><use href="#build"/></svg>Authoring</div><div class="tab"><svg width="20" height="20"><use href="#gear"/></svg>Settings</div></div><div class="spacer"></div><div class="conn"><span class="dot"></span>Online</div></div>
+  <div class="sub2"><div class="tab">Commands</div><div class="tab">Games</div><div class="tab">Sequences</div><div class="tab on">Images</div><div class="tab">Backup &amp; Restore</div></div>
+  <div class="content">
+   <div class="ph"><h2>Images</h2><span class="btn primary"><svg><use href="#upload"/></svg>Upload image</span></div>
+   <div class="fbar"><div class="input" style="width:400px"><svg><use href="#search"/></svg>Filter by ID</div></div>
+   <div class="list">
+    <table><colgroup><col style="width:72px"><col><col style="width:140px"><col style="width:160px"><col style="width:140px"></colgroup>
+     <thead><tr><th></th><th>Image ID</th><th>Size</th><th>Used in</th><th style="text-align:right">Actions</th></tr></thead>
+     <tbody>
+      <tr><td><span class="thumb"></span></td><td class="name">reward-chest</td><td class="meta">96 × 96</td><td class="meta">4 steps</td><td><div class="acts"><span class="ib"><svg><use href="#search"/></svg></span><span class="ib"><svg><use href="#upload"/></svg></span><span class="ib"><svg><use href="#more"/></svg></span></div></td></tr>
+      <tr><td><span class="thumb b"></span></td><td class="name">claim-button</td><td class="meta">180 × 64</td><td class="meta">7 steps</td><td><div class="acts"><span class="ib"><svg><use href="#search"/></svg></span><span class="ib"><svg><use href="#upload"/></svg></span><span class="ib"><svg><use href="#more"/></svg></span></div></td></tr>
+      <tr><td><span class="thumb g"></span></td><td class="name">boss-gate</td><td class="meta">240 × 240</td><td class="meta">1 step</td><td><div class="acts"><span class="ib"><svg><use href="#search"/></svg></span><span class="ib"><svg><use href="#upload"/></svg></span><span class="ib"><svg><use href="#more"/></svg></span></div></td></tr>
+      <tr><td><span class="thumb p"></span></td><td class="name">mail-icon-with-a-long-identifier</td><td class="meta">64 × 64</td><td class="meta">—</td><td><div class="acts"><span class="ib"><svg><use href="#search"/></svg></span><span class="ib"><svg><use href="#upload"/></svg></span><span class="ib"><svg><use href="#more"/></svg></span></div></td></tr>
+     </tbody></table>
+   </div>
+   <div class="drop" style="margin-top:12px;height:72px">Drop image files here<span>PNG, max. 5 MB</span></div>
+  </div>
+ </div></div>
+ <div class="legend"><div class="label">Rules</div><ol>
+  <li>Thumbnails: 40 × 40 px, radius 6, in the 56 px row. No grid view, so all lists look the same.</li>
+  <li>Empty value in a table = "—" (not blank, not "0").</li>
+  <li>Row actions here: Test detection (magnifier), Replace (upload) + ⋮ (Rename, Delete).</li>
+  <li>Click on the row (outside the actions) = open the detail page. Same for all lists.</li>
+  <li>Authoring pages are read-only or hidden on phone (as now) — the guideline still applies when they come to phone.</li>
+ </ol></div>
+</div></div>
+
+<!-- H -->
+<div class="sec">
+<h3>H. Backup &amp; Restore</h3>
+<p class="why">Two cards with the same structure: what to include (checkbox list) and one main action. Restore conflicts are a list, and the confirmation is a dialog.</p>
+<div class="wrap">
+ <div><div class="label">Phone</div>
+ <div class="frame phone">
+  <div class="appbar" style="padding:0 4px"><span class="ib"><svg><use href="#back"/></svg></span><b style="font-size:17px">Backup &amp; Restore</b></div>
+  <div class="content">
+   <div class="seg" style="margin-bottom:12px"><span class="on">Backup</span><span>Restore</span></div>
+   <div class="list">
+    <div class="mrow"><span class="cb on"><svg><use href="#check"/></svg></span><div class="x">Select all</div><span class="s">5 of 5</span></div>
+    <div class="mrow"><span class="cb on"><svg><use href="#check"/></svg></span><div class="x">Sequences<div class="s">24 items</div></div></div>
+    <div class="mrow"><span class="cb on"><svg><use href="#check"/></svg></span><div class="x">Commands<div class="s">61 items</div></div></div>
+    <div class="mrow"><span class="cb on"><svg><use href="#check"/></svg></span><div class="x">Images<div class="s">112 items · 18 MB</div></div></div>
+    <div class="mrow"><span class="cb on"><svg><use href="#check"/></svg></span><div class="x">Queues<div class="s">6 items</div></div></div>
+    <div class="mrow"><span class="cb on"><svg><use href="#check"/></svg></span><div class="x">Configuration</div></div>
+   </div>
+  </div>
+  <div class="footer"><div class="spacer"></div><span class="btn primary"><svg><use href="#download"/></svg>Download backup</span></div>
+ </div></div>
+ <div><div class="label">Desktop · Authoring › Backup &amp; Restore</div>
+ <div class="frame desk" style="position:relative">
+  <div class="appbar"><div class="brand">GameBot</div><div class="tabs"><div class="tab"><svg width="20" height="20"><use href="#queue"/></svg>Queues</div><div class="tab"><svg width="20" height="20"><use href="#monitor"/></svg>Monitor</div><div class="tab"><svg width="20" height="20"><use href="#bell"/></svg>Alerts</div><div class="tab on"><svg width="20" height="20"><use href="#build"/></svg>Authoring</div><div class="tab"><svg width="20" height="20"><use href="#gear"/></svg>Settings</div></div><div class="spacer"></div><div class="conn"><span class="dot"></span>Online</div></div>
+  <div class="sub2"><div class="tab">Commands</div><div class="tab">Games</div><div class="tab">Sequences</div><div class="tab">Images</div><div class="tab on">Backup &amp; Restore</div></div>
+  <div class="content" style="display:flex;justify-content:center">
+   <div style="width:720px">
+    <div class="ph"><h2>Backup &amp; Restore</h2></div>
+    <div class="seg" style="margin-bottom:12px;width:320px"><span>Backup</span><span class="on">Restore</span></div>
+    <div class="card"><h4>1. Select a backup file</h4>
+     <div style="display:flex;align-items:center;gap:12px;height:56px;border:1px solid var(--border);border-radius:8px;padding:0 8px 0 14px"><svg width="22" height="22" style="color:var(--muted)"><use href="#pkg"/></svg><div style="flex:1"><b style="font-size:14px">gamebot-backup-2026-11-20.zip</b><div class="meta" style="font-size:12px">4.2 MB · 209 items</div></div><span class="ib"><svg><use href="#close"/></svg></span></div>
+    </div>
+    <div class="card" style="padding-bottom:6px"><h4>2. Resolve conflicts <span class="chip c-pause" style="width:auto"><span class="dot"></span>3 conflicts</span></h4>
+     <div class="list" style="border-radius:8px">
+      <table><colgroup><col><col style="width:120px"><col style="width:220px"></colgroup>
+      <tbody>
+       <tr><td class="name">Daily rewards</td><td class="meta">Sequence</td><td><div class="seg" style="height:32px"><span class="on" style="font-size:12px">Replace</span><span style="font-size:12px">Keep mine</span></div></td></tr>
+       <tr><td class="name">claim-button</td><td class="meta">Image</td><td><div class="seg" style="height:32px"><span style="font-size:12px">Replace</span><span class="on" style="font-size:12px">Keep mine</span></div></td></tr>
+       <tr><td class="name">AdbPath</td><td class="meta">Configuration</td><td><div class="seg" style="height:32px"><span style="font-size:12px">Replace</span><span class="on" style="font-size:12px">Keep mine</span></div></td></tr>
+      </tbody></table>
+     </div>
+    </div>
+   </div>
+  </div>
+  <div class="footer" style="justify-content:center"><div style="width:720px;display:flex;gap:8px"><span class="meta" style="align-self:center;font-size:13px">206 new · 1 replaced · 2 kept</span><div class="spacer"></div><span class="btn primary"><svg><use href="#upload"/></svg>Restore</span></div></div>
+  <!-- dialog -->
+  <div style="position:absolute;inset:0;background:rgba(15,23,42,.35);display:flex;align-items:center;justify-content:center">
+   <div style="width:440px;background:var(--surface);border-radius:14px;box-shadow:0 20px 50px rgba(15,23,42,.3);overflow:hidden">
+    <div style="padding:20px 24px 8px"><b style="font-size:18px">Restore 209 items?</b>
+     <p style="font-size:14px;color:var(--muted);margin:10px 0 14px">1 item will be replaced. You cannot undo this. Running queues stop during the restore.</p></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;padding:12px 24px 20px"><span class="btn secondary">Cancel</span><span class="btn danger">Restore</span></div>
+   </div>
+  </div>
+ </div></div>
+ <div class="legend"><div class="label">Rules</div><ol>
+  <li>Two modes on one page = <b>segmented control</b> (not two separate pages, not tabs).</li>
+  <li>Checkbox lists: 56 px rows, "Select all" as the first row with a count.</li>
+  <li>Choice per row (Replace / Keep mine) = small segmented control, fixed width.</li>
+  <li>Main action in the footer bar with a short summary on the left.</li>
+  <li><b>Confirmation dialog</b> (one design for all): title as a question with the number of items, one sentence about the effect, Cancel + the action. The action is red when it deletes or replaces data.</li>
+ </ol></div>
+</div></div>
+
+<!-- I -->
+<div class="sec">
+<h3>I. Step editor with the side panel (desktop)</h3>
+<p class="why">The list stays visible; the selected step is marked. The panel uses the normal form rules and its own footer bar.</p>
+<div class="wrap">
+ <div style="width:360px" class="legend"><div class="label">Rules</div><ol>
+  <li>Side panel: 480 px, on the right, full height under the tabs. Header = title + close (✕ as SVG icon).</li>
+  <li>The edited row is marked: light blue background + 3 px blue left line.</li>
+  <li>Panel content = form rules (labels above, cards, 40 px inputs). Its footer: Cancel + Apply.</li>
+  <li>"Apply" changes the step in the list; "Save" in the page footer saves the sequence. The page footer shows "Changes are not saved".</li>
+  <li>The same side panel is used for other "edit one item of a list" cases on desktop (for example a configuration parameter). On phone it is always a full page.</li>
+ </ol></div>
+ <div><div class="label">Desktop · Authoring › Sequences › Daily rewards</div>
+ <div class="frame desk" style="width:1560px">
+  <div class="appbar"><div class="brand">GameBot</div><div class="tabs"><div class="tab"><svg width="20" height="20"><use href="#queue"/></svg>Queues</div><div class="tab"><svg width="20" height="20"><use href="#monitor"/></svg>Monitor</div><div class="tab"><svg width="20" height="20"><use href="#bell"/></svg>Alerts</div><div class="tab on"><svg width="20" height="20"><use href="#build"/></svg>Authoring</div><div class="tab"><svg width="20" height="20"><use href="#gear"/></svg>Settings</div></div><div class="spacer"></div><div class="conn"><span class="dot"></span>Online</div></div>
+  <div class="sub2"><div class="tab">Commands</div><div class="tab">Games</div><div class="tab on">Sequences</div><div class="tab">Images</div><div class="tab">Backup &amp; Restore</div></div>
+  <div style="flex:1;display:flex;min-height:0">
+   <div style="flex:1;display:flex;flex-direction:column">
+    <div class="content">
+     <div class="ph"><span class="ib"><svg><use href="#back"/></svg></span><h2>Daily rewards</h2><span class="btn secondary"><svg><use href="#add"/></svg>Add step</span><span class="ib"><svg><use href="#more"/></svg></span></div>
+     <div class="list">
+      <div class="step"><span class="h"><svg><use href="#drag"/></svg></span><span class="no">1</span><span class="ty"><svg><use href="#tap"/></svg></span><div class="tx"><b>Tap “Mail”</b><span>x 540, y 1210</span></div><span class="ib"><svg><use href="#edit"/></svg></span><span class="ib"><svg><use href="#copy"/></svg></span><span class="ib"><svg><use href="#more"/></svg></span></div>
+      <div class="step block"><span class="h"><svg><use href="#drag"/></svg></span><span class="no">2</span><span class="ty"><svg><use href="#loop"/></svg></span><div class="tx"><b>Repeat 5 times</b><span>2 steps</span></div><span class="ib"><svg><use href="#edit"/></svg></span><span class="ib"><svg><use href="#copy"/></svg></span><span class="ib"><svg><use href="#more"/></svg></span></div>
+      <div class="block"><div class="child">
+       <div class="step cur"><span class="h"><svg><use href="#drag"/></svg></span><span class="no">2.1</span><span class="ty"><svg><use href="#img"/></svg></span><div class="tx"><b>Wait for image “claim-button”</b><span>max. 15 s · confidence 0.85</span></div><span class="ib hover"><svg><use href="#edit"/></svg></span><span class="ib"><svg><use href="#copy"/></svg></span><span class="ib"><svg><use href="#more"/></svg></span></div>
+       <div class="step"><span class="h"><svg><use href="#drag"/></svg></span><span class="no">2.2</span><span class="ty"><svg><use href="#tap"/></svg></span><div class="tx"><b>Tap “Claim”</b><span>on image</span></div><span class="ib"><svg><use href="#edit"/></svg></span><span class="ib"><svg><use href="#copy"/></svg></span><span class="ib"><svg><use href="#more"/></svg></span></div>
+      </div></div>
+      <div class="step"><span class="h"><svg><use href="#drag"/></svg></span><span class="no">3</span><span class="ty"><svg><use href="#timer"/></svg></span><div class="tx"><b>Wait 2 s</b><span>fixed</span></div><span class="ib"><svg><use href="#edit"/></svg></span><span class="ib"><svg><use href="#copy"/></svg></span><span class="ib"><svg><use href="#more"/></svg></span></div>
+     </div>
+    </div>
+    <div class="footer"><span class="meta" style="font-size:13px">Changes are not saved</span><div class="spacer"></div><span class="btn secondary">Cancel</span><span class="btn primary">Save</span></div>
+   </div>
+   <div class="panel">
+    <div class="ph2"><b style="flex:1;font-size:16px">Edit step 2.1</b><span class="ib"><svg><use href="#close"/></svg></span></div>
+    <div style="flex:1;padding:16px 20px;background:var(--bg)">
+     <div class="card"><h4>Step</h4>
+      <div class="field"><label>Type</label><div class="select" style="justify-content:space-between">Wait for image <span>▾</span></div></div>
+      <div class="field"><label>Image</label><div style="display:flex;gap:10px;align-items:center"><span class="thumb b"></span><div class="select" style="flex:1;justify-content:space-between">claim-button <span>▾</span></div></div></div>
+      <div class="grid2"><div class="field"><label>Timeout (s)</label><div class="input" style="color:var(--text)">15</div></div><div class="field"><label>Confidence</label><div class="input" style="color:var(--text)">0.85</div></div></div>
+      <div class="field" style="margin:0"><label>If not found</label><div class="seg"><span class="on">Fail</span><span>Skip</span><span>Retry</span></div></div>
+     </div>
+    </div>
+    <div class="footer"><div class="spacer"></div><span class="btn secondary">Cancel</span><span class="btn primary">Apply</span></div>
+   </div>
+  </div>
+ </div></div>
+</div></div>
+</body></html>

@@ -128,11 +128,11 @@ test.describe('Queues on a phone', () => {
     await expect(page.getByText('PNS Daily')).toBeVisible();
     await expect(page.getByTestId('queue-status')).toHaveText('Stopped');
 
-    await page.getByRole('button', { name: 'Start', exact: true }).click();
+    await page.getByRole('button', { name: 'Start PNS Daily', exact: true }).click();
     await expect(page.getByTestId('queue-status')).toHaveText('Running');
     expect(state.calls).toContain('POST /api/queues/q1/start');
 
-    await page.getByRole('button', { name: 'Stop', exact: true }).click();
+    await page.getByRole('button', { name: 'Stop PNS Daily', exact: true }).click();
     await expect(page.getByTestId('queue-status')).toHaveText('Stopped');
     expect(state.calls).toContain('POST /api/queues/q1/stop');
   });
@@ -187,11 +187,11 @@ test.describe('Queues on a phone', () => {
   test('shows the banner and turns the controls off when the service does not answer', async ({ page }) => {
     const state = await mockApi(page);
     await page.goto('/');
-    await expect(page.getByRole('button', { name: 'Start', exact: true })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Start PNS Daily', exact: true })).toBeEnabled();
     state.health = false;
     await page.context().setOffline(true);
     await expect(page.getByText('Connection lost')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Start', exact: true })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Start PNS Daily', exact: true })).toBeDisabled();
     await page.context().setOffline(false);
     state.health = true;
     await expect(page.getByText('Connection lost')).toHaveCount(0, { timeout: 15_000 });
