@@ -93,6 +93,22 @@ public sealed class ConcurrentQueueRunTests {
     }
   }
 
+  /// <summary>
+  /// Waits until the monitor reports that the run is not running, and returns that snapshot.
+  /// The status changes to Stopped a short time before the run leaves the registry. In that time
+  /// the monitor still returns the running view, which has no <c>lastOutcome</c>. Thus a test that
+  /// reads <c>lastOutcome</c> must wait for the monitor, not only for the status.
+  /// </summary>
+  private static async Task<JsonElement> WaitForMonitorStoppedAsync(HttpClient client, string id, int timeoutMs = 8000) {
+    var sw = Stopwatch.StartNew();
+    var monitor = await MonitorAsync(client, id).ConfigureAwait(true);
+    while (monitor.GetProperty("running").GetBoolean() && sw.ElapsedMilliseconds < timeoutMs) {
+      await Task.Delay(25).ConfigureAwait(true);
+      monitor = await MonitorAsync(client, id).ConfigureAwait(true);
+    }
+    return monitor;
+  }
+
   private static async Task WaitForStatusAsync(HttpClient client, string id, string expected, int timeoutMs = 8000) {
     var sw = Stopwatch.StartNew();
     while (sw.ElapsedMilliseconds < timeoutMs) {
@@ -213,7 +229,7 @@ public sealed class ConcurrentQueueRunTests {
     (await StartAsync(client, broken).ConfigureAwait(true)).StatusCode.Should().Be(HttpStatusCode.OK);
     await WaitForStatusAsync(client, broken, "Stopped").ConfigureAwait(true);
 
-    var outcome = (await MonitorAsync(client, broken).ConfigureAwait(true)).GetProperty("lastOutcome");
+    var outcome = (await WaitForMonitorStoppedAsync(client, broken).ConfigureAwait(true)).GetProperty("lastOutcome");
     outcome.ValueKind.Should().NotBe(JsonValueKind.Null);
     outcome.GetProperty("status").GetString().Should().Be("failure");
     outcome.GetProperty("summary").GetString().Should().Contain("no template to run");
@@ -243,7 +259,7 @@ public sealed class ConcurrentQueueRunTests {
       (await StartAsync(client, second).ConfigureAwait(true)).StatusCode.Should().Be(HttpStatusCode.OK);
       await WaitForStatusAsync(client, second, "Stopped").ConfigureAwait(true);
 
-      var monitor = await MonitorAsync(client, second).ConfigureAwait(true);
+      var monitor = await WaitForMonitorStoppedAsync(client, second).ConfigureAwait(true);
       var outcome = monitor.GetProperty("lastOutcome");
       outcome.ValueKind.Should().NotBe(JsonValueKind.Null);
       var sessionsDump = await (await client.GetAsync(new Uri("/api/sessions/running", UriKind.Relative)).ConfigureAwait(true)).Content.ReadAsStringAsync().ConfigureAwait(true);
