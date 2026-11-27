@@ -239,13 +239,16 @@ internal sealed class StepThroughService : IStepThroughService {
         session.State.Adopt(work);
         committed.AddRange(produced);
       }
+    }
 
+    // The step stays "running" until the execution log entry is final and the history has its ID. Before, a
+    // client could read "idle" with no executionLogId, or read a log entry that was not final yet.
+    await FinishLogAsync(session, rootId, committed).ConfigureAwait(false);
+    lock (session.Gate) {
       session.Running = false;
       session.RunningPath = null;
       session.RunCts = null;
     }
-
-    await FinishLogAsync(session, rootId, committed).ConfigureAwait(false);
     cts.Dispose();
   }
 

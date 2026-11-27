@@ -68,6 +68,7 @@ All notable changes to this project will be documented in this file.
   - **Logs**: the first failed bind of a period gives the warning 1145. The next failed binds give the debug line 1146. A bind that succeeds gives the warning 1131.
   - **Not changed**: a queue with `deviceRecovery` `none` (or no `deviceRecovery`) still ends its run with "emulator connection lost mid-run". The API schema, the `deviceRecovery` schema, the not-live rules, the manual start, and the stop are the same.
   - **Perf note**: a bind try runs only while no session is bound, at most one time for each liveness check and each firing.
+  - **Also fixed**: a step-through step stays `running` until its execution log entry is final. Before, a client could read the state `idle` with no `executionLogId` in the history (a CI test failed on this race).
   - **Version**: the patch version is now 1.12.33.
 - A reschedule-self Cancel step that runs has the status success in the execution log (200-fix-cancel-step-status, #414, B-046)
   - **Problem**: a `reschedule-self` step with the option `Cancel` removed the pending bookings of its sequence, but the execution log gave the step node the status `failure`. The status calculation did not know the outcome `cancelled`. A `Cancel` step that found no booking had the outcome `noop` and the status `skipped`.
