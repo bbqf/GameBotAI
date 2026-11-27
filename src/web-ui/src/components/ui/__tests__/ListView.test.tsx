@@ -37,6 +37,30 @@ describe('ListView desktop', () => {
       />
     );
 
+  it('marks the selected row', () => {
+    render(<ListView<Row> mode="desktop" selectedRowKey="2" ariaLabel="Items table" columns={columns} rows={rows} getRowKey={(r) => r.id} />);
+    const [, first, second] = screen.getAllByRole('row');
+    expect(first).not.toHaveClass('ui-list__row--selected');
+    expect(first).toHaveAttribute('aria-selected', 'false');
+    expect(second).toHaveClass('ui-list__row--selected');
+    expect(second).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('does not show the secondary columns in compact mode', () => {
+    const withSecondary: ListColumn<Row>[] = [columns[0], { ...columns[1], secondary: true }];
+    const { container, rerender } = render(
+      <ListView<Row> mode="desktop" ariaLabel="Items table" columns={withSecondary} rows={rows} getRowKey={(r) => r.id} />
+    );
+    expect(screen.getByRole('columnheader', { name: 'Note' })).toBeInTheDocument();
+
+    rerender(
+      <ListView<Row> mode="desktop" compact ariaLabel="Items table" columns={withSecondary} rows={rows} getRowKey={(r) => r.id} />
+    );
+    expect(screen.queryByRole('columnheader', { name: 'Note' })).toBeNull();
+    expect(container.querySelectorAll('col')).toHaveLength(1);
+    expect(screen.queryAllByTestId('note-cell')).toHaveLength(0);
+  });
+
   it('sets a col width for each fixed column and none for the flexible column', () => {
     const { container } = renderList({ rowActions: actionsFor(), actionsColumn: { header: 'Actions', width: 184 } });
     const cols = Array.from(container.querySelectorAll('col'));

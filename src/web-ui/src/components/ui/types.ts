@@ -36,6 +36,8 @@ export type ListColumn<T> = {
   text?: (row: T) => string;
   /** A `data-testid` for each cell of the column. */
   cellTestId?: string;
+  /** A column that the list does not show in compact mode (for example while a side panel is open). */
+  secondary?: boolean;
 };
 
 export type ListState =

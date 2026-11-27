@@ -34,6 +34,13 @@ export type ListViewProps<T> = {
   phone?: ListViewPhone<T>;
   /** The default comes from the window size. */
   mode?: LayoutMode;
+  /**
+   * Desktop only. When true, the list does not show the columns with `secondary: true`. Use it while a side panel
+   * makes the page narrow, so that all rows and their actions stay visible with no sideways scroll (rule D2).
+   */
+  compact?: boolean;
+  /** Desktop only. The key of the row that is open in a side panel. The row gets a mark (rule D2). */
+  selectedRowKey?: string;
   tableClassName?: string;
   rowClassName?: string;
   rowTestId?: (row: T) => string;
@@ -78,7 +85,9 @@ const StateMessage: React.FC<{ state: Exclude<ListState, 'ready'> }> = ({ state 
 
 function DesktopList<T>({
   ariaLabel,
-  columns,
+  columns: allColumns,
+  compact = false,
+  selectedRowKey,
   rows,
   getRowKey,
   onRowClick,
@@ -92,6 +101,7 @@ function DesktopList<T>({
   rowClassName,
   rowTestId,
 }: ListViewProps<T>): React.ReactElement {
+  const columns = compact ? allColumns.filter((c) => !c.secondary) : allColumns;
   const hasActions = Boolean(rowActions || renderActions);
   const actions = actionsColumn ?? DEFAULT_ACTIONS_COLUMN;
   const fixedWidth = columns.reduce((sum, c) => sum + (c.width === 'flex' ? 0 : c.width), 0) + (hasActions ? actions.width : 0);
@@ -136,7 +146,13 @@ function DesktopList<T>({
               // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions
               <tr
                 key={getRowKey(row)}
-                className={cx('ui-list__row', onRowClick && 'ui-list__row--clickable', rowClassName)}
+                className={cx(
+                  'ui-list__row',
+                  onRowClick && 'ui-list__row--clickable',
+                  selectedRowKey === getRowKey(row) && 'ui-list__row--selected',
+                  rowClassName
+                )}
+                aria-selected={selectedRowKey !== undefined ? selectedRowKey === getRowKey(row) : undefined}
                 data-testid={rowTestId?.(row)}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
               >

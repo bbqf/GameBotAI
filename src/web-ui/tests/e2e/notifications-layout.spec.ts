@@ -102,6 +102,30 @@ test.describe('Notifications layout (desktop)', () => {
     await expect(addButton).toBeFocused();
   });
 
+  test('while the panel is open, the list shows only Name, Enabled, and Actions, with no sideways scroll', async ({ page }) => {
+    await open(page);
+    await page.getByRole('button', { name: 'Add target' }).click();
+    await expect(page.getByTestId('target-editor')).toBeVisible();
+
+    const headers = page.locator('table.notification-target-list th');
+    await expect(headers).toHaveText([/^Name$/i, /^Enabled$/i, /^Actions$/i]);
+    const card = page.locator('.ui-list', { has: page.locator('table.notification-target-list') });
+    const overflow = await card.evaluate((el) => el.scrollWidth - el.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(0);
+    // The actions of each row are visible and not under the panel.
+    const panelLeft = (await page.getByTestId('target-editor').boundingBox())!.x;
+    const more = (await page.getByRole('button', { name: 'More actions for My phone' }).boundingBox())!;
+    expect(more.x + more.width).toBeLessThanOrEqual(panelLeft);
+
+    await page.keyboard.press('Escape');
+    await expect(headers).toHaveCount(6);
+
+    // Rule D2: the row that is open in the panel has a mark.
+    await page.getByRole('button', { name: 'Edit Team chat' }).click();
+    await expect(page.getByTestId('target-row-t2')).toHaveClass(/ui-list__row--selected/);
+    await expect(page.getByTestId('target-row-t1')).not.toHaveClass(/ui-list__row--selected/);
+  });
+
   test('Save with empty fields shows both errors and sends no POST', async ({ page }) => {
     const state = await open(page);
     await page.getByRole('button', { name: 'Add target' }).click();

@@ -251,6 +251,15 @@
   cursor: pointer;
 }
 
+/* The row that is open in a side panel: a light blue background and a blue line on the left (rule D2). */
+tr.ui-list__row.ui-list__row--selected {
+  background: var(--gb-color-primary-soft);
+}
+
+.ui-list__row--selected > td:first-child {
+  box-shadow: inset 3px 0 0 var(--gb-color-primary);
+}
+
 @media (hover: hover) {
   .ui-list__row--clickable:hover {
     background: var(--gb-color-surface-alt);

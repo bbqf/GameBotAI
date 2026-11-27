@@ -121,7 +121,8 @@ export const NotificationsPage: React.FC = () => {
     );
   }
 
-  // The side panel covers the right edge. The page keeps a free space there, so the list stays usable.
+  // The side panel covers the right edge. The page keeps a free space there, and the target list shows only its main
+  // columns, so all rows and their actions stay visible with no sideways scroll (rule D2).
   return (
     <section className={`notifications-page${editing !== null ? ' notifications-page--panel-open' : ''}`} aria-label="Notifications">
       <PageHeader
@@ -143,6 +144,8 @@ export const NotificationsPage: React.FC = () => {
         onDelete={(target) => setDeleteTarget(target)}
         onTest={(id) => void test(id)}
         testingId={testingId}
+        compact={editing !== null}
+        selectedId={editing !== null && editing !== 'new' ? editing.id : null}
       />
       <QueueLevelTable />
       {editor}

@@ -14,6 +14,10 @@ type TargetListProps = {
   /** The id of the target whose test call runs. Its test icon is off. */
   testingId?: string | null;
   mode?: LayoutMode;
+  /** Desktop: show only Name, Enabled, and Actions (while the side panel is open). */
+  compact?: boolean;
+  /** The id of the target that is open in the side panel. Its row gets a mark. */
+  selectedId?: string | null;
 };
 
 const typeText = (target: NotificationTargetDto): string => (target.type === 'telegram' ? 'Telegram' : target.type);
@@ -28,20 +32,21 @@ const chip = (target: NotificationTargetDto) => (
 
 const columns: ListColumn<NotificationTargetDto>[] = [
   { id: 'name', header: 'Name', width: 'flex', render: (t) => t.name, text: (t) => t.name },
-  { id: 'type', header: 'Type', width: 120, render: typeText, text: typeText },
+  { id: 'type', header: 'Type', width: 120, render: typeText, text: typeText, secondary: true },
   { id: 'enabled', header: 'Enabled', width: 132, render: chip },
   {
     id: 'chatId',
     header: 'Chat ID',
     width: 200,
+    secondary: true,
     render: (t) => <span className="ui-mono">{chatIdText(t)}</span>,
     text: chatIdText
   },
-  { id: 'token', header: 'Bot token', width: 160, render: tokenText, text: tokenText }
+  { id: 'token', header: 'Bot token', width: 160, render: tokenText, text: tokenText, secondary: true }
 ];
 
 /** The saved notification targets in the shared list: a test icon, an edit icon, and a menu with Delete (feature 203). */
-export const TargetList: React.FC<TargetListProps> = ({ targets, state = 'ready', onEdit, onDelete, onTest, testingId, mode }) => {
+export const TargetList: React.FC<TargetListProps> = ({ targets, state = 'ready', onEdit, onDelete, onTest, testingId, mode, compact, selectedId }) => {
   const layout = useLayoutMode();
   const phone = (mode ?? layout) === 'phone';
 
@@ -79,6 +84,8 @@ export const TargetList: React.FC<TargetListProps> = ({ targets, state = 'ready'
       actionsColumn={{ header: 'Actions', width: 148 }}
       state={state}
       mode={mode}
+      compact={compact}
+      selectedRowKey={selectedId ?? undefined}
       rowTestId={(t) => `target-row-${t.id}`}
       phone={{
         title: (t) => t.name,

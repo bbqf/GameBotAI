@@ -183,6 +183,9 @@ The buttons are flat. They have no gradient and do not move on hover.
   The list stays visible. The edited row has a light blue background and a 3 px blue line on the left. The panel has a
   header (title and close icon), the form, and its own footer with Cancel and Apply. **Apply** changes the item in the
   list. **Save** in the page footer saves the page. On the phone the same form is a full page.
+  While the panel is open, the list shows only its main columns (the name, the status, and the actions). Mark the other
+  columns as secondary. Thus all rows and their actions stay visible, with no sideways scroll. The other columns come
+  back when the panel closes.
 
 ## 12. Checklist (pass or fail)
 
@@ -212,7 +215,9 @@ only the tokens of section 1, and each hover rule is inside `@media (hover: hove
 - **PageHeader**: the title, an optional back button, an optional status chip, and the page actions (rules H1 to H3).
 - **StatusChip**: a dot and one word, with the same size and colors on all pages.
 - **ListView**: the list component. A table with fixed column widths and 56 px rows on the desktop, and two-line rows
-  of 64 px on the phone. Rule: the columns do not change width when the data changes.
+  of 64 px on the phone. Rule: the columns do not change width when the data changes. While a side panel is open,
+  set `compact` (the list hides the columns with `secondary: true`) and `selectedRowKey` (the open row gets its mark),
+  as rule D2 says.
 - **RowActionMenu**: the "more" menu of a row. A danger item is last and is red. Rule: Delete is in the menu of a row.
 - **FooterBar**: the bar at the bottom of a form page (section 9). The target form of the Notifications area uses it.
 - **ConfirmDialog**: the one confirmation dialog (rule D1). The focus starts on Cancel.
