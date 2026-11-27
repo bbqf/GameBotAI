@@ -1,6 +1,6 @@
 # Mobile UI Principles
 
-Last reviewed: 2026-11-09 (features 139, 140, 171, 173, 184, and 185)
+Last reviewed: 2026-11-27 (features 139, 140, 171, 173, 184, 185, and 202)
 
 Each UI feature must state its **phone support level** and follow these rules. Reviewers use the checklist at the end.
 

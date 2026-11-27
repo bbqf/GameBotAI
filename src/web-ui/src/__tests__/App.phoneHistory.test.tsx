@@ -107,10 +107,10 @@ describe('App phone history', () => {
     mock = mockViewport(360, 640);
     render(<App />);
     await screen.findByTestId('phone-queues');
-    fireEvent.click(screen.getByRole('button', { name: /More/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'More' }));
     fireEvent.click(screen.getByRole('button', { name: 'Configuration' }));
     await screen.findByLabelText('mock token field');
-    fireEvent.click(screen.getByRole('button', { name: /More/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'More' }));
     fireEvent.click(screen.getByRole('button', { name: 'Update' }));
     await screen.findByTestId('update-page');
     await goBack();

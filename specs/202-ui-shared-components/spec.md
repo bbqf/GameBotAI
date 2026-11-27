@@ -2,7 +2,7 @@
 
 **Feature Branch**: `202-ui-shared-components`  
 **Created**: 2026-11-27  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: User description: "Shared UI components and design tokens from docs/ui-guidelines.md, with the Queues page as the first page that uses them (PR 1 of the UI consistency work)." The full description is in the pipeline call. The design decisions come from a review with the user on 2026-11-27. The result is `docs/ui-guidelines.md` and the mockups in `docs/ui-guidelines/`.
 
 ## Background

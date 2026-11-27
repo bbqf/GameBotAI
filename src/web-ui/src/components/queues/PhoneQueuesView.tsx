@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { PhoneCard } from '../phone/PhoneCard';
 import { ConnectionState } from '../../hooks/useConnectionState';
 import { usePolling } from '../../hooks/usePolling';
 import { toggleTemplateEntry } from '../../lib/queueEntryToggle';
@@ -20,10 +19,12 @@ import { getQueueTemplate, saveQueueTemplate, QueueTemplateDetail } from '../../
 import { NotLiveBadge } from './NotLiveBadge';
 import { buildQueueActivity, buildScheduleRows, describeNow } from './queueActivity';
 import { IconButton } from './IconButton';
+import { IconButton as UiIconButton, ListView, RowActionMenu, StatusChip, type RowAction } from '../ui';
+import { queueChipState } from './queueStatus';
+import { useQueuePauseCalls } from './QueueRowActions';
 import { QueuePauseControls } from './QueuePauseControls';
 import { TemplateChangesNotice } from './TemplateChangesNotice';
 import { PhoneEntryPage } from './PhoneEntryPage';
-import '../../features/execution/StatusChip.css';
 
 export const PHONE_QUEUES_POLL_MS = 5000;
 
@@ -49,19 +50,40 @@ export const UPGRADE_HINT = 'Upgrade the template to open the entry settings.';
 const errorText = (err: unknown): string =>
   err instanceof ApiError || err instanceof Error ? err.message : 'The request failed.';
 
-const QueueStatusChip: React.FC<{ status: string }> = ({ status }) => {
-  const running = status === 'Running';
+const runLabel = (status: string) => (status === 'Running' ? 'Stop' : 'Start');
+
+const QueueStatusChip: React.FC<{ status: string }> = ({ status }) => (
+  <StatusChip {...queueChipState({ status: status as QueueDto['status'] })} testId="queue-status" />
+);
+
+/** The actions of one phone row: Start or Stop as the main icon, and a menu with Open and the pause action. */
+const PhoneRowActions: React.FC<{
+  queue: QueueDto;
+  disabled: boolean;
+  lost: boolean;
+  onToggle: () => void;
+  onOpen: () => void;
+  onChanged: () => void;
+  onError: (message: string) => void;
+}> = ({ queue, disabled, lost, onToggle, onOpen, onChanged, onError }) => {
+  const running = queue.status === 'Running';
+  const pause = useQueuePauseCalls(queue, { onStart: () => undefined, onChanged, onError });
+  const menu: RowAction[] = [{ id: 'open', label: 'Open', ariaLabel: `Open ${queue.name}`, icon: 'expand', onSelect: onOpen }];
+  if (running) menu.push({ ...pause.slot1Action, disabled: pause.slot1Action.disabled || lost });
   return (
-    <span
-      className={running ? 'status-chip status-chip--running' : 'status-chip status-chip--unknown'}
-      data-testid="queue-status"
-    >
-      <span className="status-chip__dot" aria-hidden />
-      <span>{status}</span>
-    </span>
+    <>
+      <UiIconButton
+        icon={running ? 'stop' : 'play'}
+        label={`${runLabel(queue.status)} ${queue.name}`}
+        title={runLabel(queue.status)}
+        size="touch"
+        disabled={disabled}
+        onClick={onToggle}
+      />
+      <RowActionMenu size="touch" label={`More actions for ${queue.name}`} actions={menu} />
+    </>
   );
 };
-
 const StaleMark: React.FC = () => (
   <span className="phone-stale" data-testid="stale-mark">Old data</span>
 );
@@ -304,8 +326,6 @@ export const PhoneQueuesView: React.FC<PhoneQueuesViewProps> = ({
     if (refused) setMessage(refused);
   };
 
-  const runLabel = (status: string) => (status === 'Running' ? 'Stop' : 'Start');
-
   if (queueId) {
     if (notFound) {
       return (
@@ -458,19 +478,38 @@ export const PhoneQueuesView: React.FC<PhoneQueuesViewProps> = ({
       {listStale && <StaleMark />}
       {queues === null && <p role="status">Loading…</p>}
       {queues !== null && queues.length === 0 && !message && <p>No queues yet. Use a larger screen to create one.</p>}
-      <ul className="phone-card-list">
-        {(queues ?? []).map((q) => (
-          <PhoneCard
-            key={q.id}
-            title={q.name}
-            testId={`queue-card-${q.id}`}
-            status={<QueueStatusChip status={q.status} />}
-            summary={<>{buildQueueActivity(q, monitors[q.id])}{listStale ? ' (old data)' : ''}{q.deviceLiveness === 'not_live' && <NotLiveBadge />}</>}
-            onOpen={() => open(q.id)}
-            action={{ label: runLabel(q.status), onClick: () => void toggleRun(q), disabled: busy || lost }}
-          />
-        ))}
-      </ul>
-    </section>
+      {queues !== null && queues.length > 0 && (
+        <ListView<QueueDto>
+          mode="phone"
+          ariaLabel="Queues"
+          columns={[{ id: 'name', header: 'Name', width: 'flex', render: (q) => q.name, text: (q) => q.name }]}
+          rows={queues}
+          getRowKey={(q) => q.id}
+          rowTestId={(q) => `queue-card-${q.id}`}
+          onRowClick={(q) => open(q.id)}
+          phone={{
+            title: (q) => q.name,
+            chip: (q) => <StatusChip {...queueChipState(q)} testId="queue-status" />,
+            meta: (q) => (
+              <>
+                {buildQueueActivity(q, monitors[q.id])}
+                {listStale ? ' (old data)' : ''}
+                {q.deviceLiveness === 'not_live' && <NotLiveBadge />}
+              </>
+            ),
+          }}
+          renderPhoneActions={(q) => (
+            <PhoneRowActions
+              queue={q}
+              disabled={busy || lost}
+              lost={lost}
+              onToggle={() => void toggleRun(q)}
+              onOpen={() => open(q.id)}
+              onChanged={() => void loadList()}
+              onError={setMessage}
+            />
+          )}
+        />
+      )}    </section>
   );
 };

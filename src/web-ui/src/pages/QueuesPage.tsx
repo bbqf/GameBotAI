@@ -33,6 +33,8 @@ import { RunningQueueControls } from '../components/queues/RunningQueueControls'
 import { buildTemplateSaveEntries, scheduleFromTemplateEntry } from '../components/queues/templateEntryEditing';
 import { QueueGameControls } from '../components/queues/QueueGameControls';
 import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
+import { Button, ConfirmDialog, ListView, PageHeader, StatusChip, type ListColumn } from '../components/ui';
+import { queueChipState } from '../components/queues/queueStatus';
 import { DuplicateQueueModal, DuplicateQueueEmulator } from '../components/queues/DuplicateQueueModal';
 import { saveQueueTemplate, getQueueTemplate, listQueueTemplates, ScheduleType, QueueTemplateEntryDto } from '../services/queueTemplates';
 import { sameSequenceOrder } from '../lib/sequenceOrder';
@@ -66,6 +68,14 @@ const recoveryMember = (form: QueueFormValue) => {
 
 const emptyForm: QueueFormValue = { name: '', emulatorSerial: '', cycleExecution: false, pauseWhenIdle: false, idleThresholdSeconds: 30, emulatorInstanceName: '', emulatorInstanceIndex: null, resumeOnServiceStart: false, smartScheduling: false, smartSchedulingWindowMinutes: 15, ...recoveryFormFromDto(null) };
 
+/** The columns of the Queues list (feature 202). The widths are fixed, so a status change does not move a column. */
+const queueColumns = (monitors: Record<string, QueueMonitorDto>): ListColumn<QueueDto>[] => [
+  { id: 'name', header: 'Name', width: 'flex', render: (q) => q.name, text: (q) => q.name },
+  { id: 'cycle', header: 'Cycle', width: 96, render: (q) => (q.cycleExecution ? 'On' : 'Off'), text: (q) => (q.cycleExecution ? 'On' : 'Off') },
+  { id: 'status', header: 'Status', width: 132, render: (q) => <StatusChip {...queueChipState(q)} testId="queue-status" /> },
+  { id: 'activity', header: 'Activity', width: 320, cellTestId: 'queue-activity', render: (q) => buildQueueActivity(q, monitors[q.id]), text: (q) => buildQueueActivity(q, monitors[q.id]) },
+];
+
 export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
   const [queues, setQueues] = useState<QueueDto[]>([]);
   // The monitor of each running queue, for the Activity column. A queue with no entry has no data (not loaded, or the call failed).
@@ -87,6 +97,9 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
 
   const [detail, setDetail] = useState<QueueDetailDto | undefined>(undefined);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  // The queue that the Delete item of the row menu asks about (feature 202).
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | undefined>(undefined);
+  const [deleteBusy, setDeleteBusy] = useState(false);
   const [duplicateSource, setDuplicateSource] = useState<QueueDto | undefined>(undefined);
   const [duplicateError, setDuplicateError] = useState<string | undefined>(undefined);
   const [associatedTemplateName, setAssociatedTemplateName] = useState<string | undefined>(undefined);
@@ -486,59 +499,37 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
 
   return (
     <section>
-      <h2>Queues</h2>
+      <PageHeader
+        title="Queues"
+        actions={!panelOpen ? <Button variant="primary" icon="add" onClick={openCreate}>Create queue</Button> : undefined}
+      />
       {tableMessage && <div className="form-hint" role="status">{tableMessage}</div>}
       {tableError && <div className="form-error" role="alert">{tableError}</div>}
       {!panelOpen && (
-      <>
-      <div className="actions-header">
-        <button onClick={openCreate}>Create Queue</button>
-      </div>
-      <table className="queues-table" aria-label="Queues table">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Cycle</th>
-            <th>Status</th>
-            <th>Activity</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {loading && <tr><td colSpan={5}>Loading…</td></tr>}
-          {!loading && queues.length === 0 && <tr><td colSpan={5}>No queues found.</td></tr>}
-          {!loading && queues.map((q) => {
-            const running = q.status === 'Running';
-            return (
-              <tr key={q.id} className="queues-row">
-                <td>
-                  <button type="button" className="link-button" onClick={() => void openEdit(q.id)}>{q.name}</button>
-                </td>
-                <td>{q.cycleExecution ? 'On' : 'Off'}</td>
-                <td>
-                  <span className={running ? 'status-chip status-running' : 'status-chip status-stopped'} data-testid="queue-status">
-                    {q.status}
-                  </span>
-                </td>
-                <td data-testid="queue-activity">{buildQueueActivity(q, monitors[q.id])}</td>
-                <td>
-                  <QueueRowActions
-                    queue={q}
-                    onStart={(id) => void runAction(id, startQueue, 'Queue started — see Execution Logs for progress and the run outcome.')}
-                    onStop={(id) => void runAction(id, stopQueue, 'Queue stopped.')}
-                    onEdit={(id) => void openEdit(id)}
-                    onDuplicate={() => { setDuplicateError(undefined); setDuplicateSource(q); }}
-                    onDelete={async (id) => { await openEdit(id); setDeleteOpen(true); }}
-                    onChanged={() => void pollQueues()}
-                    onError={setTableError}
-                  />
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      </>
+        <ListView<QueueDto>
+          mode="desktop"
+          ariaLabel="Queues table"
+          tableClassName="queues-table"
+          rowClassName="queues-row"
+          columns={queueColumns(monitors)}
+          rows={queues}
+          getRowKey={(q) => q.id}
+          onRowClick={(q) => void openEdit(q.id)}
+          actionsColumn={{ header: 'Actions', width: 184 }}
+          renderActions={(q) => (
+            <QueueRowActions
+              queue={q}
+              onStart={(id) => void runAction(id, startQueue, 'Queue started — see Execution Logs for progress and the run outcome.')}
+              onStop={(id) => void runAction(id, stopQueue, 'Queue stopped.')}
+              onEdit={(id) => void openEdit(id)}
+              onDuplicate={() => { setDuplicateError(undefined); setDuplicateSource(q); }}
+              onDelete={() => setDeleteTarget({ id: q.id, name: q.name })}
+              onChanged={() => void pollQueues()}
+              onError={setTableError}
+            />
+          )}
+          state={loading && queues.length === 0 ? { kind: 'loading' } : queues.length === 0 ? { kind: 'empty', text: 'No queues found.' } : 'ready'}
+        />
       )}
 
       {panelOpen && (
@@ -689,8 +680,36 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
         onConfirm={(name, emulator) => void handleDuplicate(name, emulator)}
       />
 
-      <ConfirmDeleteModal
-        open={deleteOpen}
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title={`Delete queue ${deleteTarget?.name ?? ''}?`}
+        message="The queue and its settings are deleted. You cannot undo this."
+        confirmText="Delete"
+        danger
+        busy={deleteBusy}
+        onCancel={() => setDeleteTarget(undefined)}
+        onConfirm={async () => {
+          if (!deleteTarget) return;
+          setDeleteBusy(true);
+          try {
+            await deleteQueue(deleteTarget.id);
+            setDeleteTarget(undefined);
+            setTableMessage('Queue deleted successfully.');
+            await refresh();
+          } catch (err: any) {
+            setDeleteTarget(undefined);
+            if (err instanceof ApiError && err.status === 409) {
+              setTableError(err.message || 'Stop the queue before deleting.');
+            } else {
+              setTableError(err?.message ?? 'Failed to delete queue');
+            }
+          } finally {
+            setDeleteBusy(false);
+          }
+        }}
+      />
+
+      <ConfirmDeleteModal        open={deleteOpen}
         itemName={form.name}
         onCancel={() => setDeleteOpen(false)}
         onConfirm={async () => {

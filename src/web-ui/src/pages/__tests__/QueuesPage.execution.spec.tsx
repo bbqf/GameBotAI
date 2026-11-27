@@ -38,8 +38,9 @@ describe('QueuesPage start/stop', () => {
     await waitFor(() => expect(startQueueMock).toHaveBeenCalledWith('q1'));
     await waitFor(() => expect(screen.getByTestId('queue-status')).toHaveTextContent('Running'));
     expect(screen.getByRole('button', { name: 'Edit Daily' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Delete Daily' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Stop Daily' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Stop Daily' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for Daily' }));
+    expect(screen.getByRole('menuitem', { name: 'Delete' })).toHaveAttribute('aria-disabled', 'true');
   });
 
   it('stops a running queue', async () => {
@@ -66,7 +67,7 @@ describe('QueuesPage start/stop', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Start Daily' }));
 
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/Execution Logs/i));
+    await waitFor(() => expect(screen.getByText(/Execution Logs/i)).toBeInTheDocument());
   });
 
   it('surfaces a start failure (e.g. already running) to the operator', async () => {

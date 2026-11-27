@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Add shared UI components and design tokens, and use them in the Queues list (202-ui-shared-components)
+  - **Change**: the web UI uses one design for lists, buttons, icons, and status chips. The Queues list has fixed column widths and row heights on the desktop and the phone. Delete asks for confirmation in one dialog.
+  - **Web UI**: the new folder `src/web-ui/src/components/ui/` has `Icon`, `Button`, `IconButton`, `PageHeader`, `StatusChip`, `ListView`, `RowActionMenu`, `FooterBar`, and `ConfirmDialog`. The desktop Queues list has the columns Name, Cycle (96 px), Status (132 px), Activity (320 px), and Actions (184 px), and rows of 56 px. Each row has Start (or Pause or Resume), Stop, Edit, and a menu with Duplicate and Delete. The phone list has rows of 64 px, one main icon, and a menu. The button "Create Queue" is now "Create queue".
+  - **Theme**: the font is `Segoe UI` and the page loads no web font. The theme has new color, size, and radius variables. Buttons are flat, and a hover rule applies only to a pointer that can hover.
+  - **Not changed**: the API, the stored data, the other pages, and the old `IconButton` and `StatusChip` of the other pages.
+  - **Version**: the patch version is now 1.12.35.
 - Add the device recovery option to the queue form (199-device-recovery-ui)
   - **Change**: the queue form has the option "Reboot the instance when the device is not live". When it is on, the form shows the wait before the first reboot (minutes), the maximum attempts (1 to 5), and the time between attempts (minutes). The form checks each value and shows a message at the field. A new queue has the option off, with the defaults 5, 2, and 3.
   - **API**: `PUT /api/queues/{id}` keeps the stored `deviceRecovery` when the member is absent. Only an explicit `null` clears it. `GET /api/queues` has the new member `deviceLiveness` (`live` or `not_live`) for a running queue, and `GET /api/sessions/monitoring` has `ownerQueueDeviceLiveness`.

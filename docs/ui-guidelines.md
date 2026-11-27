@@ -197,3 +197,24 @@ Use this list together with the [phone checklist](mobile-ui-principles.md#checkl
 - [ ] The form uses labels above the fields, cards, and the footer bar.
 - [ ] The phone and the desktop show the same parts in the same order.
 - [ ] All new text is STE.
+
+## 13. Shared components
+
+The shared components are in `src/web-ui/src/components/ui/`. Import them from `components/ui`. Each component uses
+only the tokens of section 1, and each hover rule is inside `@media (hover: hover)`.
+
+- **Icon, icons.ts**: the one icon set. Rule: all icons come from the shared icon set (checklist).
+- **Button**: variants `primary`, `secondary`, `danger-outline`, and `danger`. 40 px high. Rule: the red color
+  is for danger only (section 11, D1).
+- **IconButton**: an icon with a required accessible name and a tooltip. 36 px, and 44 px on the phone. Rule: row
+  actions are icon buttons with a tooltip.
+- **PageHeader**: the title, an optional back button, an optional status chip, and the page actions (rules H1 to H3).
+- **StatusChip**: a dot and one word, with the same size and colors on all pages.
+- **ListView**: the list component. A table with fixed column widths and 56 px rows on the desktop, and two-line rows
+  of 64 px on the phone. Rule: the columns do not change width when the data changes.
+- **RowActionMenu**: the "more" menu of a row. A danger item is last and is red. Rule: Delete is in the menu of a row.
+- **FooterBar**: the bar at the bottom of a form page (section 9). It has no user yet.
+- **ConfirmDialog**: the one confirmation dialog (rule D1). The focus starts on Cancel.
+
+The old `components/queues/IconButton.tsx` and `features/execution/StatusChip.tsx` are wrappers or old components
+until all pages move to the shared components.

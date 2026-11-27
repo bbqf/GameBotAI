@@ -98,10 +98,12 @@ describe('QueuesPage overview table columns (US3)', () => {
     render(<QueuesPage />);
     await screen.findByText('Daily');
 
-    // A stopped queue shows the icons Start, Edit, Duplicate, and Delete.
+    // A stopped queue shows the icons Start, Stop (off), and Edit, and a menu with Duplicate and Delete.
     expect(screen.getByRole('button', { name: 'Start Daily' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Stop Daily' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Edit Daily' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Duplicate Daily' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Delete Daily' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for Daily' }));
+    expect(screen.getByRole('menuitem', { name: 'Duplicate' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument();
   });
 });

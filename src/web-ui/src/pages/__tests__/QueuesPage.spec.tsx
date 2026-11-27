@@ -55,7 +55,7 @@ describe('QueuesPage CRUD', () => {
     render(<QueuesPage />);
     await waitFor(() => expect(listQueuesMock).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByRole('button', { name: 'Create Queue' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create queue' }));
     fireEvent.click(screen.getByText('Save'));
     expect(await screen.findByText('Name is required')).toBeInTheDocument();
     expect(createQueueMock).not.toHaveBeenCalled();
@@ -123,12 +123,14 @@ describe('QueuesPage CRUD', () => {
 
     render(<QueuesPage />);
     await screen.findByText('Daily');
-    fireEvent.click(screen.getByRole('button', { name: 'Delete Daily' }));
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for Daily' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }));
 
-    const dialog = await screen.findByRole('dialog');
+    const dialog = await screen.findByRole('dialog', { name: 'Delete queue Daily?' });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
 
     await waitFor(() => expect(deleteQueueMock).toHaveBeenCalledWith('q1'));
+    expect(await screen.findByText('Queue deleted successfully.')).toBeInTheDocument();
   });
 });
 
@@ -279,7 +281,8 @@ describe('QueuesPage device recovery (feature 199)', () => {
 
     render(<QueuesPage />);
     await screen.findByText('Daily');
-    fireEvent.click(screen.getByRole('button', { name: 'Duplicate Daily' }));
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for Daily' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Duplicate' }));
     const dialog = await screen.findByRole('dialog');
     fireEvent.click(within(dialog).getByRole('button', { name: /Duplicate|Create|Save/ }));
     await waitFor(() => expect(duplicateQueueMock).toHaveBeenCalled());
