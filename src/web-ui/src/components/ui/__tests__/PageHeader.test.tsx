@@ -9,6 +9,13 @@ describe('PageHeader', () => {
     expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();
   });
 
+  it('marks a top-level header, so that the phone hides its title for the eye only', () => {
+    const { container, rerender } = render(<PageHeader title="Monitoring" />);
+    expect(container.querySelector('header')).toHaveClass('ui-page-header--top');
+    rerender(<PageHeader title="Device A" onBack={() => undefined} />);
+    expect(container.querySelector('header')).not.toHaveClass('ui-page-header--top');
+  });
+
   it('shows a back button that calls onBack', () => {
     const onBack = jest.fn();
     render(<PageHeader title="Edit" onBack={onBack} />);

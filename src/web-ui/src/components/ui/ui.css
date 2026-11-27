@@ -200,6 +200,23 @@
   .ui-page-header__title {
     font-size: 20px;
   }
+
+  /* The phone app bar shows the area name, so a top-level page does not show its title a second time. Screen
+     readers still read it. */
+  .ui-page-header--top .ui-page-header__title {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  /* With no actions and no chip, the header takes no space. */
+  .ui-page-header--top:not(:has(.ui-page-header__actions, .ui-chip)) {
+    min-height: 0;
+    margin-bottom: 0;
+  }
 }
 
 /* ---- ListView: desktop table ---- */
@@ -864,6 +881,16 @@ tr.ui-list__row.ui-list__row--selected {
 
 .ui-button--block {
   width: 100%;
+}
+
+/* An empty left area takes no space. */
+.ui-footer-bar__left:empty {
+  display: none;
+}
+
+/* A full-width button in a footer bar: its area takes all the free width. */
+.ui-footer-bar__right:has(.ui-button--block) {
+  flex: 1;
 }
 
 @media (max-width: 768px), (max-height: 500px) {
