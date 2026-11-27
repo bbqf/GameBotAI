@@ -23,13 +23,16 @@ internal sealed class DeviceLivenessReader {
     _time = time;
   }
 
-  /// <summary>The device liveness of the run, or null when the run has no session yet.</summary>
+  /// <summary>
+  /// The device liveness of the run, or null when the fault episode has no report yet. When the session of
+  /// the run exists, the read evaluates it first. When the run has no session (feature 201: a recovery reboot
+  /// removed it, and the bind failed), the read gives the snapshot of the episode as it is.
+  /// </summary>
   /// <param name="handle">The run handle.</param>
   /// <param name="recovery">The recovery settings of the queue. Null when the queue has none.</param>
   public QueueDeviceLivenessResponse? Project(QueueRunHandle handle, QueueDeviceRecovery? recovery = null) {
     ArgumentNullException.ThrowIfNull(handle);
-    if (handle.SessionId is not { } sessionId) return null;
-    var session = _sessions.GetSession(sessionId);
+    var session = handle.SessionId is { } sessionId ? _sessions.GetSession(sessionId) : null;
     if (session is not null) {
       handle.Liveness.Observe(_liveness.Evaluate(session), _time.GetLocalNow());
     }

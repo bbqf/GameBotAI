@@ -392,5 +392,39 @@ public sealed partial class QueueExecutionServiceTests {
       rig.Executed().Should().Equal("B", "T", "E");
       rig.Entries().Should().BeEmpty();
     }
+
+    // Feature 201 (FR-001, FR-002, FR-003): a recovery reboot removed the session, and ADB does not list the
+    // device yet. A queue with recovery on holds the next firing and stays Running. After a bind, the firing runs.
+    [Fact]
+    public async Task ALostSessionWithRecoveryOnHoldsTheFiringAndTheRunContinuesAfterABind() {
+      var rig = new Rig();
+      var queue = AddQueueWithEntries(rig.H, "q1", new[] { Once("A"), Once("B") });
+      queue.EmulatorInstanceName = "LDPlayer-1";
+      queue.DeviceRecovery = new QueueDeviceRecovery { Action = QueueDeviceRecovery.ActionRebootInstance };
+      rig.H.Sequences.Handler = (id, ct) => {
+        if (id == "A") {
+          rig.H.Sessions.CreateThrows = new KeyNotFoundException("ADB device 'emu-1' not found");
+          rig.H.Sessions.Evict(rig.H.Sessions.SingleSessionId());
+        }
+        return Task.FromResult(FakeSequenceExecution.Success(id));
+      };
+
+      await rig.Service.StartAsync("q1");
+      await WaitForAsync(() => rig.Entries().Any(e => e.SequenceId == "B"), 5000);
+      await Task.Delay(200);
+
+      rig.Service.IsRunning("q1").Should().BeTrue("a queue with recovery on does not end its run when no session is bound");
+      rig.Executed().Should().Equal(new[] { "A" }, "the firing of B is held");
+      rig.Entries().Should().ContainSingle(e => e.SequenceId == "B")
+        .Which.Summary.Should().Be("device_not_live: transport_not_ready");
+      rig.Handle("q1").SessionId.Should().BeNull();
+
+      rig.H.Sessions.CreateThrows = null;
+      await WaitUntilStoppedAsync(rig.Service, "q1");
+
+      rig.Executed().Should().Equal("A", "B");
+      rig.H.Sessions.Created.Should().Be(2, "one new session is bound after the device is listed again");
+      rig.H.Log.FinalStatus.Should().Be("success");
+    }
   }
 }

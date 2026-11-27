@@ -153,5 +153,47 @@ public sealed partial class QueueExecutionServiceTests {
 
       r.RecoveryState.Should().BeOneOf(DeviceRecoveryStates.Idle, DeviceRecoveryStates.Running, DeviceRecoveryStates.Exhausted);
     }
+
+    // Feature 201 (FR-006): with no bound session, the read gives the snapshot of the episode.
+    [Fact]
+    public void WithNoSessionTheReadGivesTheSnapshotOfTheEpisode() {
+      var s = new Setup();
+      s.Handle.SessionId = null;
+      s.Handle.Liveness.Observe(QueueExecutionService.NoSessionReport, T0);
+      for (var i = 0; i < 2; i++) {
+        s.Handle.Liveness.TryBeginRecovery(T0.AddMinutes(5 + i), TimeSpan.FromMinutes(1), 2, TimeSpan.Zero).Should().BeTrue();
+        s.Handle.Liveness.EndRecoveryAttempt(T0.AddMinutes(5 + i));
+      }
+
+      var r = s.Reader.Project(s.Handle, Reboot);
+
+      r.Should().NotBeNull();
+      r!.State.Should().Be(DeviceLivenessStates.NotLive);
+      r.Reason.Should().Be(DeviceLivenessReasons.TransportNotReady);
+      r.RecoveryState.Should().Be(DeviceRecoveryStates.Exhausted);
+      s.Liveness.Evaluations.Should().Be(0);
+    }
+
+    [Fact]
+    public void WithASessionIdOfARemovedSessionTheReadGivesTheSnapshotOfTheEpisode() {
+      var s = new Setup();
+      s.Sessions.Evict(s.Handle.SessionId!);
+      s.Handle.Liveness.Observe(QueueExecutionService.NoSessionReport, T0);
+
+      var r = s.Reader.Project(s.Handle, Reboot);
+
+      r.Should().NotBeNull();
+      r!.State.Should().Be(DeviceLivenessStates.NotLive);
+      r.Reason.Should().Be(DeviceLivenessReasons.TransportNotReady);
+      r.RecoveryState.Should().Be(DeviceRecoveryStates.Idle);
+    }
+
+    [Fact]
+    public void WithNoSessionAndNoReportTheReadGivesNull() {
+      var s = new Setup();
+      s.Handle.SessionId = null;
+
+      s.Reader.Project(s.Handle, Reboot).Should().BeNull();
+    }
   }
 }

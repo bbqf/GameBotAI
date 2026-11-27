@@ -24,6 +24,11 @@ namespace GameBot.Service.Services.QueueExecution;
 /// Each wait ends at <c>RebootReadyTimeoutMs</c>. The runner updates the attempt data of the episode. After
 /// the last allowed attempt fails, it claims and sends one "recovery failed" alert. The runner never stops
 /// the queue. Registered as a singleton: it keeps no state for one queue.
+/// <para>
+/// Feature 201: when the rebind fails (ADB does not list the device yet), the attempt fails and the run has
+/// no session. The run loop then holds its firings, and the liveness watch tries a bind at each check and
+/// starts the next attempt. The queue stays Running.
+/// </para>
 /// </summary>
 internal sealed class QueueDeviceRecoveryRunner {
   private static readonly TimeSpan DefaultProbePoll = TimeSpan.FromSeconds(5);

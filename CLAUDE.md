@@ -11,5 +11,5 @@ Before you push a branch for a new PR, bump the version in `installer/versioning
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/200-fix-cancel-step-status/plan.md
+at specs/201-fix-recovery-reboot-session/plan.md
 <!-- SPECKIT END -->

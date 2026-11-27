@@ -2,7 +2,7 @@
 
 **Feature Branch**: `121-device-not-live-alert-recovery`  
 **Created**: 2026-09-30  
-**Status**: Implemented (iterated by 199)  
+**Status**: Implemented (iterated by 199, 201)  
 **Input**: GitHub issue #261 (FR-014): "alert on a not-live device, optionally reboot the instance, and do not pile up captures". Closes #261.
 
 ## Background
