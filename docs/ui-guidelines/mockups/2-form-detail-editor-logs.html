@@ -1,0 +1,300 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="common.css">
+<style>
+body{width:1960px}
+.sec{margin-bottom:40px}
+.sec h3{font-size:18px;margin:0 0 4px}
+.sec .why{color:var(--muted);margin:0 0 14px;font-size:14px}
+.phone,.desk{height:640px}
+.legend{width:300px}
+/* forms */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px 20px;margin-bottom:12px}
+.card h4{margin:0 0 12px;font-size:15px}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
+.field .input,.field .select{color:var(--text)}
+.help{font-size:12px;color:var(--muted);margin-top:4px}
+.err .input{border-color:var(--danger)} .err .help{color:var(--danger)}
+.toggle{width:40px;height:24px;border-radius:12px;background:var(--primary);position:relative;flex:none}
+.toggle:after{content:"";position:absolute;right:3px;top:3px;width:18px;height:18px;border-radius:50%;background:#fff}
+.trow{display:flex;align-items:center;justify-content:space-between;height:44px}
+.footer{height:68px;background:var(--surface);border-top:1px solid var(--border);display:flex;align-items:center;gap:8px;padding:0 16px;flex:none}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}
+/* detail */
+.kv{display:grid;grid-template-columns:120px 1fr;row-gap:0}
+.kv div{height:40px;display:flex;align-items:center;font-size:14px;border-bottom:1px solid var(--border)}
+.kv div:nth-child(odd){color:var(--muted)}
+.shot{background:linear-gradient(160deg,#334155,#0f172a);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:13px}
+.seg{display:flex;border:1px solid #cbd5e1;border-radius:8px;overflow:hidden;height:40px}
+.seg span{flex:1;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;color:var(--muted);padding:0 14px}
+.seg span.on{background:var(--primary-soft);color:var(--primary)}
+/* steps */
+.step{height:56px;display:flex;align-items:center;gap:8px;padding:0 4px 0 4px;border-bottom:1px solid var(--border);background:var(--surface)}
+.step .h{color:#94a3b8;width:28px;display:flex;justify-content:center;cursor:grab}
+.step .h svg{width:20px;height:20px}
+.step .no{width:24px;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;text-align:right}
+.step .ty{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;background:var(--primary-soft);color:var(--primary);flex:none}
+.step .ty svg{width:18px;height:18px}
+.step .tx{flex:1;min-width:0}
+.step .tx b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+.step .tx span{display:block;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.block{border-left:4px solid #7c3aed;background:#faf7ff}
+.block .ty{background:#efe7ff;color:#7c3aed}
+.block.if{border-left-color:#0891b2;background:#f3fbfd}
+.block.if .ty{background:#dff4f9;color:#0891b2}
+.child{padding-left:28px}
+.blockend{height:40px;display:flex;align-items:center;padding-left:72px;font-size:13px;color:var(--primary);font-weight:600;gap:6px;border-bottom:1px solid var(--border);background:var(--surface)}
+.blockend svg{width:18px;height:18px}
+.drop{height:3px;background:var(--primary);margin:-2px 0 -1px 36px;position:relative;z-index:2;border-radius:2px}
+/* logs */
+.exp td.chev,.chev{width:48px;padding:0 6px}
+.detail td{height:auto;white-space:normal;background:#f8fafc;padding:12px 16px 14px 64px;font-size:13px}
+.mono{font-family:Consolas,monospace;font-size:13px}
+.pager{display:flex;align-items:center;justify-content:space-between;height:48px;padding:0 12px 0 16px;font-size:13px;color:var(--muted);border-top:1px solid var(--border);background:var(--surface)}
+.chiprow{display:flex;gap:6px;overflow:hidden}
+.fchip{height:32px;padding:0 12px;border-radius:16px;border:1px solid #cbd5e1;background:var(--surface);font-size:13px;font-weight:600;display:flex;align-items:center;white-space:nowrap}
+.fchip.on{background:var(--primary-soft);border-color:#b9cdfb;color:var(--primary)}
+.sub2{display:flex;gap:4px;padding:0 24px;background:var(--surface);border-bottom:1px solid var(--border);height:44px}
+.sub2 .tab{font-size:13px}
+</style></head><body>
+<svg width="0" height="0" style="position:absolute"><defs>
+
+  <symbol id="play" viewBox="0 0 24 24"><path fill="currentColor" d="M8 5v14l11-7z"/></symbol>
+  <symbol id="pause" viewBox="0 0 24 24"><path fill="currentColor" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></symbol>
+  <symbol id="stop" viewBox="0 0 24 24"><path fill="currentColor" d="M6 6h12v12H6z"/></symbol>
+  <symbol id="edit" viewBox="0 0 24 24"><path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></symbol>
+  <symbol id="more" viewBox="0 0 24 24"><path fill="currentColor" d="M12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm0 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></symbol>
+  <symbol id="add" viewBox="0 0 24 24"><path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></symbol>
+  <symbol id="search" viewBox="0 0 24 24"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></symbol>
+  <symbol id="queue" viewBox="0 0 24 24"><path fill="currentColor" d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></symbol>
+  <symbol id="monitor" viewBox="0 0 24 24"><path fill="currentColor" d="M17 1H7a2 2 0 0 0-2 2v18a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2zm0 18H7V5h10v14z"/></symbol>
+  <symbol id="bell" viewBox="0 0 24 24"><path fill="currentColor" d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4a1.5 1.5 0 0 0-3 0v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></symbol>
+  <symbol id="gear" viewBox="0 0 24 24"><path fill="currentColor" d="M19.14 12.94a7.07 7.07 0 0 0 0-1.88l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7 7 0 0 0-1.62-.94l-.36-2.54A.5.5 0 0 0 13.9 2h-3.84a.5.5 0 0 0-.49.42l-.36 2.54a7.4 7.4 0 0 0-1.62.94l-2.39-.96a.5.5 0 0 0-.61.22L2.67 8.48a.5.5 0 0 0 .12.64l2.03 1.58a7.07 7.07 0 0 0 0 1.88l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.39.3.61.22l2.39-.96c.5.38 1.04.7 1.62.94l.36 2.54c.05.24.25.42.49.42h3.84c.24 0 .45-.18.49-.42l.36-2.54a7.4 7.4 0 0 0 1.62-.94l2.39.96c.22.08.48 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.6a3.6 3.6 0 1 1 0-7.2 3.6 3.6 0 0 1 0 7.2z"/></symbol>
+  <symbol id="build" viewBox="0 0 24 24"><path fill="currentColor" d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></symbol>
+  <symbol id="back" viewBox="0 0 24 24"><path fill="currentColor" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></symbol>
+  <symbol id="del" viewBox="0 0 24 24"><path fill="currentColor" d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></symbol>
+  <symbol id="copy" viewBox="0 0 24 24"><path fill="currentColor" d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z"/></symbol>
+ 
+<symbol id="drag" viewBox="0 0 24 24"><path fill="currentColor" d="M9 4a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm6 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM9 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm6 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm-6 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm6 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></symbol>
+<symbol id="cr" viewBox="0 0 24 24"><path fill="currentColor" d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></symbol>
+<symbol id="cd" viewBox="0 0 24 24"><path fill="currentColor" d="M16.59 8.59 12 13.17 7.41 8.59 6 10l6 6 6-6z"/></symbol>
+<symbol id="loop" viewBox="0 0 24 24"><path fill="currentColor" d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></symbol>
+<symbol id="ifs" viewBox="0 0 24 24"><path fill="currentColor" d="M14 4l2.29 2.29-2.88 2.88 1.42 1.42 2.88-2.88L20 10V4zm-4 0H4v6l2.29-2.29 4.71 4.7V20h2v-8.41l-5.29-5.3z"/></symbol>
+<symbol id="tap" viewBox="0 0 24 24"><path fill="currentColor" d="M9 11.24V7.5a2.5 2.5 0 0 1 5 0v3.74c1.21-.81 2-2.18 2-3.74a4.5 4.5 0 0 0-9 0c0 1.56.79 2.93 2 3.74zm9.84 4.63-4.54-2.26a1.3 1.3 0 0 0-.54-.11H13v-6a1.5 1.5 0 0 0-3 0v10.74l-3.43-.72a1 1 0 0 0-.93.27l-.79.8 4.94 4.94c.27.27.65.44 1.06.44h6.79c.75 0 1.33-.55 1.44-1.28l.75-5.27a1.5 1.5 0 0 0-.99-1.55z"/></symbol>
+<symbol id="img" viewBox="0 0 24 24"><path fill="currentColor" d="M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2zM8.5 13.5l2.5 3 3.5-4.5 4.5 6H5l3.5-4.5z"/></symbol>
+<symbol id="timer" viewBox="0 0 24 24"><path fill="currentColor" d="M15 1H9v2h6V1zm-4 13h2V8h-2v6zm8.03-6.61 1.42-1.42c-.43-.51-.9-.99-1.41-1.41l-1.42 1.42A9 9 0 1 0 21 13a8.96 8.96 0 0 0-1.97-5.61zM12 20a7 7 0 1 1 0-14 7 7 0 0 1 0 14z"/></symbol>
+<symbol id="restart" viewBox="0 0 24 24"><path fill="currentColor" d="M17.65 6.35A7.96 7.96 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></symbol>
+<symbol id="filter" viewBox="0 0 24 24"><path fill="currentColor" d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z"/></symbol>
+</defs></svg>
+
+<h1 class="sheet">GameBot UI guideline — proposal 2: forms, detail page, step editor, logs</h1>
+<p class="sub">Decided: top tabs on desktop · rows 56 px (desktop) / 64 px (phone) · max. 3 row icons + ⋮. All pages below use the same header, buttons, icons and list rules.</p>
+
+<!-- ============ 1 FORM ============ -->
+<div class="sec">
+<h3>A. Form page (create / edit) — Notification target</h3>
+<p class="why">Same order of fields on both layouts. Desktop puts short fields side by side, but never more than 2 columns, and the form is max. 720 px wide.</p>
+<div class="wrap">
+ <div><div class="label">Phone</div>
+ <div class="frame phone">
+  <div class="appbar" style="padding:0 4px"><span class="ib"><svg><use href="#back"/></svg></span><b style="font-size:17px">Edit target</b></div>
+  <div class="content" style="overflow:hidden">
+   <div class="card"><h4>General</h4>
+    <div class="field"><label>Name</label><div class="input">My phone</div></div>
+    <div class="field"><label>Channel</label><div class="select" style="justify-content:space-between">Telegram <span>▾</span></div></div>
+    <div class="field err"><label>Chat ID</label><div class="input">12ab</div><div class="help">Chat ID must be a number.</div></div>
+   </div>
+   <div class="card"><h4>Send when</h4>
+    <div class="trow"><span style="font-size:14px">Queue fails</span><span class="toggle"></span></div>
+    <div class="trow"><span style="font-size:14px">Queue completes</span><span class="toggle" style="background:#cbd5e1"></span></div>
+   </div>
+  </div>
+  <div class="footer"><span class="ib del" style="border:1px solid #f0b4b4"><svg><use href="#del"/></svg></span><div class="spacer"></div><span class="btn secondary">Cancel</span><span class="btn primary">Save</span></div>
+ </div></div>
+ <div><div class="label">Desktop</div>
+ <div class="frame desk">
+  <div class="appbar"><div class="brand">GameBot</div><div class="tabs"><div class="tab"><svg width="20" height="20"><use href="#queue"/></svg>Queues</div><div class="tab"><svg width="20" height="20"><use href="#monitor"/></svg>Monitor</div><div class="tab on"><svg width="20" height="20"><use href="#bell"/></svg>Alerts</div><div class="tab"><svg width="20" height="20"><use href="#build"/></svg>Authoring</div><div class="tab"><svg width="20" height="20"><use href="#gear"/></svg>Settings</div></div><div class="spacer"></div><div class="conn"><span class="dot"></span>Online</div></div>
+  <div class="content" style="display:flex;flex-direction:column;align-items:center;padding-bottom:0">
+   <div style="width:720px">
+    <div class="ph"><span class="ib"><svg><use href="#back"/></svg></span><h2>Edit target</h2></div>
+    <div class="card"><h4>General</h4>
+     <div class="grid2">
+      <div class="field"><label>Name</label><div class="input">My phone</div></div>
+      <div class="field"><label>Channel</label><div class="select" style="justify-content:space-between">Telegram <span>▾</span></div></div>
+     </div>
+     <div class="field err" style="width:344px"><label>Chat ID</label><div class="input">12ab</div><div class="help">Chat ID must be a number.</div></div>
+    </div>
+    <div class="card"><h4>Send when</h4>
+     <div class="grid2"><div class="trow"><span style="font-size:14px">Queue fails</span><span class="toggle"></span></div><div class="trow"><span style="font-size:14px">Queue completes</span><span class="toggle" style="background:#cbd5e1"></span></div></div>
+    </div>
+   </div>
+  </div>
+  <div class="footer" style="justify-content:center"><div style="width:720px;display:flex;gap:8px"><span class="btn danger-o"><svg><use href="#del"/></svg>Delete</span><div class="spacer"></div><span class="btn secondary">Cancel</span><span class="btn primary">Save</span></div></div>
+ </div></div>
+ <div class="legend"><div class="label">Form rules</div><ol>
+  <li>Label <b>above</b> the input, never at the side. Inputs 40 px.</li>
+  <li>Fields are in <b>cards with a heading</b>. Same cards and same order on both layouts.</li>
+  <li>Desktop: max. 720 px wide, centered. Max. 2 columns, only for short fields.</li>
+  <li><b>Footer bar</b> at the bottom of the screen, always visible: Delete on the left (only in edit mode), Cancel + Save on the right. Save is always the last button.</li>
+  <li>Errors: red border + text under the field. No pop-up.</li>
+  <li>On/off values use a toggle, not a checkbox.</li>
+ </ol></div>
+</div></div>
+
+<!-- ============ 2 DETAIL ============ -->
+<div class="sec">
+<h3>B. Detail page — Monitoring session</h3>
+<p class="why">Same blocks in the same order. Phone stacks them; desktop puts the screenshot on the left and the information on the right.</p>
+<div class="wrap">
+ <div><div class="label">Phone</div>
+ <div class="frame phone">
+  <div class="appbar" style="padding:0 4px;gap:4px"><span class="ib"><svg><use href="#back"/></svg></span><b style="font-size:17px;flex:1">Device A</b><span class="ib"><svg><use href="#more"/></svg></span></div>
+  <div class="content">
+   <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><span class="chip c-run"><span class="dot"></span>Running</span><span class="meta" style="font-size:13px">Farm gold · step 3 of 12</span></div>
+   <div class="shot" style="height:220px;margin-bottom:12px">Live screenshot</div>
+   <div class="card" style="padding:4px 16px"><div class="kv"><div>Game</div><div>Idle Heroes</div><div>Started</div><div>09:12 (2 h 14 min)</div><div style="border:0">Last action</div><div style="border:0">Tap “Collect”</div></div></div>
+  </div>
+  <div class="footer"><span class="btn secondary" style="flex:1;justify-content:center"><svg><use href="#pause"/></svg>Pause</span><span class="btn danger-o" style="flex:1;justify-content:center"><svg><use href="#stop"/></svg>Stop</span></div>
+ </div></div>
+ <div><div class="label">Desktop</div>
+ <div class="frame desk">
+  <div class="appbar"><div class="brand">GameBot</div><div class="tabs"><div class="tab"><svg width="20" height="20"><use href="#queue"/></svg>Queues</div><div class="tab on"><svg width="20" height="20"><use href="#monitor"/></svg>Monitor</div><div class="tab"><svg width="20" height="20"><use href="#bell"/></svg>Alerts</div><div class="tab"><svg width="20" height="20"><use href="#build"/></svg>Authoring</div><div class="tab"><svg width="20" height="20"><use href="#gear"/></svg>Settings</div></div><div class="spacer"></div><div class="conn"><span class="dot"></span>Online</div></div>
+  <div class="content">
+   <div class="ph"><span class="ib"><svg><use href="#back"/></svg></span><h2 style="flex:none">Device A</h2><span class="chip c-run"><span class="dot"></span>Running</span><div class="spacer"></div><span class="btn secondary"><svg><use href="#pause"/></svg>Pause</span><span class="btn danger-o"><svg><use href="#stop"/></svg>Stop</span><span class="ib"><svg><use href="#more"/></svg></span></div>
+   <div style="display:grid;grid-template-columns:300px 1fr;gap:16px">
+    <div class="shot" style="height:500px">Live screenshot</div>
+    <div>
+     <div class="card" style="padding:4px 16px"><div class="kv" style="grid-template-columns:160px 1fr"><div>Queue</div><div>Farm gold · step 3 of 12</div><div>Game</div><div>Idle Heroes</div><div>Started</div><div>09:12 (2 h 14 min)</div><div style="border:0">Last action</div><div style="border:0">Tap “Collect”</div></div></div>
+     <div class="label" style="margin-top:16px">Recent steps</div>
+     <div class="list"><table><colgroup><col style="width:96px"><col><col style="width:132px"></colgroup><tbody>
+      <tr><td class="mono meta">11:26:04</td><td>Tap “Collect”</td><td><span class="chip c-run"><span class="dot"></span>Done</span></td></tr>
+      <tr><td class="mono meta">11:25:58</td><td>Wait for image “reward-chest”</td><td><span class="chip c-run"><span class="dot"></span>Done</span></td></tr>
+      <tr><td class="mono meta">11:25:40</td><td>Tap “Battle”</td><td><span class="chip c-run"><span class="dot"></span>Done</span></td></tr>
+     </tbody></table></div>
+    </div>
+   </div>
+  </div>
+ </div></div>
+ <div class="legend"><div class="label">Detail-page rules</div><ol>
+  <li>Header: back arrow · title · status chip.</li>
+  <li><b>Actions:</b> desktop = text buttons in the header + ⋮. Phone = the same 2 main actions in the footer bar, the rest in ⋮ in the app bar. (Same place as Save/Cancel on forms.)</li>
+  <li>Key-value data in a card: label (muted) on the left, value on the right, rows 40 px.</li>
+  <li>Lists inside a detail page use the normal list component.</li>
+  <li>Desktop: max. 2 columns. Phone: 1 column, same order.</li>
+ </ol></div>
+</div></div>
+
+<!-- ============ 3 STEP EDITOR ============ -->
+<div class="sec">
+<h3>C. Sequence step editor</h3>
+<p class="why">Each step is one 56 px row. Loops and ifs are blocks with a colored left border; their steps are indented. No text buttons in rows — only icons.</p>
+<div class="wrap">
+ <div><div class="label">Phone</div>
+ <div class="frame phone">
+  <div class="appbar" style="padding:0 4px;gap:4px"><span class="ib"><svg><use href="#back"/></svg></span><b style="font-size:17px;flex:1">Daily rewards</b><span class="ib"><svg><use href="#more"/></svg></span></div>
+  <div class="content" style="padding:12px 0">
+   <div class="list" style="margin:0 12px">
+    <div class="step"><span class="h"><svg><use href="#drag"/></svg></span><span class="ty"><svg><use href="#tap"/></svg></span><div class="tx"><b>Tap “Mail”</b><span>x 540, y 1210</span></div><span class="ib"><svg><use href="#more"/></svg></span></div>
+    <div class="step block"><span class="h"><svg><use href="#drag"/></svg></span><span class="ty"><svg><use href="#loop"/></svg></span><div class="tx"><b>Repeat 5 times</b><span>3 steps</span></div><span class="ib"><svg><use href="#more"/></svg></span></div>
+    <div class="block"><div class="child">
+     <div class="step"><span class="h"><svg><use href="#drag"/></svg></span><span class="ty"><svg><use href="#img"/></svg></span><div class="tx"><b>Wait for “claim”</b><span>max. 10 s</span></div><span class="ib"><svg><use href="#more"/></svg></span></div>
+     <div class="step"><span class="h"><svg><use href="#drag"/></svg></span><span class="ty"><svg><use href="#tap"/></svg></span><div class="tx"><b>Tap “Claim”</b><span>on image</span></div><span class="ib"><svg><use href="#more"/></svg></span></div>
+     <div class="blockend" style="padding-left:40px"><svg><use href="#add"/></svg>Add step to loop</div>
+    </div></div>
+    <div class="step"><span class="h"><svg><use href="#drag"/></svg></span><span class="ty"><svg><use href="#timer"/></svg></span><div class="tx"><b>Wait 2 s</b><span>fixed</span></div><span class="ib"><svg><use href="#more"/></svg></span></div>
+   </div>
+   <div class="pin" style="margin:12px 12px 0 auto;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:6px;box-shadow:0 8px 20px rgba(15,23,42,.15);width:210px">
+    <div style="height:44px;display:flex;align-items:center;gap:12px;padding:0 10px;font-size:14px"><svg width="20" height="20" style="color:var(--muted)"><use href="#edit"/></svg>Edit</div>
+    <div style="height:44px;display:flex;align-items:center;gap:12px;padding:0 10px;font-size:14px"><svg width="20" height="20" style="color:var(--muted);transform:rotate(-90deg)"><use href="#cr"/></svg>Move up</div>
+    <div style="height:44px;display:flex;align-items:center;gap:12px;padding:0 10px;font-size:14px"><svg width="20" height="20" style="color:var(--muted);transform:rotate(90deg)"><use href="#cr"/></svg>Move down</div>
+    <div style="height:44px;display:flex;align-items:center;gap:12px;padding:0 10px;font-size:14px;color:var(--danger);border-top:1px solid var(--border)"><svg width="20" height="20"><use href="#del"/></svg>Delete…</div>
+   </div>
+  </div>
+  <div class="footer"><span class="btn secondary" style="flex:1;justify-content:center"><svg><use href="#add"/></svg>Add step</span><span class="btn primary" style="flex:1;justify-content:center">Save</span></div>
+ </div></div>
+ <div><div class="label">Desktop</div>
+ <div class="frame desk">
+  <div class="appbar"><div class="brand">GameBot</div><div class="tabs"><div class="tab"><svg width="20" height="20"><use href="#queue"/></svg>Queues</div><div class="tab"><svg width="20" height="20"><use href="#monitor"/></svg>Monitor</div><div class="tab"><svg width="20" height="20"><use href="#bell"/></svg>Alerts</div><div class="tab on"><svg width="20" height="20"><use href="#build"/></svg>Authoring</div><div class="tab"><svg width="20" height="20"><use href="#gear"/></svg>Settings</div></div><div class="spacer"></div><div class="conn"><span class="dot"></span>Online</div></div>
+  <div class="sub2"><div class="tab">Commands</div><div class="tab">Games</div><div class="tab on">Sequences</div><div class="tab">Images</div><div class="tab">Backup &amp; Restore</div></div>
+  <div class="content" style="display:flex;justify-content:center;padding-bottom:0">
+   <div style="width:880px">
+    <div class="ph"><span class="ib"><svg><use href="#back"/></svg></span><h2>Daily rewards</h2><span class="btn secondary"><svg><use href="#add"/></svg>Add step</span><span class="ib"><svg><use href="#more"/></svg></span></div>
+    <div class="list">
+     <div class="step"><span class="h"><svg><use href="#drag"/></svg></span><span class="no">1</span><span class="ty"><svg><use href="#tap"/></svg></span><div class="tx"><b>Tap “Mail”</b><span>x 540, y 1210</span></div><span class="ib"><svg><use href="#edit"/></svg></span><span class="ib"><svg><use href="#copy"/></svg></span><span class="ib"><svg><use href="#more"/></svg></span></div>
+     <div class="step block"><span class="h"><svg><use href="#drag"/></svg></span><span class="no">2</span><span class="ty"><svg><use href="#loop"/></svg></span><div class="tx"><b>Repeat 5 times</b><span>3 steps</span></div><span class="ib"><svg><use href="#edit"/></svg></span><span class="ib"><svg><use href="#copy"/></svg></span><span class="ib"><svg><use href="#more"/></svg></span></div>
+     <div class="block"><div class="child">
+      <div class="step"><span class="h"><svg><use href="#drag"/></svg></span><span class="no">2.1</span><span class="ty"><svg><use href="#img"/></svg></span><div class="tx"><b>Wait for image “claim”</b><span>max. 10 s · confidence 0.85</span></div><span class="ib"><svg><use href="#edit"/></svg></span><span class="ib"><svg><use href="#copy"/></svg></span><span class="ib"><svg><use href="#more"/></svg></span></div>
+      <div class="drop"></div>
+      <div class="step block if" style="border-left-width:4px"><span class="h"><svg><use href="#drag"/></svg></span><span class="no">2.2</span><span class="ty"><svg><use href="#ifs"/></svg></span><div class="tx"><b>If image “claim” is visible</b><span>then 1 step · else 0 steps</span></div><span class="ib"><svg><use href="#edit"/></svg></span><span class="ib"><svg><use href="#copy"/></svg></span><span class="ib"><svg><use href="#more"/></svg></span></div>
+      <div class="block if"><div class="child"><div class="step"><span class="h"><svg><use href="#drag"/></svg></span><span class="no">2.2.1</span><span class="ty"><svg><use href="#tap"/></svg></span><div class="tx"><b>Tap “Claim”</b><span>on image</span></div><span class="ib"><svg><use href="#edit"/></svg></span><span class="ib"><svg><use href="#copy"/></svg></span><span class="ib"><svg><use href="#more"/></svg></span></div></div></div>
+      <div class="blockend"><svg><use href="#add"/></svg>Add step to loop</div>
+     </div></div>
+     <div class="step"><span class="h"><svg><use href="#drag"/></svg></span><span class="no">3</span><span class="ty"><svg><use href="#timer"/></svg></span><div class="tx"><b>Wait 2 s</b><span>fixed</span></div><span class="ib"><svg><use href="#edit"/></svg></span><span class="ib"><svg><use href="#copy"/></svg></span><span class="ib"><svg><use href="#more"/></svg></span></div>
+    </div>
+   </div>
+  </div>
+  <div class="footer" style="justify-content:center"><div style="width:880px;display:flex;gap:8px"><span class="meta" style="font-size:13px;align-self:center">Changes are not saved</span><div class="spacer"></div><span class="btn secondary">Cancel</span><span class="btn primary">Save</span></div></div>
+ </div></div>
+ <div class="legend"><div class="label">Step-editor rules</div><ol>
+  <li>Every step = one 56 px row: drag handle (SVG) · number · type icon · title + one detail line · actions.</li>
+  <li>Type icon with color tells the step type: blue = action, purple = loop, teal = if.</li>
+  <li>Blocks: colored left border, child rows indented 28 px, “Add step to …” at the end of the block.</li>
+  <li>Reorder: drag on both layouts; “Move up/down” in ⋮ as the keyboard/touch fallback. No ↑/↓ buttons in the row.</li>
+  <li>Desktop: Edit + Duplicate + ⋮. Phone: only ⋮.</li>
+  <li>Editing a step opens the normal form page (rule set A) — on phone a full page, on desktop a side panel of 480 px.</li>
+ </ol></div>
+</div></div>
+
+<!-- ============ 4 LOGS ============ -->
+<div class="sec">
+<h3>D. Execution Logs</h3>
+<p class="why">A big list still uses the same list component. Expanding a row adds a full-width panel under it; the columns do not change width.</p>
+<div class="wrap">
+ <div><div class="label">Phone</div>
+ <div class="frame phone">
+  <div class="appbar" style="padding:0 12px"><div class="brand" style="margin:0">GameBot</div><div class="spacer"></div><div class="conn"><span class="dot"></span>Online</div></div>
+  <div class="content">
+   <div class="ph"><h2>Logs</h2><span class="ib"><svg><use href="#filter"/></svg></span></div>
+   <div class="chiprow" style="margin-bottom:12px"><span class="fchip on">Today</span><span class="fchip on">Failed</span><span class="fchip">All types</span><span class="fchip">Device A</span></div>
+   <div class="list">
+    <div class="prow"><span style="width:24px;color:var(--muted)"><svg width="20" height="20"><use href="#cd"/></svg></span><div class="t"><div class="n">Event dungeon</div><div class="m"><span class="chip c-fail"><span class="dot"></span>Failed</span><span class="mono">11:26:04</span>· Queue</div></div></div>
+    <div style="background:#f8fafc;padding:10px 14px 12px 42px;font-size:13px;border-bottom:1px solid var(--border)">Image “boss-gate” not found after 30 s.<br><span class="meta">Step 4 of 9 · Device A</span></div>
+    <div class="prow"><span style="width:24px;color:var(--muted)"><svg width="20" height="20"><use href="#cr"/></svg></span><div class="t"><div class="n">Arena loop</div><div class="m"><span class="chip c-fail"><span class="dot"></span>Failed</span><span class="mono">10:02:51</span>· Sequence</div></div></div>
+    <div class="prow"><span style="width:24px;color:var(--muted)"><svg width="20" height="20"><use href="#cr"/></svg></span><div class="t"><div class="n">Tap “Battle”</div><div class="m"><span class="chip c-fail"><span class="dot"></span>Failed</span><span class="mono">09:40:13</span>· Command</div></div></div>
+    <div class="prow"><span style="width:24px;color:var(--muted)"><svg width="20" height="20"><use href="#cr"/></svg></span><div class="t"><div class="n">Guild check-in</div><div class="m"><span class="chip c-fail"><span class="dot"></span>Failed</span><span class="mono">08:15:00</span>· Queue</div></div></div>
+   </div>
+  </div>
+  <div class="tabbar"><div class="tb"><svg><use href="#queue"/></svg>Queues</div><div class="tb"><svg><use href="#monitor"/></svg>Monitor</div><div class="tb"><svg><use href="#bell"/></svg>Alerts</div><div class="tb on"><svg><use href="#gear"/></svg>More</div></div>
+ </div></div>
+ <div><div class="label">Desktop</div>
+ <div class="frame desk">
+  <div class="appbar"><div class="brand">GameBot</div><div class="tabs"><div class="tab"><svg width="20" height="20"><use href="#queue"/></svg>Queues</div><div class="tab"><svg width="20" height="20"><use href="#monitor"/></svg>Monitor</div><div class="tab"><svg width="20" height="20"><use href="#bell"/></svg>Alerts</div><div class="tab"><svg width="20" height="20"><use href="#build"/></svg>Authoring</div><div class="tab on"><svg width="20" height="20"><use href="#gear"/></svg>Settings</div></div><div class="spacer"></div><div class="conn"><span class="dot"></span>Online</div></div>
+  <div class="content">
+   <div class="ph"><h2>Execution logs</h2><span class="btn secondary">Export</span></div>
+   <div class="fbar"><div class="input" style="width:300px"><svg><use href="#search"/></svg>Filter by name</div><div class="chiprow" style="align-items:center"><span class="fchip on">Today</span><span class="fchip on">Failed</span><span class="fchip">All types</span><span class="fchip">All devices</span></div></div>
+   <div class="list">
+    <table><colgroup><col style="width:48px"><col style="width:168px"><col><col style="width:120px"><col style="width:132px"><col style="width:340px"></colgroup>
+     <thead><tr><th></th><th>Time ▾</th><th>Name</th><th>Type</th><th>Status</th><th>Information</th></tr></thead>
+     <tbody>
+      <tr class="sel"><td class="chev"><span class="ib"><svg><use href="#cd"/></svg></span></td><td class="mono meta">2026-11-27 11:26:04</td><td class="name">Event dungeon</td><td>Queue</td><td><span class="chip c-fail"><span class="dot"></span>Failed</span></td><td class="meta">Image “boss-gate” not found after 30 s.</td></tr>
+      <tr class="detail"><td colspan="6"><b>Step 4 of 9</b> · Device A · Sequence “Dungeon run”<br><span class="mono meta">ImageNotFoundException: boss-gate (confidence 0.62 &lt; 0.85)</span></td></tr>
+      <tr><td class="chev"><span class="ib"><svg><use href="#cr"/></svg></span></td><td class="mono meta">2026-11-27 10:02:51</td><td class="name">Arena loop</td><td>Sequence</td><td><span class="chip c-fail"><span class="dot"></span>Failed</span></td><td class="meta">Device was disconnected during step 2 and did not come back</td></tr>
+      <tr><td class="chev"><span class="ib"><svg><use href="#cr"/></svg></span></td><td class="mono meta">2026-11-27 09:40:13</td><td class="name">Tap “Battle”</td><td>Command</td><td><span class="chip c-fail"><span class="dot"></span>Failed</span></td><td class="meta">Timeout</td></tr>
+      <tr><td class="chev"><span class="ib"><svg><use href="#cr"/></svg></span></td><td class="mono meta">2026-11-27 08:15:00</td><td class="name">Guild check-in</td><td>Queue</td><td><span class="chip c-fail"><span class="dot"></span>Failed</span></td><td class="meta">Game did not start</td></tr>
+      <tr><td class="chev"><span class="ib"><svg><use href="#cr"/></svg></span></td><td class="mono meta">2026-11-27 07:58:41</td><td class="name">Daily rewards</td><td>Queue</td><td><span class="chip c-fail"><span class="dot"></span>Failed</span></td><td class="meta">Image “claim” not found</td></tr>
+     </tbody></table>
+    <div class="pager"><span>1–25 of 212</span><span style="display:flex;gap:2px"><span class="ib" style="transform:rotate(180deg)"><svg><use href="#cr"/></svg></span><span class="ib"><svg><use href="#cr"/></svg></span></span></div>
+   </div>
+  </div>
+ </div></div>
+ <div class="legend"><div class="label">Big-list rules</div><ol>
+  <li>Same list component and 56 px rows. Expand chevron = icon button in a fixed 48 px first column.</li>
+  <li>Expanded panel spans all columns and can be any height; the normal rows stay 56 px.</li>
+  <li>Time uses a monospace font and a fixed 168 px column; sorting arrow is in the header.</li>
+  <li>Filters are <b>chips</b> (on/off) on both layouts. On phone the filter icon opens all filters as a form page.</li>
+  <li>Paging at the bottom (25 rows), no endless scroll, so the page does not jump.</li>
+  <li>Phone row: name · status chip · time · type — tap expands.</li>
+ </ol></div>
+</div></div>
+</body></html>

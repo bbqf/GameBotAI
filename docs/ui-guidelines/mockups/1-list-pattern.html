@@ -1,0 +1,218 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+:root{
+  --text:#0f172a; --muted:#475467; --bg:#f5f7fb; --surface:#fff; --border:#dfe5f2;
+  --primary:#2563eb; --primary-soft:#e4edff; --danger:#b91c1c; --danger-soft:#fdecec;
+  --ok:#15803d; --ok-soft:#e7f6ec; --warn:#b45309; --warn-soft:#fdf1e3; --idle:#64748b; --idle-soft:#eef1f5;
+  --row:56px; --r:10px;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Segoe UI",system-ui,sans-serif;color:var(--text);background:#e9edf4;padding:28px;width:1960px}
+h1.sheet{font-size:22px;margin:0 0 4px} p.sub{margin:0 0 20px;color:var(--muted)}
+.wrap{display:flex;gap:28px;align-items:flex-start}
+.label{font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
+.frame{background:var(--bg);border:1px solid #c9d2e3;border-radius:14px;overflow:hidden;box-shadow:0 10px 30px rgba(15,23,42,.12)}
+.desk{width:1240px;height:760px;display:flex;flex-direction:column}
+.phone{width:360px;height:760px;display:flex;flex-direction:column;border-radius:28px;border:8px solid #1e293b}
+/* app bar */
+.appbar{height:56px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:12px;flex:none}
+.brand{font-weight:800;font-size:17px;margin-right:16px}
+.tabs{display:flex;gap:4px;height:100%}
+.tab{display:flex;align-items:center;gap:8px;padding:0 14px;color:var(--muted);font-weight:600;font-size:14px;border-bottom:3px solid transparent}
+.tab.on{color:var(--primary);border-bottom-color:var(--primary)}
+.spacer{flex:1}
+.conn{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ok);font-weight:600}
+.dot{width:8px;height:8px;border-radius:50%;background:currentColor}
+/* page header */
+.content{flex:1;padding:20px 24px;overflow:hidden}
+.phone .content{padding:12px}
+.ph{display:flex;align-items:center;gap:12px;height:44px;margin-bottom:12px}
+.ph h2{font-size:22px;margin:0;flex:1}
+.phone .ph h2{font-size:20px}
+/* buttons */
+.btn{height:40px;padding:0 16px;border-radius:8px;font:600 14px "Segoe UI";display:inline-flex;align-items:center;gap:8px;border:1px solid transparent;white-space:nowrap}
+.btn svg{width:18px;height:18px}
+.primary{background:var(--primary);color:#fff}
+.secondary{background:var(--surface);color:var(--text);border-color:#cbd5e1}
+.danger{background:var(--danger);color:#fff}
+.danger-o{background:var(--surface);color:var(--danger);border-color:#f0b4b4}
+.ib{width:36px;height:36px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;color:var(--muted);border:1px solid transparent}
+.ib svg{width:20px;height:20px}
+.ib.hover{background:var(--primary-soft);color:var(--primary)}
+.ib.del{color:var(--danger)}
+.phone .ib{width:44px;height:44px}
+/* filter bar */
+.fbar{display:flex;gap:8px;margin-bottom:12px}
+.input{height:40px;border:1px solid #cbd5e1;border-radius:8px;background:var(--surface);display:flex;align-items:center;padding:0 12px;gap:8px;color:#94a3b8;font-size:14px}
+.input svg{width:18px;height:18px}
+.select{height:40px;border:1px solid #cbd5e1;border-radius:8px;background:var(--surface);display:flex;align-items:center;padding:0 12px;font-size:14px;gap:24px}
+/* list (table) */
+.list{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+table{width:100%;border-collapse:collapse;table-layout:fixed}
+th{height:40px;text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;padding:0 16px;background:#f8fafc;border-bottom:1px solid var(--border)}
+td{height:var(--row);padding:0 16px;border-bottom:1px solid var(--border);font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+tr:last-child td{border-bottom:0}
+tr.sel td{background:#f6f9ff}
+td.name{font-weight:600}
+td.num{text-align:right;font-variant-numeric:tabular-nums}
+th.num{text-align:right}
+.meta{color:var(--muted)}
+.acts{display:flex;gap:2px;justify-content:flex-end}
+/* chips */
+.chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:12px;font-size:12px;font-weight:700;width:96px;justify-content:center}
+.chip .dot{width:7px;height:7px}
+.c-run{background:var(--ok-soft);color:var(--ok)} .c-pause{background:var(--warn-soft);color:var(--warn)}
+.c-stop{background:var(--idle-soft);color:var(--idle)} .c-fail{background:var(--danger-soft);color:var(--danger)}
+/* phone cards = same rows */
+.prow{height:64px;display:flex;align-items:center;padding:0 4px 0 14px;border-bottom:1px solid var(--border);gap:8px}
+.prow:last-child{border-bottom:0}
+.prow .t{flex:1;min-width:0}
+.prow .n{font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prow .m{font-size:13px;color:var(--muted);display:flex;gap:8px;align-items:center;margin-top:2px;white-space:nowrap}
+.prow .chip{width:auto;height:20px;padding:0 8px;font-size:11px}
+.tabbar{height:64px;background:var(--surface);border-top:1px solid var(--border);display:flex;flex:none}
+.tb{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;font-weight:600;color:var(--muted)}
+.tb svg{width:22px;height:22px} .tb.on{color:var(--primary)}
+.fab{position:absolute}
+.ann{font-size:12px;color:#7c3aed;font-weight:700}
+.legend{width:330px;font-size:13.5px;line-height:1.5}
+.legend ol{padding-left:18px;margin:0} .legend li{margin-bottom:9px}
+.badge{display:inline-flex;width:20px;height:20px;border-radius:50%;background:#7c3aed;color:#fff;font-size:11px;font-weight:800;align-items:center;justify-content:center;vertical-align:middle}
+.pin{position:relative}
+.pin>.badge{position:absolute;top:-8px;right:-8px;z-index:3}
+.colw{font-size:10px;color:#7c3aed;font-weight:700;text-transform:none;letter-spacing:0;display:block;margin-top:-2px}
+</style></head><body>
+<svg width="0" height="0" style="position:absolute">
+ <defs>
+  <symbol id="play" viewBox="0 0 24 24"><path fill="currentColor" d="M8 5v14l11-7z"/></symbol>
+  <symbol id="pause" viewBox="0 0 24 24"><path fill="currentColor" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></symbol>
+  <symbol id="stop" viewBox="0 0 24 24"><path fill="currentColor" d="M6 6h12v12H6z"/></symbol>
+  <symbol id="edit" viewBox="0 0 24 24"><path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></symbol>
+  <symbol id="more" viewBox="0 0 24 24"><path fill="currentColor" d="M12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm0 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></symbol>
+  <symbol id="add" viewBox="0 0 24 24"><path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></symbol>
+  <symbol id="search" viewBox="0 0 24 24"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></symbol>
+  <symbol id="queue" viewBox="0 0 24 24"><path fill="currentColor" d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></symbol>
+  <symbol id="monitor" viewBox="0 0 24 24"><path fill="currentColor" d="M17 1H7a2 2 0 0 0-2 2v18a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2zm0 18H7V5h10v14z"/></symbol>
+  <symbol id="bell" viewBox="0 0 24 24"><path fill="currentColor" d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4a1.5 1.5 0 0 0-3 0v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></symbol>
+  <symbol id="gear" viewBox="0 0 24 24"><path fill="currentColor" d="M19.14 12.94a7.07 7.07 0 0 0 0-1.88l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7 7 0 0 0-1.62-.94l-.36-2.54A.5.5 0 0 0 13.9 2h-3.84a.5.5 0 0 0-.49.42l-.36 2.54a7.4 7.4 0 0 0-1.62.94l-2.39-.96a.5.5 0 0 0-.61.22L2.67 8.48a.5.5 0 0 0 .12.64l2.03 1.58a7.07 7.07 0 0 0 0 1.88l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.39.3.61.22l2.39-.96c.5.38 1.04.7 1.62.94l.36 2.54c.05.24.25.42.49.42h3.84c.24 0 .45-.18.49-.42l.36-2.54a7.4 7.4 0 0 0 1.62-.94l2.39.96c.22.08.48 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.6a3.6 3.6 0 1 1 0-7.2 3.6 3.6 0 0 1 0 7.2z"/></symbol>
+  <symbol id="build" viewBox="0 0 24 24"><path fill="currentColor" d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></symbol>
+  <symbol id="back" viewBox="0 0 24 24"><path fill="currentColor" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></symbol>
+  <symbol id="del" viewBox="0 0 24 24"><path fill="currentColor" d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></symbol>
+  <symbol id="copy" viewBox="0 0 24 24"><path fill="currentColor" d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z"/></symbol>
+ </defs>
+</svg>
+
+<h1 class="sheet">GameBot UI guideline — proposal 1: "One list pattern" (Queues page)</h1>
+<p class="sub">The same page in the same structure: phone (left) and desktop (right). Purple numbers point to the rules on the far right.</p>
+
+<div class="wrap">
+ <!-- PHONE -->
+ <div>
+  <div class="label">Phone · 360 px</div>
+  <div class="frame phone">
+   <div class="appbar" style="padding:0 12px">
+    <div class="brand" style="margin:0">GameBot</div><div class="spacer"></div>
+    <div class="conn"><span class="dot"></span>Online</div>
+   </div>
+   <div class="content">
+    <div class="ph pin"><h2>Queues</h2><span class="btn primary" style="padding:0 12px"><svg><use href="#add"/></svg>Create</span><span class="badge">1</span></div>
+    <div class="fbar pin"><div class="input" style="flex:1"><svg><use href="#search"/></svg>Filter by name</div><span class="badge">2</span></div>
+    <div class="list pin"><span class="badge" style="top:30px">3</span>
+     <div class="prow"><div class="t"><div class="n">Farm gold — Device A</div><div class="m"><span class="chip c-run"><span class="dot"></span>Running</span>Step 3 of 12</div></div><span class="ib"><svg><use href="#pause"/></svg></span><span class="ib"><svg><use href="#more"/></svg></span></div>
+     <div class="prow"><div class="t"><div class="n">Daily rewards</div><div class="m"><span class="chip c-pause"><span class="dot"></span>Paused</span>Next 14:00</div></div><span class="ib"><svg><use href="#play"/></svg></span><span class="ib"><svg><use href="#more"/></svg></span></div>
+     <div class="prow"><div class="t"><div class="n">Arena loop with a very long name that gets cut</div><div class="m"><span class="chip c-stop"><span class="dot"></span>Stopped</span>Last run 09:12</div></div><span class="ib"><svg><use href="#play"/></svg></span><span class="ib"><svg><use href="#more"/></svg></span></div>
+     <div class="prow"><div class="t"><div class="n">Event dungeon</div><div class="m"><span class="chip c-fail"><span class="dot"></span>Failed</span>Image not found</div></div><span class="ib"><svg><use href="#play"/></svg></span><span class="ib"><svg><use href="#more"/></svg></span></div>
+     <div class="prow"><div class="t"><div class="n">Guild check-in</div><div class="m"><span class="chip c-stop"><span class="dot"></span>Stopped</span>Never run</div></div><span class="ib"><svg><use href="#play"/></svg></span><span class="ib"><svg><use href="#more"/></svg></span></div>
+    </div>
+    <div class="pin" style="margin-top:14px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:6px;box-shadow:0 8px 20px rgba(15,23,42,.15);width:220px;margin-left:auto"><span class="badge">4</span>
+      <div style="height:44px;display:flex;align-items:center;gap:12px;padding:0 10px;font-size:14px"><svg width="20" height="20" style="color:var(--muted)"><use href="#edit"/></svg>Edit</div>
+      <div style="height:44px;display:flex;align-items:center;gap:12px;padding:0 10px;font-size:14px"><svg width="20" height="20" style="color:var(--muted)"><use href="#copy"/></svg>Duplicate</div>
+      <div style="height:44px;display:flex;align-items:center;gap:12px;padding:0 10px;font-size:14px"><svg width="20" height="20" style="color:var(--muted)"><use href="#stop"/></svg>Stop</div>
+      <div style="height:44px;display:flex;align-items:center;gap:12px;padding:0 10px;font-size:14px;color:var(--danger);border-top:1px solid var(--border)"><svg width="20" height="20"><use href="#del"/></svg>Delete…</div>
+    </div>
+   </div>
+   <div class="tabbar pin"><span class="badge" style="top:-10px;left:6px">5</span>
+    <div class="tb on"><svg><use href="#queue"/></svg>Queues</div>
+    <div class="tb"><svg><use href="#monitor"/></svg>Monitor</div>
+    <div class="tb"><svg><use href="#bell"/></svg>Alerts</div>
+    <div class="tb"><svg><use href="#gear"/></svg>Settings</div>
+   </div>
+  </div>
+ </div>
+
+ <!-- DESKTOP -->
+ <div>
+  <div class="label">Desktop · 1240 px</div>
+  <div class="frame desk">
+   <div class="appbar pin"><span class="badge" style="left:6px;right:auto;top:4px">5</span>
+    <div class="brand">GameBot</div>
+    <div class="tabs">
+     <div class="tab on"><svg width="20" height="20"><use href="#queue"/></svg>Queues</div>
+     <div class="tab"><svg width="20" height="20"><use href="#monitor"/></svg>Monitor</div>
+     <div class="tab"><svg width="20" height="20"><use href="#bell"/></svg>Alerts</div>
+     <div class="tab"><svg width="20" height="20"><use href="#build"/></svg>Authoring</div>
+     <div class="tab"><svg width="20" height="20"><use href="#gear"/></svg>Settings</div>
+    </div>
+    <div class="spacer"></div><div class="conn"><span class="dot"></span>Online</div>
+   </div>
+   <div class="content">
+    <div class="ph pin"><h2>Queues</h2><span class="btn primary"><svg><use href="#add"/></svg>Create queue</span><span class="badge">1</span></div>
+    <div class="fbar pin" style="width:560px"><div class="input" style="flex:1"><svg><use href="#search"/></svg>Filter by name</div><div class="select">All statuses <span>▾</span></div><span class="badge">2</span></div>
+    <div class="list pin"><span class="badge" style="top:10px">3</span>
+     <table>
+      <colgroup><col><col style="width:132px"><col style="width:260px"><col style="width:120px"><col style="width:176px"></colgroup>
+      <thead><tr><th>Name<span class="colw">fills the rest</span></th><th>Status<span class="colw">132 px</span></th><th>Activity<span class="colw">260 px</span></th><th class="num">Runs today<span class="colw">120 px</span></th><th style="text-align:right">Actions<span class="colw">4 × 36 + gaps = 176 px</span></th></tr></thead>
+      <tbody>
+       <tr><td class="name">Farm gold — Device A</td><td><span class="chip c-run"><span class="dot"></span>Running</span></td><td class="meta">Step 3 of 12</td><td class="num">7</td><td><div class="acts"><span class="ib hover"><svg><use href="#pause"/></svg></span><span class="ib"><svg><use href="#stop"/></svg></span><span class="ib"><svg><use href="#edit"/></svg></span><span class="ib"><svg><use href="#more"/></svg></span></div></td></tr>
+       <tr><td class="name">Daily rewards</td><td><span class="chip c-pause"><span class="dot"></span>Paused</span></td><td class="meta">Next 14:00</td><td class="num">1</td><td><div class="acts"><span class="ib"><svg><use href="#play"/></svg></span><span class="ib"><svg><use href="#stop"/></svg></span><span class="ib"><svg><use href="#edit"/></svg></span><span class="ib"><svg><use href="#more"/></svg></span></div></td></tr>
+       <tr class="sel"><td class="name">Arena loop with a very long name that gets cut with an ellipsis and does not wrap</td><td><span class="chip c-stop"><span class="dot"></span>Stopped</span></td><td class="meta">Last run 09:12</td><td class="num">12</td><td><div class="acts"><span class="ib"><svg><use href="#play"/></svg></span><span class="ib" style="opacity:.35"><svg><use href="#stop"/></svg></span><span class="ib"><svg><use href="#edit"/></svg></span><span class="ib"><svg><use href="#more"/></svg></span></div></td></tr>
+       <tr><td class="name">Event dungeon</td><td><span class="chip c-fail"><span class="dot"></span>Failed</span></td><td class="meta">Image not found</td><td class="num">0</td><td><div class="acts"><span class="ib"><svg><use href="#play"/></svg></span><span class="ib" style="opacity:.35"><svg><use href="#stop"/></svg></span><span class="ib"><svg><use href="#edit"/></svg></span><span class="ib"><svg><use href="#more"/></svg></span></div></td></tr>
+       <tr><td class="name">Guild check-in</td><td><span class="chip c-stop"><span class="dot"></span>Stopped</span></td><td class="meta">Never run</td><td class="num">0</td><td><div class="acts"><span class="ib"><svg><use href="#play"/></svg></span><span class="ib" style="opacity:.35"><svg><use href="#stop"/></svg></span><span class="ib"><svg><use href="#edit"/></svg></span><span class="ib"><svg><use href="#more"/></svg></span></div></td></tr>
+      </tbody>
+     </table>
+    </div>
+
+    <div style="display:flex;gap:40px;margin-top:28px;align-items:flex-start">
+     <div class="pin"><span class="badge">6</span>
+      <div class="label">Buttons — only these 4 + icon button</div>
+      <div style="display:flex;gap:10px;align-items:center">
+       <span class="btn primary"><svg><use href="#add"/></svg>Primary</span>
+       <span class="btn secondary">Secondary</span>
+       <span class="btn danger-o">Delete</span>
+       <span class="btn danger">Delete (in confirm)</span>
+       <span class="ib"><svg><use href="#edit"/></svg></span>
+       <span class="ib hover"><svg><use href="#edit"/></svg></span>
+      </div>
+     </div>
+     <div class="pin"><span class="badge">7</span>
+      <div class="label">Status chips — fixed width</div>
+      <div style="display:flex;gap:8px">
+       <span class="chip c-run"><span class="dot"></span>Running</span><span class="chip c-pause"><span class="dot"></span>Paused</span><span class="chip c-stop"><span class="dot"></span>Stopped</span><span class="chip c-fail"><span class="dot"></span>Failed</span>
+      </div>
+     </div>
+     <div class="pin"><span class="badge">8</span>
+      <div class="label">Detail-page header</div>
+      <div style="display:flex;align-items:center;gap:8px"><span class="ib"><svg><use href="#back"/></svg></span><b style="font-size:20px">Daily rewards</b></div>
+     </div>
+    </div>
+   </div>
+  </div>
+ </div>
+
+ <div class="legend">
+  <div class="label">Rules (proposal 1)</div>
+  <ol>
+   <li><b>Page header:</b> title on the left, max. one primary button on the right. Same on all pages and both layouts.</li>
+   <li><b>Filter bar</b> under the header, not inside table headers. Inputs are 40 px high.</li>
+   <li><b>One list component.</b> Desktop = table with <code>table-layout: fixed</code>; each column has a fixed px width, only "Name" stretches. Rows are always 56 px; text does not wrap, it gets "…". Phone = the same data as 64 px rows: name on line 1, status + one meta value on line 2.</li>
+   <li><b>Row actions:</b> icon buttons with a tooltip. Phone shows max. 1 main action + "⋮" menu. Desktop shows max. 3 + "⋮". Disabled actions stay in place (dimmed), so columns do not move. Delete is always in "⋮", red, and asks for confirmation.</li>
+   <li><b>Navigation:</b> same areas, same order, same icons. Bottom tab bar on phone, top tabs on desktop.</li>
+   <li><b>Buttons:</b> 4 text variants + 1 icon button. Text buttons for page and form actions; icon buttons only in rows and toolbars. Height 40 px (44 px touch area on phone).</li>
+   <li><b>Status chip:</b> one component, one color per state, fixed width.</li>
+   <li><b>Detail pages:</b> back-arrow icon + title, no "← Back" text.</li>
+  </ol>
+  <p style="margin-top:10px"><b>Also:</b> one SVG icon set for everything (no ⠿ ↑ ↓ ✕ text glyphs), colors and sizes only from theme tokens.</p>
+ </div>
+</div>
+</body></html>
