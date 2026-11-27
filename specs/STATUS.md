@@ -231,6 +231,7 @@ Status vocabulary:
 | 201 | Recovery reboot keeps the queue Running and binds a new session | Implemented |
 | 202 | Shared UI components and design tokens; Queues list | Implemented |
 | 203 | Notifications area on the shared UI components | Implemented |
+| 204 | Monitoring area on the shared UI components | Implemented |
 
 ## Numbering notes
 

@@ -38,8 +38,8 @@ describe('MonitoringPage list and screenshot (feature 141, US1)', () => {
     ]);
     render(<MonitoringPage layout="desktop" />);
     await flush();
-    const list = screen.getByRole('list', { name: 'Sessions' });
-    const rows = within(list).getAllByRole('listitem');
+    const list = screen.getByRole('table', { name: 'Sessions' });
+    const rows = within(list).getAllByRole('row').slice(1);
     expect(rows).toHaveLength(4);
     expect(within(rows[0]).getByText('Live')).toBeInTheDocument();
     expect(within(rows[1]).getByText('No answer')).toBeInTheDocument();
@@ -60,7 +60,7 @@ describe('MonitoringPage list and screenshot (feature 141, US1)', () => {
     api.fetchSnapshot.mockImplementationOnce(() => new Promise<Blob>((resolve) => { resolveSnapshot = resolve; }));
     render(<MonitoringPage layout="desktop" />);
     await flush();
-    fireEvent.click(screen.getByRole('button', { name: 'Select pns (emulator-a)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open pns (emulator-a)' }));
     await flush();
     expect(screen.getByText('Loading')).toBeInTheDocument();
     await act(async () => { resolveSnapshot(new Blob(['png'])); });
@@ -77,7 +77,7 @@ describe('MonitoringPage list and screenshot (feature 141, US1)', () => {
     api.listMonitoredSessions.mockResolvedValue([makeSession('a')]);
     render(<MonitoringPage layout="desktop" />);
     await flush();
-    fireEvent.click(screen.getByRole('button', { name: 'Select pns (emulator-a)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open pns (emulator-a)' }));
     await flush();
     expect(screen.getByRole('img')).toBeInTheDocument();
     expect(screen.queryByText('No live picture')).toBeNull();
@@ -93,7 +93,7 @@ describe('MonitoringPage list and screenshot (feature 141, US1)', () => {
     api.fetchSnapshot.mockRejectedValue(new Error('The screenshot request failed (HTTP 504).'));
     render(<MonitoringPage layout="desktop" />);
     await flush();
-    fireEvent.click(screen.getByRole('button', { name: 'Select pns (emulator-a)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open pns (emulator-a)' }));
     await flush();
     expect(screen.getByText('No live picture')).toBeInTheDocument();
     expect(screen.getByText('The screenshot request failed (HTTP 504).')).toBeInTheDocument();
@@ -104,7 +104,7 @@ describe('MonitoringPage list and screenshot (feature 141, US1)', () => {
     api.listMonitoredSessions.mockResolvedValueOnce([makeSession('a'), makeSession('b')]).mockResolvedValue([makeSession('b')]);
     render(<MonitoringPage layout="desktop" />);
     await flush();
-    fireEvent.click(screen.getByRole('button', { name: 'Select pns (emulator-a)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open pns (emulator-a)' }));
     await flush();
     expect(screen.getByTestId('monitoring-detail')).toBeInTheDocument();
     await advance(5000);
@@ -118,7 +118,7 @@ describe('MonitoringPage list and screenshot (feature 141, US1)', () => {
     render(<MonitoringPage layout="desktop" />);
     await flush();
     expect(api.fetchSnapshot).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: 'Select pns (emulator-b)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open pns (emulator-b)' }));
     await flush();
     await advance(6000);
     expect(api.fetchSnapshot.mock.calls.length).toBeGreaterThan(1);

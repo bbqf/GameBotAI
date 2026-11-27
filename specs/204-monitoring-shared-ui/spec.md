@@ -2,7 +2,7 @@
 
 **Feature Branch**: `204-monitoring-shared-ui`  
 **Created**: 2026-11-27  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: User description: "Move the Monitoring area (PR 3 of the UI consistency work, after features 202 and 203) to the shared UI components and to docs/ui-guidelines.md." The full description is in the pipeline call. The user approved mockup B ("Detail page — Monitoring session") of `docs/ui-guidelines/2-form-detail-editor-logs.png` and the plan of one PR for each area on 2026-11-27.
 
 ## Background

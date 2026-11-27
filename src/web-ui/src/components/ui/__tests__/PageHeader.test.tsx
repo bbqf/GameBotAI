@@ -21,4 +21,9 @@ describe('PageHeader', () => {
     expect(screen.getByRole('status', { name: 'Status: Running' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
   });
+
+  it('gives the title the class that keeps it on one line with an ellipsis', () => {
+    render(<PageHeader title="A very long title" />);
+    expect(screen.getByRole('heading', { level: 2 })).toHaveClass('ui-page-header__title');
+  });
 });

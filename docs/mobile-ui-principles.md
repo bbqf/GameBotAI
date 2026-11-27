@@ -1,6 +1,6 @@
 # Mobile UI Principles
 
-Last reviewed: 2026-11-27 (features 139, 140, 171, 173, 184, 185, and 202)
+Last reviewed: 2026-11-27 (features 139, 140, 171, 173, 184, 185, 202, and 204)
 
 Each UI feature must state its **phone support level** and follow these rules. Reviewers use the checklist at the end.
 
@@ -77,7 +77,7 @@ The queue detail shows what the queue does now and what it will do next.
   - The big screen has no entry page. The Entry settings panel of the card holds the same parameter form.
 - **"Not live" mark** (feature 199, phone support level: `full`). A queue card and the queue detail show a small "Not live"
   mark when the device of the running queue is not live. The mark wraps with its text, needs no tap, and causes no sideways
-  scroll at 360 px. The Monitoring session row and header show the same mark. The device recovery option is in the queue
+  scroll at 360 px. The Monitoring session row and the Device row of its detail page show the same mark. Monitoring uses the shared list and a detail page with a footer button (feature 204). The device recovery option is in the queue
   settings form, which is not on the phone (`desktop-only`).
 - A running queue has the controls of feature 171 (phone support level: full). The controls are **Pause**,
   **Cancel pause**, **Resume**, **Review changes** (with **Apply**), and **Upgrade template**. They work in one column, each

@@ -1,6 +1,6 @@
 # UI Guidelines
 
-Last reviewed: 2026-11-27 (feature 203)
+Last reviewed: 2026-11-27 (features 203 and 204)
 
 These rules give all pages of the web UI one design, on the phone and on the desktop. The phone layout is the base. The
 desktop layout uses the same parts, in the same order, with more space.
@@ -220,7 +220,7 @@ only the tokens of section 1, and each hover rule is inside `@media (hover: hove
   as rule D2 says.
 - **RowActionMenu**: the "more" menu of a row. A danger item is last and is red. Rule: Delete is in the menu of a row.
 - **FooterBar**: the bar at the bottom of a form page (section 9). The target form of the Notifications area uses it.
-- **ConfirmDialog**: the one confirmation dialog (rule D1). The focus starts on Cancel.
+- **ConfirmDialog**: the one confirmation dialog (rule D1). The focus starts on Cancel. The optional `details` prop shows extra content (for example a warning) between the message and the buttons.
 - **SidePanel**: a form panel. It is 480 px wide at the right edge on the desktop, and a full page with a "Back" button on
   the phone. The page stays visible on the desktop. The focus moves into the panel on open and back to the opener on
   close. Escape closes it. Rule: D2.

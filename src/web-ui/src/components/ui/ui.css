@@ -180,6 +180,7 @@
 }
 
 .ui-page-header__title {
+  min-width: 0;
   margin: 0;
   font-size: 22px;
   font-weight: 600;
@@ -534,6 +535,10 @@ tr.ui-list__row.ui-list__row--selected {
   margin: 0 0 var(--gb-space-5);
 }
 
+.ui-dialog__details {
+  margin-bottom: var(--gb-space-5);
+}
+
 .ui-dialog__buttons {
   display: flex;
   justify-content: flex-end;
@@ -805,4 +810,64 @@ tr.ui-list__row.ui-list__row--selected {
 /* The page makes room for the side panel on the desktop. */
 .notifications-page--panel-open {
   padding-right: calc(var(--gb-size-side-panel) + var(--gb-space-4));
+}
+
+/* ---- Feature 204: key-value card and detail grid ---- */
+.ui-kv {
+  margin: 0;
+  padding: 4px var(--gb-space-4);
+  border: 1px solid var(--gb-color-border);
+  border-radius: 10px;
+  background: var(--gb-color-surface);
+}
+
+.ui-kv__row {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  align-items: center;
+  gap: var(--gb-space-3);
+  min-height: 40px;
+  border-bottom: 1px solid var(--gb-color-border);
+}
+
+.ui-kv__row:last-child {
+  border-bottom: 0;
+}
+
+.ui-kv__label {
+  color: var(--gb-color-muted);
+  font-size: 13px;
+}
+
+.ui-kv__value {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(360px, 1fr) 320px;
+  gap: var(--gb-space-4);
+  align-items: start;
+}
+
+.ui-detail-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gb-space-3);
+  min-width: 0;
+}
+
+.ui-button--block {
+  width: 100%;
+}
+
+@media (max-width: 768px), (max-height: 500px) {
+  .ui-detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

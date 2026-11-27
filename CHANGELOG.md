@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Move the Monitoring area to the shared UI components (204-monitoring-shared-ui)
+  - **Change**: Monitoring uses the shared list and a detail page on the desktop and the phone. The detail page shows the live picture and a card with the session data. The emulator restart uses the shared confirmation dialog.
+  - **Web UI**: the list has the columns Name, State (132 px), Device (120 px), Queue (220 px), and Sequence (260 px). `ConfirmDialog` has the new optional prop `details`.
+  - **Not changed**: the API and the stored data.
+  - **Version**: the patch version is now 1.12.37.
 - Move the Notifications area to the shared UI components (203-notifications-shared-ui)
   - **Change**: the Notifications page uses the shared list, icon actions, and one Delete dialog. The target form opens in a side panel on the desktop and as a full page on the phone. The form shows an error under an empty Name or Chat ID.
   - **Web UI**: the new shared parts are `SidePanel`, `Toggle`, `SectionHeader`, the icon `send`, and the form field classes. The target list has the columns Name, Type (120 px), Enabled (132 px), Chat ID (200 px), Bot token (160 px), and Actions (148 px). The level list has the columns Queue and Level (240 px).
