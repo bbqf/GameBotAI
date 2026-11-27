@@ -67,7 +67,7 @@ describe('App in phone mode', () => {
     mock = mockViewport(360, 640);
     render(<App />);
     await screen.findByTestId('phone-queues');
-    fireEvent.click(screen.getByRole('button', { name: /More/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'More', exact: true }));
     fireEvent.click(screen.getByRole('button', { name: 'Configuration' }));
     expect(await screen.findByLabelText('mock token field')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Configuration', level: 1 })).toBeInTheDocument();

@@ -48,7 +48,7 @@ describe('Desktop-only areas', () => {
   it('reaches the notice through the More sheet and goes back to Queues', async () => {
     mock = mockViewport(360, 640);
     render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: /More/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'More', exact: true }));
     fireEvent.click(screen.getByRole('button', { name: /Authoring/ }));
     expect(screen.getByText('Use a larger screen for this area.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Back to Queues' }));
