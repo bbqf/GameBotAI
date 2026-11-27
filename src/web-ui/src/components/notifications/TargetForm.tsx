@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Button, FooterBar, Toggle } from '../ui';
+import { Button, FooterBar, IconButton, Toggle } from '../ui';
+import { useLayoutMode } from '../../hooks/useLayoutMode';
 import {
   NotificationTargetDto,
   createNotificationTarget,
@@ -25,6 +26,8 @@ const errorText = (err: unknown): string => (err instanceof Error ? err.message 
  * saves first, and only a saved target gets the test message. A save error stops the test.
  */
 export const TargetForm: React.FC<TargetFormProps> = ({ target, onSaved, onCancel, onDelete }) => {
+  // On the phone, Delete is an icon button, so that the four footer actions fit on one line.
+  const phone = useLayoutMode() === 'phone';
   const [name, setName] = useState('');
   const [chatId, setChatId] = useState('');
   const [botToken, setBotToken] = useState('');
@@ -172,7 +175,9 @@ export const TargetForm: React.FC<TargetFormProps> = ({ target, onSaved, onCance
         {message && <div role="status" className="message">{message}</div>}
       </div>
       <FooterBar
-        left={target && onDelete ? <Button variant="danger-outline" disabled={busy} onClick={() => onDelete(target)}>Delete</Button> : undefined}
+        left={target && onDelete ? (phone
+          ? <IconButton icon="delete" label="Delete" tone="danger" disabled={busy} onClick={() => onDelete(target)} />
+          : <Button variant="danger-outline" disabled={busy} onClick={() => onDelete(target)}>Delete</Button>) : undefined}
         right={(
           <>
             <Button variant="secondary" disabled={busy} onClick={onCancel}>Cancel</Button>

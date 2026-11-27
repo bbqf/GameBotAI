@@ -478,6 +478,21 @@
   gap: var(--gb-space-2);
 }
 
+/* A button text in the footer stays on one line. */
+.ui-footer-bar .ui-button {
+  white-space: nowrap;
+}
+
+@media (max-width: 768px), (max-height: 500px) {
+  .ui-footer-bar {
+    padding: 0 var(--gb-space-3);
+  }
+
+  .ui-footer-bar .ui-button {
+    padding: 0 var(--gb-space-3);
+  }
+}
+
 /* ---- ConfirmDialog ---- */
 .ui-dialog__backdrop {
   position: fixed;
@@ -599,6 +614,13 @@
 @media (max-width: 768px), (max-height: 500px) {
   .ui-toggle {
     min-height: 44px;
+  }
+
+  /* The general phone rule gives each button a minimum of 44 x 44 px. The switch keeps its track size; its ::after
+     area gives the 44 x 44 px hit area. */
+  .app--phone button.ui-toggle__switch[role="switch"] {
+    min-width: 40px;
+    min-height: 24px;
   }
 
   /* The hit area of the switch is 44 x 44 px. */
