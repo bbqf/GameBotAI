@@ -96,7 +96,7 @@ describe('CommandsPage', () => {
 
     await waitFor(() => expect(listCommandsMock).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByText('Create Command'));
+    fireEvent.click(screen.getByRole('button', { name: 'Create command' }));
     fireEvent.click(screen.getByText('Save'));
     expect(await screen.findByText('Name is required')).toBeInTheDocument();
 
@@ -136,7 +136,7 @@ describe('CommandsPage', () => {
     await screen.findByText('Cmd');
     fireEvent.click(screen.getByText('Cmd'));
 
-    await screen.findByText('Edit Command');
+    await screen.findByRole('button', { name: 'Back' });
     fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Cmd Updated' } });
     fireEvent.click(screen.getAllByText('Save')[0]);
 
@@ -168,7 +168,7 @@ describe('CommandsPage', () => {
     await screen.findByText('Cmd');
     fireEvent.click(screen.getByText('Cmd'));
 
-    await screen.findByText('Edit Command');
+    await screen.findByRole('button', { name: 'Back' });
     // Confirm drag handles are present (no arrow buttons)
     const stepsSection = screen.getByRole('heading', { name: 'Steps', level: 3 }).closest('section')!;
     await waitFor(() => {
@@ -201,17 +201,16 @@ describe('CommandsPage', () => {
 
     render(<CommandsPage />);
 
-    const nameButton = await screen.findByRole('button', { name: longName });
-    expect(nameButton).toHaveAttribute('title', longName);
-    const nameSpan = nameButton.querySelector('.command-name');
-    expect(nameSpan?.textContent).toBe(longName);
+    const nameCell = await screen.findByText(longName);
+    expect(nameCell.closest('[title]')).toHaveAttribute('title', longName);
+    expect(nameCell.textContent).toBe(longName);
   });
 
   it('creates a command with a primitive tap step', async () => {
     render(<CommandsPage />);
     await waitFor(() => expect(listCommandsMock).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByText('Create Command'));
+    fireEvent.click(screen.getByRole('button', { name: 'Create command' }));
     fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Primitive Command' } });
     fireEvent.change(screen.getByRole('combobox', { name: /action type/i }), { target: { value: 'PrimitiveTap' } });
     fireEvent.change(screen.getByLabelText('Reference image *'), { target: { value: 'home_button' } });
@@ -248,7 +247,7 @@ describe('CommandsPage', () => {
     render(<CommandsPage />);
     await waitFor(() => expect(listCommandsMock).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByText('Create Command'));
+    fireEvent.click(screen.getByRole('button', { name: 'Create command' }));
     expect(screen.queryByText('Add command step')).toBeNull();
     expect(screen.queryByText('Add command')).toBeNull();
 
@@ -263,7 +262,7 @@ describe('CommandsPage', () => {
     render(<CommandsPage />);
     await waitFor(() => expect(listCommandsMock).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByText('Create Command'));
+    fireEvent.click(screen.getByRole('button', { name: 'Create command' }));
     fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Wait Command' } });
     fireEvent.change(screen.getByRole('combobox', { name: /action type/i }), { target: { value: 'WaitForImage' } });
     fireEvent.change(screen.getByLabelText('Timeout (ms) *'), { target: { value: '2500' } });
@@ -302,7 +301,7 @@ describe('CommandsPage', () => {
     await screen.findByText('Wait Cmd');
     fireEvent.click(screen.getByText('Wait Cmd'));
 
-    await screen.findByText('Edit Command');
+    await screen.findByRole('button', { name: 'Back' });
     expect(screen.getByText('Wait for image: mail_icon')).toBeInTheDocument();
 
     fireEvent.click(screen.getAllByText('Save')[0]);

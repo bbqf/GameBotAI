@@ -79,4 +79,19 @@ describe('ConfirmDialog', () => {
     renderDialog();
     expect(document.querySelector('.ui-dialog__details')).toBeNull();
   });
+
+  it('turns off only the confirm button with confirmDisabled', () => {
+    const { onConfirm, onCancel } = renderDialog({ confirmDisabled: true });
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+
+  it('turns off both buttons with busy', () => {
+    renderDialog({ busy: true });
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
+  });
 });

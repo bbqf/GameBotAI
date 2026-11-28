@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ImageSelectorDropdown } from '../images/ImageSelectorDropdown';
 import { DndContext, DragEndEvent, DragOverEvent, DragStartEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
-import { FormActions, FormSection } from '../unified/FormLayout';
+import { FormSection } from '../unified/FormLayout';
+import { Button, FooterBar } from '../ui';
 import type { SearchableOption } from '../SearchableDropdown';
 import type { ReorderableListItem } from '../ReorderableList';
 import { SortableSequenceStepList } from '../SortableSequenceStepList';
@@ -83,6 +84,9 @@ export type CommandFormProps = {
   onChange: (next: CommandFormValue) => void;
   onSubmit?: () => void;
   onCancel?: () => void;
+  /** Shows Delete on the left of the footer bar. Set it in edit mode only. */
+  onDelete?: () => void;
+  deleting?: boolean;
 };
 
 const toStepItems = (steps: StepEntry[], commandOpts: SearchableOption[]): ReorderableListItem[] => {
@@ -186,6 +190,8 @@ export const CommandForm: React.FC<CommandFormProps> = ({
   onChange,
   onSubmit,
   onCancel,
+  onDelete,
+  deleting,
 }) => {
   const [pendingActionType, setPendingActionType] = useState<PrimitiveActionType | ''>('');
   const [editingStepId, setEditingStepId] = useState<string | null>(null);
@@ -382,14 +388,13 @@ export const CommandForm: React.FC<CommandFormProps> = ({
           disabled={submitting || loading}
         />
         <div className="command-form__record-row">
-          <button
-            type="button"
-            className="btn btn-secondary"
+          <Button
+            variant="secondary"
             onClick={() => setPickerOpen(true)}
             disabled={submitting || loading}
           >
             Record steps…
-          </button>
+          </Button>
         </div>
 
         {pendingActionType === 'PrimitiveTap' && (
@@ -616,9 +621,22 @@ export const CommandForm: React.FC<CommandFormProps> = ({
 
       {errors?.form && <div className="field-error" role="alert" data-testid="command-form-summary">{errors.form}</div>}
 
-      <FormActions submitting={submitting} onCancel={onCancel}>
-        {loading && <span className="form-hint">Loading…</span>}
-      </FormActions>
+      <FooterBar
+        left={(
+          <>
+            {onDelete && (
+              <Button variant="danger-outline" onClick={onDelete} disabled={submitting || deleting}>Delete</Button>
+            )}
+            {loading && <span className="form-hint">Loading…</span>}
+          </>
+        )}
+        right={(
+          <>
+            {onCancel && <Button variant="secondary" onClick={onCancel} disabled={submitting}>Cancel</Button>}
+            <Button type="submit" variant="primary" disabled={submitting}>Save</Button>
+          </>
+        )}
+      />
     </form>
   );
 };

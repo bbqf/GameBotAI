@@ -56,7 +56,7 @@ test('command steps support add, reorder, delete and persist order on save', asy
   await page.goto('/');
   await page.getByRole('tab', { name: 'Authoring' }).click();
   await page.getByRole('tab', { name: 'Commands' }).click();
-  await page.getByRole('button', { name: 'Create Command' }).click();
+  await page.getByRole('button', { name: 'Create command' }).click();
 
   await page.getByLabel('Name *').fill('Playwright Cmd');
 

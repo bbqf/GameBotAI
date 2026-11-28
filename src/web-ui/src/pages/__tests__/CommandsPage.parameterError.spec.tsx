@@ -61,7 +61,7 @@ describe('CommandsPage service error at the field (feature 169)', () => {
     render(<CommandsPage />);
     await screen.findByText('Cmd');
     fireEvent.click(screen.getByText('Cmd'));
-    await screen.findByText('Edit Command');
+    await screen.findByRole('button', { name: 'Back' });
     fireEvent.click(screen.getAllByText('Save')[0]);
   };
 

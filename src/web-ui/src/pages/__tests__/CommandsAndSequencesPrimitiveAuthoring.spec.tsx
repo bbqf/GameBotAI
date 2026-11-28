@@ -81,7 +81,7 @@ describe('Commands and sequences primitive authoring', () => {
     render(<CommandsPage />);
 
     await waitFor(() => expect(listCommandsMock).toHaveBeenCalled());
-    fireEvent.click(screen.getByText('Create Command'));
+    fireEvent.click(screen.getByRole('button', { name: 'Create command' }));
     fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Primitive Command' } });
     fireEvent.change(screen.getByRole('combobox', { name: /action type/i }), { target: { value: 'PrimitiveTap' } });
     fireEvent.change(screen.getByLabelText('Reference image *'), { target: { value: tapImageId } });
