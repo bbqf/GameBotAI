@@ -505,6 +505,11 @@ tr.ui-list__row.ui-list__row--selected {
   gap: var(--gb-space-2);
 }
 
+/* The main actions stay on the right, also when the left area is empty and hidden (rule F4). */
+.ui-footer-bar__right {
+  margin-left: auto;
+}
+
 /* A button text in the footer stays on one line. */
 .ui-footer-bar .ui-button {
   white-space: nowrap;
@@ -1072,6 +1077,7 @@ tr.ui-list__row.ui-list__row--selected {
 }
 
 .ui-form .form-section__description {
+  margin: 0 0 var(--gb-space-3);
   color: var(--gb-color-muted);
   font-size: 13px;
 }
