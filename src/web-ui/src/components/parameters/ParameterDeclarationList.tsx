@@ -57,7 +57,6 @@ export const ParameterDeclarationList: React.FC<ParameterDeclarationListProps> =
   if (layoutMode === 'phone') {
     return (
       <section className="parameter-declarations" aria-label="Parameters">
-        <h3>Parameters</h3>
         <p className="parameter-declarations-phone-notice">
           Use a larger screen to edit parameters. You can still fill their values on this screen.
         </p>
@@ -67,8 +66,8 @@ export const ParameterDeclarationList: React.FC<ParameterDeclarationListProps> =
 
   return (
     <section className="parameter-declarations" aria-label="Parameters">
+      {/* The card around this list has the heading "Parameters", so the list has no heading of its own. */}
       <header className="parameter-declarations-header">
-        <h3>Parameters</h3>
         <button
           type="button"
           className="parameter-declarations-add"
