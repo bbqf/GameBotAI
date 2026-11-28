@@ -38,7 +38,7 @@ describe('CommandsPage field templates round trip (feature 169)', () => {
     render(<CommandsPage />);
     await screen.findByText('Cmd');
     fireEvent.click(screen.getByText('Cmd'));
-    await screen.findByText('Edit Command');
+    await screen.findByRole('button', { name: 'Back' });
   };
 
   it('loads and saves the templates of every step type without change', async () => {

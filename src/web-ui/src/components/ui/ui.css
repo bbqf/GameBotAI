@@ -505,6 +505,11 @@ tr.ui-list__row.ui-list__row--selected {
   gap: var(--gb-space-2);
 }
 
+/* The main actions stay on the right, also when the left area is empty and hidden (rule F4). */
+.ui-footer-bar__right {
+  margin-left: auto;
+}
+
 /* A button text in the footer stays on one line. */
 .ui-footer-bar .ui-button {
   white-space: nowrap;
@@ -1024,4 +1029,121 @@ tr.ui-list__row.ui-list__row--selected {
     background: var(--gb-color-surface-alt);
     color: var(--gb-color-text);
   }
+}
+
+/* Filter bar, message area, and number cells of the list pages. */
+.ui-filter-bar {
+  display: flex;
+  gap: var(--gb-space-2);
+  margin: 0 0 12px;
+}
+
+.ui-filter-bar input {
+  width: 280px;
+  max-width: 100%;
+  height: 40px;
+}
+
+.ui-message-area {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gb-space-2);
+  margin: 0 0 12px;
+}
+
+.ui-num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The card form of a form page (Games, Commands). */
+.ui-form {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.ui-form .form-section {
+  margin: 0 0 16px;
+  padding: 16px 20px;
+  border: 1px solid var(--gb-color-border);
+  border-radius: 10px;
+  background: var(--gb-color-surface);
+}
+
+.ui-form .form-section__header h3 {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.ui-form .form-section__description {
+  margin: 0 0 var(--gb-space-3);
+  color: var(--gb-color-muted);
+  font-size: 13px;
+}
+
+.ui-form .field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 0 12px;
+}
+
+.ui-form label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ui-form input,
+.ui-form select {
+  width: 100%;
+  height: 40px;
+  box-sizing: border-box;
+}
+
+.ui-form [aria-invalid="true"] {
+  border-color: var(--gb-color-danger);
+}
+
+.ui-form .field-error {
+  color: var(--gb-color-danger);
+  font-size: 13px;
+}
+
+/* The "Referenced by" list in a delete dialog. */
+.ui-references {
+  margin: 12px 0 0;
+  font-size: 13px;
+}
+
+.ui-references strong {
+  font-weight: 600;
+}
+
+.ui-references ul {
+  margin: 4px 0 8px;
+  padding-left: 20px;
+}
+
+.ui-filter-bar input,
+.ui-form input,
+.ui-form select {
+  padding: 0 12px;
+  border: 1px solid var(--gb-color-border-strong);
+  border-radius: var(--gb-radius-md);
+  background: var(--gb-color-surface);
+}
+
+.ui-dialog__details p {
+  margin: 0 0 8px;
+}
+
+/* The command form sits in the page form. It has no outer card of its own. */
+.ui-form .command-form {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+  box-shadow: none;
 }

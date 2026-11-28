@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { listGames, GameDto, createGame, getGame, updateGame, deleteGame } from '../services/games';
-import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
-import { ApiError } from '../lib/api';
 import { FormError } from '../components/Form';
-import { FormActions, FormSection } from '../components/unified/FormLayout';
+import { FormSection } from '../components/unified/FormLayout';
+import { Button, ConfirmDialog, FooterBar, ListView, PageHeader, type ListColumn, type ListState } from '../components/ui';
+import { useDeleteFlow } from '../components/authoring/useDeleteFlow';
+import { DeleteReferences } from '../components/authoring/DeleteReferences';
 import { useUnsavedChangesPrompt } from '../hooks/useUnsavedChangesPrompt';
 import { useResetSignal } from '../hooks/useResetSignal';
 
@@ -13,6 +14,17 @@ type GameFormValue = {
 };
 
 const emptyForm: GameFormValue = { name: '', packageName: '' };
+
+const gameColumns: ListColumn<GameDto>[] = [
+  { id: 'name', header: 'Name', width: 'flex', render: (g) => g.name, text: (g) => g.name },
+  {
+    id: 'packageName',
+    header: 'Package name',
+    width: 320,
+    render: (g) => (g.packageName ? <span className="ui-mono">{g.packageName}</span> : '—'),
+    text: (g) => g.packageName ?? '',
+  },
+];
 
 type GamesPageProps = {
   initialCreate?: boolean;
@@ -26,9 +38,7 @@ export const GamesPage: React.FC<GamesPageProps> = ({ initialCreate, initialEdit
   const [form, setForm] = useState<GameFormValue>(emptyForm);
   const [errors, setErrors] = useState<Record<string, string> | undefined>(undefined);
   const [editingId, setEditingId] = useState<string | undefined>(undefined);
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleteMessage, setDeleteMessage] = useState<string | undefined>(undefined);
-  const [deleteReferences, setDeleteReferences] = useState<Record<string, Array<{ id: string; name: string }>> | undefined>(undefined);
+  const [loadedName, setLoadedName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -36,23 +46,20 @@ export const GamesPage: React.FC<GamesPageProps> = ({ initialCreate, initialEdit
   const [tableMessage, setTableMessage] = useState<string | undefined>(undefined);
   const [tableError, setTableError] = useState<string | undefined>(undefined);
 
-  useEffect(() => {
-    let mounted = true;
+  const reload = useCallback(() => {
     setLoading(true);
-    listGames()
+    return listGames()
       .then((data: GameDto[]) => {
-        if (!mounted) return;
         setGames(data);
         setTableError(undefined);
       })
-      .catch((err: any) => { if (!mounted) return; setGames([]); setTableError(err?.message ?? 'Failed to load games'); })
-      .finally(() => {
-        if (mounted) setLoading(false);
-      });
-    return () => {
-      mounted = false;
-    };
+      .catch((err: any) => { setGames([]); setTableError(err?.message ?? 'Failed to load games'); })
+      .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
 
   useEffect(() => {
     if (!initialEditId) return;
@@ -63,6 +70,7 @@ export const GamesPage: React.FC<GamesPageProps> = ({ initialCreate, initialEdit
         setEditingId(initialEditId);
         setCreating(false);
         setForm({ name: g.name, packageName: g.packageName ?? '' });
+        setLoadedName(g.name);
         setDirty(false);
       } catch (err: any) {
         setErrors({ form: err?.message ?? 'Failed to load game' });
@@ -76,6 +84,7 @@ export const GamesPage: React.FC<GamesPageProps> = ({ initialCreate, initialEdit
 
   const resetForm = () => {
     setForm(emptyForm);
+    setLoadedName('');
     setErrors(undefined);
     setDirty(false);
   };
@@ -89,6 +98,23 @@ export const GamesPage: React.FC<GamesPageProps> = ({ initialCreate, initialEdit
 
   useResetSignal(navResetSignal, () => { if (editorOpen) backToList(); });
 
+  const del = useDeleteFlow({
+    kind: 'game',
+    remove: deleteGame,
+    onDeleted: (target) => {
+      if (editingId === target.id) {
+        setEditingId(undefined);
+        resetForm();
+      }
+      void reload();
+      setTableMessage('Game deleted.');
+    },
+    onError: (message) => {
+      if (editorOpen) setErrors({ form: message });
+      else setTableError(message);
+    },
+  });
+
   const displayedGames = useMemo(() => {
     const query = filterName.trim().toLowerCase();
     return games
@@ -96,107 +122,140 @@ export const GamesPage: React.FC<GamesPageProps> = ({ initialCreate, initialEdit
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [games, filterName]);
 
+  const openCreate = () => {
+    if (!confirmNavigate()) return;
+    setCreating(true);
+    setEditingId(undefined);
+    setDirty(false);
+  };
+
+  const openEdit = async (id: string) => {
+    if (!confirmNavigate()) return;
+    setErrors(undefined);
+    try {
+      const game = await getGame(id);
+      setEditingId(id);
+      setForm({ name: game.name, packageName: game.packageName ?? '' });
+      setLoadedName(game.name);
+      setDirty(false);
+    } catch (err: any) {
+      setErrors({ form: err?.message ?? 'Failed to load game' });
+    }
+  };
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const nextErrors: Record<string, string> = {};
+    if (!form.name.trim()) nextErrors.name = 'Name is required';
+    if (Object.keys(nextErrors).length) { setErrors(nextErrors); return; }
+    const payload = { name: form.name.trim(), packageName: form.packageName.trim() || undefined };
+    setSubmitting(true);
+    try {
+      if (editingId) {
+        await updateGame(editingId, payload);
+        setEditingId(undefined);
+      } else {
+        await createGame(payload);
+        setCreating(false);
+      }
+      const wasEdit = Boolean(editingId);
+      resetForm();
+      setGames(await listGames());
+      setTableMessage(wasEdit ? 'Game updated.' : 'Game created.');
+    } catch (err: any) {
+      setErrors({ form: err?.message ?? (editingId ? 'Failed to update game' : 'Failed to create game') });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const listState: ListState = loading && games.length === 0
+    ? { kind: 'loading' }
+    : tableError && games.length === 0
+      ? { kind: 'error', text: tableError, onRetry: () => void reload() }
+      : displayedGames.length === 0
+        ? { kind: 'empty', text: 'No games.' }
+        : 'ready';
+
+  const idPrefix = editingId ? 'game-edit' : 'game';
+
+  if (!editorOpen) {
+    return (
+      <section>
+        <PageHeader title="Games" actions={<Button variant="primary" icon="add" onClick={openCreate}>Create game</Button>} />
+        <div className="ui-message-area">
+          {tableMessage && <div className="form-hint" role="status">{tableMessage}</div>}
+          {tableError && games.length > 0 && <div className="form-error" role="alert">{tableError}</div>}
+          {errors?.form && <div className="form-error" role="alert">{errors.form}</div>}
+        </div>
+        <div className="ui-filter-bar">
+          <input
+            aria-label="Filter by name"
+            value={filterName}
+            onChange={(e) => setFilterName(e.target.value)}
+            placeholder="Filter by name"
+          />
+        </div>
+        <ListView<GameDto>
+          mode="desktop"
+          ariaLabel="Games table"
+          tableClassName="games-list"
+          columns={gameColumns}
+          rows={displayedGames}
+          getRowKey={(g) => g.id}
+          rowTestId={(g) => `game-row-${g.id}`}
+          onRowClick={(g) => void openEdit(g.id)}
+          menuLabel={(g) => `More actions for ${g.name}`}
+          rowActions={(g) => ({
+            visible: [{ id: 'edit', label: 'Edit', ariaLabel: `Edit ${g.name}`, icon: 'edit', onSelect: () => void openEdit(g.id) }],
+            menu: [{ id: 'delete', label: 'Delete', ariaLabel: `Delete ${g.name}`, icon: 'delete', tone: 'danger', onSelect: () => del.open({ id: g.id, name: g.name }) }],
+          })}
+          state={listState}
+        />
+        {renderDialog()}
+      </section>
+    );
+  }
+
+  function renderDialog() {
+    return (
+      <ConfirmDialog
+        open={Boolean(del.target)}
+        title={`Delete game ${del.target?.name ?? ''}?`}
+        message="You cannot undo this."
+        details={del.conflict && <DeleteReferences conflict={del.conflict} />}
+        confirmText="Delete"
+        danger
+        busy={del.busy}
+        confirmDisabled={Boolean(del.conflict)}
+        onConfirm={() => void del.confirm()}
+        onCancel={del.cancel}
+      />
+    );
+  }
+
   return (
     <section>
-      <h2>Games</h2>
-      {tableMessage && <div className="form-hint" role="status">{tableMessage}</div>}
-      {tableError && <div className="form-error" role="alert">{tableError}</div>}
-      {!editorOpen && (
-      <>
-      <div className="actions-header">
-        <button onClick={() => { if (!confirmNavigate()) return; setCreating(true); setEditingId(undefined); setDirty(false); }}>Create Game</button>
-      </div>
-      <table className="games-table" aria-label="Games table">
-        <thead>
-          <tr>
-            <th>
-              <div>Name</div>
-              <input
-                aria-label="Filter by name"
-                value={filterName}
-                onChange={(e) => setFilterName(e.target.value)}
-                placeholder="Filter by name"
-              />
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {loading && (
-            <tr><td>Loading...</td></tr>
-          )}
-          {!loading && displayedGames.length === 0 && (
-            <tr><td>No games found.</td></tr>
-          )}
-          {!loading && displayedGames.length > 0 && displayedGames.map((g) => (
-            <tr key={g.id} className="games-row">
-              <td>
-                <button type="button" className="link-button" onClick={async () => {
-                  if (!confirmNavigate()) return;
-                  setErrors(undefined);
-                  try {
-                    const game = await getGame(g.id);
-                    setEditingId(g.id);
-                    setForm({ name: game.name, packageName: game.packageName ?? '' });
-                    setDirty(false);
-                  } catch (err: any) {
-                    setErrors({ form: err?.message ?? 'Failed to load game' });
-                  }
-                }}>
-                  {g.name}
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      </>
-      )}
-      {editorOpen && (
-        <div className="actions-header">
-          <button type="button" onClick={backToList}>← Back to list</button>
-        </div>
-      )}
-      {creating && (
-        <form
-          className="edit-form"
-          aria-label="Create game form"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            const nextErrors: Record<string, string> = {};
-            if (!form.name.trim()) nextErrors.name = 'Name is required';
-            if (Object.keys(nextErrors).length) { setErrors(nextErrors); return; }
-            setSubmitting(true);
-            try {
-              await createGame({ name: form.name.trim(), packageName: form.packageName.trim() || undefined });
-              setCreating(false);
-              resetForm();
-              const data = await listGames();
-              setGames(data);
-              setTableMessage('Game created successfully.');
-            } catch (err: any) {
-              setErrors({ form: err?.message ?? 'Failed to create game' });
-            } finally {
-              setSubmitting(false);
-            }
-          }}
-        >
-          <FormSection title="Basics" description="Primary details for the game profile." id="game-basics">
+      <PageHeader onBack={backToList} title={creating ? 'New game' : loadedName} />
+      <div className="ui-form">
+        <form className="edit-form" aria-label={creating ? 'Create game form' : 'Edit game form'} onSubmit={save}>
+          <FormSection title="Basics" description="Primary details for the game profile." id={`${idPrefix}-basics`}>
             <div className="field">
-              <label htmlFor="game-name">Name *</label>
+              <label htmlFor={`${idPrefix}-name`}>Name *</label>
               <input
-                id="game-name"
+                id={`${idPrefix}-name`}
                 value={form.name}
                 onChange={(e) => { setForm({ ...form, name: e.target.value }); setErrors(undefined); setDirty(true); }}
                 aria-invalid={Boolean(errors?.name)}
-                aria-describedby={errors?.name ? 'game-name-error' : undefined}
+                aria-describedby={errors?.name ? `${idPrefix}-name-error` : undefined}
                 disabled={submitting || loading}
               />
-              {errors?.name && <div id="game-name-error" className="field-error" role="alert">{errors.name}</div>}
+              {errors?.name && <div id={`${idPrefix}-name-error`} className="field-error" role="alert">{errors.name}</div>}
             </div>
             <div className="field">
-              <label htmlFor="game-package-name">Package Name</label>
+              <label htmlFor={`${idPrefix}-package-name`}>Package Name</label>
               <input
-                id="game-package-name"
+                id={`${idPrefix}-package-name`}
                 value={form.packageName}
                 onChange={(e) => { setForm({ ...form, packageName: e.target.value }); setErrors(undefined); setDirty(true); }}
                 placeholder="e.g. com.example.game"
@@ -204,111 +263,26 @@ export const GamesPage: React.FC<GamesPageProps> = ({ initialCreate, initialEdit
               />
             </div>
           </FormSection>
-
-          <FormActions submitting={submitting} onCancel={() => { if (!confirmNavigate()) return; setCreating(false); resetForm(); }}>
-            {loading && <span className="form-hint">Loading…</span>}
-          </FormActions>
           <FormError message={errors?.form} />
+          <FooterBar
+            left={(
+              <>
+                {editingId && (
+                  <Button variant="danger-outline" disabled={submitting} onClick={() => del.open({ id: editingId, name: loadedName })}>Delete</Button>
+                )}
+                {loading && <span className="form-hint">Loading…</span>}
+              </>
+            )}
+            right={(
+              <>
+                <Button variant="secondary" onClick={backToList}>Cancel</Button>
+                <Button type="submit" variant="primary" disabled={submitting}>Save</Button>
+              </>
+            )}
+          />
         </form>
-      )}
-      {editingId && (
-        <section>
-          <h3>Edit Game</h3>
-          <form
-            className="edit-form"
-            aria-label="Edit game form"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              if (!editingId) return;
-              const nextErrors: Record<string, string> = {};
-              if (!form.name.trim()) nextErrors.name = 'Name is required';
-              if (Object.keys(nextErrors).length) { setErrors(nextErrors); return; }
-              setSubmitting(true);
-              try {
-                await updateGame(editingId, { name: form.name.trim(), packageName: form.packageName.trim() || undefined });
-                const data = await listGames();
-                setGames(data);
-                setTableMessage('Game updated successfully.');
-                setEditingId(undefined);
-                resetForm();
-                setDirty(false);
-              } catch (err: any) {
-                setErrors({ form: err?.message ?? 'Failed to update game' });
-              } finally {
-                setSubmitting(false);
-              }
-            }}
-          >
-            <FormSection title="Basics" description="Primary details for the game profile." id="game-edit-basics">
-              <div className="field">
-                <label htmlFor="game-edit-name">Name *</label>
-                <input
-                  id="game-edit-name"
-                  value={form.name}
-                  onChange={(e) => { setForm({ ...form, name: e.target.value }); setErrors(undefined); setDirty(true); }}
-                  aria-invalid={Boolean(errors?.name)}
-                  aria-describedby={errors?.name ? 'game-edit-name-error' : undefined}
-                  disabled={submitting || loading}
-                />
-                {errors?.name && <div id="game-edit-name-error" className="field-error" role="alert">{errors.name}</div>}
-              </div>
-              <div className="field">
-                <label htmlFor="game-edit-package-name">Package Name</label>
-                <input
-                  id="game-edit-package-name"
-                  value={form.packageName}
-                  onChange={(e) => { setForm({ ...form, packageName: e.target.value }); setErrors(undefined); setDirty(true); }}
-                  placeholder="e.g. com.example.game"
-                  disabled={submitting || loading}
-                />
-              </div>
-            </FormSection>
-
-            <FormActions
-              submitting={submitting}
-              onCancel={() => {
-                if (!confirmNavigate()) return;
-                setEditingId(undefined);
-                resetForm();
-              }}
-            >
-              {loading && <span className="form-hint">Loading…</span>}
-              <button type="button" className="btn btn-danger" onClick={() => setDeleteOpen(true)} disabled={submitting}>Delete</button>
-            </FormActions>
-            <FormError message={errors?.form} />
-          </form>
-        </section>
-      )}
-      <ConfirmDeleteModal
-        open={deleteOpen}
-        itemName={form.name}
-        message={deleteMessage}
-        references={deleteReferences}
-        onCancel={() => setDeleteOpen(false)}
-        onConfirm={async () => {
-          if (!editingId) return;
-          try {
-            await deleteGame(editingId);
-            setDeleteMessage(undefined);
-            setDeleteReferences(undefined);
-            setDeleteOpen(false);
-            setEditingId(undefined);
-            const data = await listGames();
-            setGames(data);
-            setTableMessage('Game deleted successfully.');
-            resetForm();
-          } catch (err: any) {
-            if (err instanceof ApiError && err.status === 409) {
-              setDeleteMessage(err.message || 'Cannot delete: game is referenced. Unlink or migrate before deleting.');
-              setDeleteReferences(err.references || undefined);
-              setDeleteOpen(true);
-            } else {
-              setDeleteOpen(false);
-              setErrors({ form: err?.message ?? 'Failed to delete game' });
-            }
-          }
-        }}
-      />
+      </div>
+      {renderDialog()}
     </section>
   );
 };

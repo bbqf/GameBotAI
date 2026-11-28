@@ -6,6 +6,7 @@ import { usePickerState, calcGestureDisplacement } from './usePickerState';
 import { StepPickerOverlay } from './StepPickerOverlay';
 import { RecordedStepList } from './RecordedStepList';
 import { keyCodeMap } from './keyCodeMap';
+import { Button } from '../../ui';
 import './VisualStepPicker.css';
 
 type VisualStepPickerProps = {
@@ -76,9 +77,9 @@ export const VisualStepPicker: React.FC<VisualStepPickerProps> = ({ onConfirm, o
       >
         <div className="visual-step-picker__header">
           <h3 className="visual-step-picker__title">Record Steps</h3>
-          <button type="button" className="btn btn-secondary" onClick={recapture} disabled={state.status === 'loading'}>
+          <Button variant="secondary" onClick={recapture} disabled={state.status === 'loading'}>
             Re-capture
-          </button>
+          </Button>
         </div>
 
         <div className="visual-step-picker__body">
@@ -86,9 +87,9 @@ export const VisualStepPicker: React.FC<VisualStepPickerProps> = ({ onConfirm, o
             {state.status === 'error' && !state.screenshotUrl ? (
               <div className="visual-step-picker__error" role="alert">
                 <p>{state.errorMessage ?? 'Failed to capture screenshot'}</p>
-                <button type="button" className="btn btn-secondary" onClick={recapture}>
+                <Button variant="secondary" onClick={recapture}>
                   Retry
-                </button>
+                </Button>
               </div>
             ) : state.screenshotUrl ? (
               <>
@@ -116,15 +117,14 @@ export const VisualStepPicker: React.FC<VisualStepPickerProps> = ({ onConfirm, o
           <div className="visual-step-picker__steps">
             <div className="visual-step-picker__steps-header">
               <span className="visual-step-picker__steps-label">Recorded steps ({state.steps.length})</span>
-              <button
-                type="button"
-                className="btn btn-secondary"
+              <Button
+                variant="secondary"
                 onClick={() => void runAll()}
                 disabled={state.steps.length === 0 || state.isExecuting}
-                aria-label="Run all steps"
+                ariaLabel="Run all steps"
               >
                 Run all
-              </button>
+              </Button>
             </div>
             <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
               <RecordedStepList
@@ -144,17 +144,16 @@ export const VisualStepPicker: React.FC<VisualStepPickerProps> = ({ onConfirm, o
         </div>
 
         <div className="visual-step-picker__footer">
-          <button type="button" className="btn btn-secondary" onClick={onCancel}>
+          <Button variant="secondary" onClick={onCancel}>
             Cancel
-          </button>
-          <button
-            type="button"
-            className="btn btn-primary"
+          </Button>
+          <Button
+            variant="primary"
             onClick={handleConfirm}
             disabled={state.steps.length === 0}
           >
             Confirm ({state.steps.length})
-          </button>
+          </Button>
         </div>
       </div>
     </div>

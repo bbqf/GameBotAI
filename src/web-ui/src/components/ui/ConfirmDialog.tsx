@@ -12,6 +12,8 @@ export type ConfirmDialogProps = {
   danger?: boolean;
   /** While true, both buttons are off. */
   busy?: boolean;
+  /** While true, only the confirm button is off. Cancel stays on. */
+  confirmDisabled?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 };
@@ -26,6 +28,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   cancelText = 'Cancel',
   danger,
   busy,
+  confirmDisabled,
   onConfirm,
   onCancel,
 }) => {
@@ -58,7 +61,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
         {details && <div className="ui-dialog__details">{details}</div>}
         <div className="ui-dialog__buttons">
           <Button ref={cancelRef} variant="secondary" disabled={busy} onClick={onCancel}>{cancelText}</Button>
-          <Button variant={danger ? 'danger' : 'primary'} disabled={busy} onClick={onConfirm}>{confirmText}</Button>
+          <Button variant={danger ? 'danger' : 'primary'} disabled={busy || confirmDisabled} onClick={onConfirm}>{confirmText}</Button>
         </div>
       </div>
     </div>

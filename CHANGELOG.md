@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Move the Commands and Games pages to the shared UI components (206-commands-games-shared-ui)
+  - **Change**: the Games and Commands lists use the shared list with a filter bar, Edit, and a menu with Delete. The Games list has the columns Name and Package name (320 px). The Commands list has the columns Name and Steps (96 px); the Game column is removed. A form page has a back arrow, a 720 px card form, and a footer bar (Delete, Cancel, Save). Delete uses the shared dialog and shows the items that use the target after a 409 answer. The buttons are "Create game" and "Create command". The messages are shorter, for example "Game created.".
+  - **Web UI**: `ConfirmDialog` has the new optional prop `confirmDisabled`, `Button` has the new optional prop `ariaLabel`, and the new helpers are `useDeleteFlow` and `DeleteReferences`. `CommandForm` renders the footer bar and has the new props `onDelete` and `deleting`. The old table and modal styles of these pages are removed.
+  - **Not changed**: the API and the stored data.
+  - **Version**: the patch version is now 1.12.39.
 - Move the app navigation to the UI guidelines (205-navigation-shared-ui)
   - **Change**: the desktop has one app bar with the brand "GameBot", 5 top tabs with icons (Queues, Monitor, Alerts, Authoring, Settings), and the connection state. Authoring and Settings have one row of sub-tabs. Settings holds Execution logs, Execution, Configuration, Gamepacks, and Update. The phone has a bottom bar with 4 icon tabs (Queues, Monitor, Alerts, More) and a More page with menu rows. A page that More lists has a back arrow to More.
   - **Web UI**: the new parts are `AppBar`, `SubTabs`, `MorePage`, the area `more`, and 8 icons. `Navigation`, `Nav`, and the More sheet are removed. The page titles are now "Monitor", "Alerts", and "Execution logs". The browser title is "GameBot".

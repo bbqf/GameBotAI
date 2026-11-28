@@ -29,4 +29,9 @@ describe('Button', () => {
     fireEvent.click(screen.getByTestId('b'));
     expect(onClick).toHaveBeenCalledTimes(1);
   });
+
+  it('sets the accessible name with ariaLabel', () => {
+    render(<Button ariaLabel="Remove step: Tap">✕</Button>);
+    expect(screen.getByRole('button', { name: 'Remove step: Tap' })).toBeInTheDocument();
+  });
 });

@@ -45,7 +45,7 @@ describe('CommandsPage parameter fields with the real control (feature 169)', ()
     render(<CommandsPage />);
     await screen.findByText('Cmd');
     fireEvent.click(screen.getByText('Cmd'));
-    await screen.findByText('Edit Command');
+    await screen.findByRole('button', { name: 'Back' });
     fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
     return document.querySelector('.action-panel--swipe') as HTMLElement;
   };

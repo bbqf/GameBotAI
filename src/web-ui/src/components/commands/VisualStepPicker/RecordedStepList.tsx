@@ -2,6 +2,7 @@ import React from 'react';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { RecordedStep } from '../../../types/picker';
+import { Button } from '../../ui';
 
 type RecordedStepListProps = {
   steps: RecordedStep[];
@@ -70,24 +71,24 @@ const SortableStepItem: React.FC<{
         {step.label}
       </span>
       <StatusBadge step={step} />
-      <button
-        type="button"
-        className="btn btn-secondary step-picker-step-list__run"
+      <Button
+        variant="secondary"
+        className="step-picker-step-list__run"
         onClick={() => onRunStep(step.id)}
         disabled={runDisabled}
-        aria-label={`Run step: ${step.label}`}
+        ariaLabel={`Run step: ${step.label}`}
       >
         {isRunning ? '⏳' : '▶'}
-      </button>
-      <button
-        type="button"
-        className="btn btn-secondary step-picker-step-list__remove"
+      </Button>
+      <Button
+        variant="secondary"
+        className="step-picker-step-list__remove"
         onClick={() => onRemove(step.id)}
         disabled={isExecuting}
-        aria-label={`Remove step: ${step.label}`}
+        ariaLabel={`Remove step: ${step.label}`}
       >
         ✕
-      </button>
+      </Button>
     </div>
   );
 };

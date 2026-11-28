@@ -37,7 +37,7 @@ describe('CommandsPage detection persistence', () => {
     render(<CommandsPage />);
     await waitFor(() => expect(listCommandsMock).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByText('Create Command'));
+    fireEvent.click(screen.getByRole('button', { name: 'Create command' }));
     fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Detect Command' } });
     fireEvent.change(screen.getByLabelText('Reference image ID'), { target: { value: 'template_a' } });
     fireEvent.change(screen.getByLabelText('Confidence (0-1)'), { target: { value: '0.77' } });
@@ -77,7 +77,7 @@ describe('CommandsPage detection persistence', () => {
     render(<CommandsPage />);
     await waitFor(() => expect(listCommandsMock).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByText('Create Command'));
+    fireEvent.click(screen.getByRole('button', { name: 'Create command' }));
     fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Hold Command' } });
     fireEvent.change(screen.getByRole('combobox', { name: /action type/i }), { target: { value: 'PrimitiveTap' } });
     fireEvent.change(screen.getByLabelText('Reference image *'), { target: { value: 'claim_button' } });
@@ -104,7 +104,7 @@ describe('CommandsPage detection persistence', () => {
     render(<CommandsPage />);
     await screen.findByText('HoldCmd');
     fireEvent.click(screen.getByText('HoldCmd'));
-    await screen.findByText('Edit Command');
+    await screen.findByRole('button', { name: 'Back' });
     expect(screen.getByText(/hold 1000 ms/)).toBeInTheDocument();
 
     fireEvent.click(screen.getAllByText('Save')[0]);
@@ -123,7 +123,7 @@ describe('CommandsPage detection persistence', () => {
     await screen.findByText('DetectCmd');
     fireEvent.click(screen.getByText('DetectCmd'));
 
-    await screen.findByText('Edit Command');
+    await screen.findByRole('button', { name: 'Back' });
 
     expect((screen.getByLabelText('Reference image ID') as HTMLInputElement).value).toBe('tpl1');
     expect((screen.getByLabelText('Confidence (0-1)') as HTMLInputElement).value).toBe('0.5');
@@ -154,7 +154,7 @@ describe('CommandsPage detection persistence', () => {
     await screen.findByText('BadPrimitive');
     fireEvent.click(screen.getByText('BadPrimitive'));
 
-    await screen.findByText('Edit Command');
+    await screen.findByRole('button', { name: 'Back' });
     fireEvent.click(screen.getAllByText('Save')[0]);
 
     expect(await screen.findByText('Tap steps require a detection target reference image ID')).toBeInTheDocument();
@@ -179,7 +179,7 @@ describe('CommandsPage detection persistence', () => {
     await screen.findByText('FallbackPrimitive');
     fireEvent.click(screen.getByText('FallbackPrimitive'));
 
-    await screen.findByText('Edit Command');
+    await screen.findByRole('button', { name: 'Back' });
     expect(screen.getByText('Tap: tpl-fallback')).toBeInTheDocument();
   });
 });
