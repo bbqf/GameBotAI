@@ -8,7 +8,7 @@ html, body, #root { height: 100%; margin: 0; }
 
 
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
-.content { padding: var(--gb-space-4); max-width: 1100px; width: 100%; margin: 0 auto; background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.95) 100%); border-radius: var(--gb-radius-lg); box-shadow: var(--gb-shadow-card); }
+.content { padding: var(--gb-space-4); max-width: 1100px; width: 100%; margin: var(--gb-space-5) auto; background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.95) 100%); border-radius: var(--gb-radius-lg); box-shadow: var(--gb-shadow-card); }
 
 .row { display: flex; gap: var(--gb-space-3); align-items: center; margin: var(--gb-space-2) 0; flex-wrap: wrap; }
 .row label { min-width: 120px; color: var(--gb-color-muted); font-weight: 600; }
