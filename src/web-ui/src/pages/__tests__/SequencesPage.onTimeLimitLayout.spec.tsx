@@ -33,7 +33,7 @@ describe('SequencesPage onTimeLimit mobile layout', () => {
   it('gives the select a 44 px hit area and a 16 px font in one column', async () => {
     render(<SequencesPage />);
     await waitFor(() => expect(listSequencesMock).toHaveBeenCalled());
-    fireEvent.click(screen.getByText('Create Sequence'));
+    fireEvent.click(screen.getByRole('button', { name: 'Create sequence' }));
 
     const select = screen.getByLabelText('When the time limit is reached') as HTMLSelectElement;
 

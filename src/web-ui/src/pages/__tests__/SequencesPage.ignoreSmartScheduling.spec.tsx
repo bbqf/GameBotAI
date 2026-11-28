@@ -48,21 +48,21 @@ describe('SequencesPage ignore smart scheduling (feature 189)', () => {
     } as any);
   });
 
-  it('shows the mark only for a sequence with the setting', async () => {
+  it('shows the option text in the Options column only for a sequence with the setting', async () => {
     render(<SequencesPage />);
 
     await screen.findByText('Critical Sequence');
 
     const marks = screen.getAllByText('Ignores smart scheduling');
     expect(marks).toHaveLength(1);
-    expect(marks[0]).toHaveAttribute('title', expect.stringMatching(HELP));
+    expect(marks[0].closest('[title]')).toHaveAttribute('title', expect.stringMatching(HELP));
   });
 
   it('has the checkbox off by default in the create form', async () => {
     render(<SequencesPage />);
 
     await screen.findByText('Critical Sequence');
-    fireEvent.click(screen.getByRole('button', { name: /Create Sequence/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Create sequence/i }));
 
     expect(await screen.findByLabelText(LABEL)).not.toBeChecked();
     expect(screen.getByText(HELP)).toBeInTheDocument();
@@ -74,7 +74,7 @@ describe('SequencesPage ignore smart scheduling (feature 189)', () => {
     await screen.findByText('Critical Sequence');
     fireEvent.click(screen.getByRole('button', { name: 'Critical Sequence' }));
 
-    await screen.findByText('Edit Sequence');
+    await screen.findByRole('button', { name: 'Back' });
     expect(screen.getByLabelText(LABEL)).toBeChecked();
 
     fireEvent.click(screen.getByText('Save'));
@@ -90,7 +90,7 @@ describe('SequencesPage ignore smart scheduling (feature 189)', () => {
     await screen.findByText('Critical Sequence');
     fireEvent.click(screen.getByRole('button', { name: 'Critical Sequence' }));
 
-    await screen.findByText('Edit Sequence');
+    await screen.findByRole('button', { name: 'Back' });
     fireEvent.click(screen.getByLabelText(LABEL));
     fireEvent.click(screen.getByText('Save'));
 

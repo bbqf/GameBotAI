@@ -85,7 +85,7 @@ const openEditor = async () => {
   render(<SequencesPage />);
   await screen.findByText('PNS Pit Ensure Mining');
   fireEvent.click(screen.getByText('PNS Pit Ensure Mining'));
-  await screen.findByText('Edit Sequence');
+  await screen.findByRole('button', { name: 'Back' });
 };
 
 const savedSteps = () => (updateSequenceMock.mock.calls[0][1] as { steps: any[] }).steps;

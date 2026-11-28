@@ -1,7 +1,8 @@
 import type { Page } from '@playwright/test';
 
 /**
- * A mocked API for the Commands and Games page tests (feature 206). It holds 3 games and 3 commands.
+ * A mocked API for the Commands, Games, and Sequences page tests (features 206 and 207). It holds 3 games, 3 commands,
+ * and 3 sequences.
  * Every other API call gets an empty list.
  */
 export const json = { 'content-type': 'application/json' };
@@ -11,9 +12,19 @@ export const LONG_GAME_NAME = 'Very long game name '.repeat(12).trim().slice(0, 
 export type MockGame = { id: string; name: string; packageName?: string };
 export type MockCommand = { id: string; name: string; steps: Array<{ type: string; order: number }> };
 
+export type MockSequence = {
+  id: string;
+  name: string;
+  version: number;
+  steps: Array<Record<string, unknown>>;
+  excludeFromSuccessNotifications?: boolean;
+  ignoreSmartScheduling?: boolean;
+};
+
 export type AuthoringMockState = {
   games: MockGame[];
   commands: MockCommand[];
+  sequences: MockSequence[];
   calls: string[];
   /** The ids whose delete answers 409 with references. */
   conflictIds: Set<string>;
@@ -31,10 +42,20 @@ export const defaultCommands = (): MockCommand[] => [
   { id: 'c3', name: 'Collect reward', steps: [{ type: 'GoToHomeScreen', order: 0 }] },
 ];
 
+export const LONG_SEQUENCE_NAME = 'Very long sequence name '.repeat(12).trim().slice(0, 200);
+
+const sequenceStep = { stepId: 'step-1', label: 'Open shop', action: { type: 'command', parameters: { commandId: 'c1' } }, condition: null };
+
+export const defaultSequences = (): MockSequence[] => [
+  { id: 's1', name: 'Daily farm', version: 1, steps: [sequenceStep, { ...sequenceStep, stepId: 'step-2' }], excludeFromSuccessNotifications: true, ignoreSmartScheduling: true },
+  { id: 's2', name: LONG_SEQUENCE_NAME, version: 1, steps: [sequenceStep], excludeFromSuccessNotifications: true },
+  { id: 's3', name: 'Night farm', version: 1, steps: [sequenceStep] },
+];
+
 const references = { sequences: [{ id: 's1', name: 'Daily farm' }, { id: 's2', name: 'Night farm' }] };
 
 export const mockAuthoringApi = async (page: Page): Promise<AuthoringMockState> => {
-  const state: AuthoringMockState = { games: defaultGames(), commands: defaultCommands(), calls: [], conflictIds: new Set() };
+  const state: AuthoringMockState = { games: defaultGames(), commands: defaultCommands(), sequences: defaultSequences(), calls: [], conflictIds: new Set() };
 
   await page.route(/fonts\.(googleapis|gstatic)\.com/, (route) =>
     route.fulfill({ status: 200, headers: { 'content-type': 'text/css' }, body: '' }));
@@ -47,11 +68,11 @@ export const mockAuthoringApi = async (page: Page): Promise<AuthoringMockState> 
     state.calls.push(`${method} ${path}`);
     const ok = (body: unknown) => route.fulfill({ status: 200, headers: json, body: JSON.stringify(body) });
 
-    const match = /^\/api\/(games|commands)(?:\/([^/]+))?$/.exec(path);
+    const match = /^\/api\/(games|commands|sequences)(?:\/([^/]+))?$/.exec(path);
     if (!match) return ok([]);
-    const kind = match[1] as 'games' | 'commands';
+    const kind = match[1] as 'games' | 'commands' | 'sequences';
     const id = match[2];
-    const items = (kind === 'games' ? state.games : state.commands) as Array<{ id: string; name: string }>;
+    const items = (kind === 'games' ? state.games : kind === 'commands' ? state.commands : state.sequences) as Array<{ id: string; name: string }>;
 
     if (!id) {
       if (method === 'GET') return ok(items);

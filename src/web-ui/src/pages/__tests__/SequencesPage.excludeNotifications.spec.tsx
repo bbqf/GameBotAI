@@ -45,14 +45,14 @@ describe('SequencesPage exclude from success notifications', () => {
     } as any);
   });
 
-  it('shows the badge only for flagged sequences', async () => {
+  it('shows the option text in the Options column only for flagged sequences', async () => {
     render(<SequencesPage />);
 
     await screen.findByText('Helper Sequence');
 
-    const badges = screen.getAllByText('No success notifications');
-    expect(badges).toHaveLength(1);
-    expect(badges[0]).toHaveAttribute('title', expect.stringMatching(HELP));
+    const options = screen.getAllByText('No success notifications');
+    expect(options).toHaveLength(1);
+    expect(options[0].closest('[title]')).toHaveAttribute('title', expect.stringMatching(HELP));
   });
 
   it('shows the saved state in the edit form and sends the flag on save', async () => {
@@ -61,7 +61,7 @@ describe('SequencesPage exclude from success notifications', () => {
     await screen.findByText('Helper Sequence');
     fireEvent.click(screen.getByRole('button', { name: 'Helper Sequence' }));
 
-    await screen.findByText('Edit Sequence');
+    await screen.findByRole('button', { name: 'Back' });
     const checkbox = screen.getByLabelText('Exclude from success notifications');
     expect(checkbox).toBeChecked();
     expect(screen.getByText(HELP)).toBeInTheDocument();
@@ -82,7 +82,7 @@ describe('SequencesPage exclude from success notifications', () => {
     await screen.findByText('Helper Sequence');
     fireEvent.click(screen.getByRole('button', { name: 'Helper Sequence' }));
 
-    await screen.findByText('Edit Sequence');
+    await screen.findByRole('button', { name: 'Back' });
     fireEvent.click(screen.getByLabelText('Exclude from success notifications'));
     expect(screen.getByLabelText('Exclude from success notifications')).not.toBeChecked();
     fireEvent.click(screen.getByText('Save'));

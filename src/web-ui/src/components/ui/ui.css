@@ -1062,6 +1062,20 @@ tr.ui-list__row.ui-list__row--selected {
   margin: 0 auto;
 }
 
+.ui-form--wide {
+  max-width: 880px;
+}
+
+/* A muted text, for example the Options column of a list. */
+.ui-muted {
+  color: var(--gb-color-text-muted);
+}
+
+/* The Options column of the Sequences list is 360 px wide. A smaller text keeps both options on one line. */
+.sequences-list .ui-muted {
+  font-size: 13px;
+}
+
 .ui-form .form-section {
   margin: 0 0 16px;
   padding: 16px 20px;
@@ -1099,6 +1113,14 @@ tr.ui-list__row.ui-list__row--selected {
   width: 100%;
   height: 40px;
   box-sizing: border-box;
+}
+
+.ui-form input[type="checkbox"],
+.ui-form input[type="radio"] {
+  width: 16px;
+  height: 16px;
+  margin: 0 8px 0 0;
+  vertical-align: middle;
 }
 
 .ui-form [aria-invalid="true"] {

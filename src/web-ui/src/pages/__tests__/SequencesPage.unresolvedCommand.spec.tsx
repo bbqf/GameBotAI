@@ -54,7 +54,7 @@ describe('SequencesPage unresolved commands', () => {
     await screen.findByText('Missing Command Sequence');
     fireEvent.click(screen.getByText('Missing Command Sequence'));
 
-    await screen.findByText('Edit Sequence');
+    await screen.findByRole('button', { name: 'Back' });
 
     expect(screen.getByText('Deleted Command (unresolved)')).toBeInTheDocument();
     expect(screen.queryByText('missing-cmd')).not.toBeInTheDocument();

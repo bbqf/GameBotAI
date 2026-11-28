@@ -47,7 +47,7 @@ describe('SequencesPage onTimeLimit', () => {
   const openCreateWithOneStep = async (name: string) => {
     render(<SequencesPage />);
     await waitFor(() => expect(listSequencesMock).toHaveBeenCalled());
-    fireEvent.click(screen.getByText('Create Sequence'));
+    fireEvent.click(screen.getByRole('button', { name: 'Create sequence' }));
     fireEvent.change(screen.getByLabelText('Name *'), { target: { value: name } });
     fireEvent.change(screen.getByLabelText('Add command'), { target: { value: 'cmd-1' } });
     fireEvent.click(screen.getByText('Add to steps'));
@@ -56,7 +56,7 @@ describe('SequencesPage onTimeLimit', () => {
   it('shows the select in the create form with fail as the default', async () => {
     render(<SequencesPage />);
     await waitFor(() => expect(listSequencesMock).toHaveBeenCalled());
-    fireEvent.click(screen.getByText('Create Sequence'));
+    fireEvent.click(screen.getByRole('button', { name: 'Create sequence' }));
 
     const select = screen.getByLabelText(LABEL) as HTMLSelectElement;
     expect(select.value).toBe('fail');
@@ -87,7 +87,7 @@ describe('SequencesPage onTimeLimit', () => {
     await screen.findByText('Planned Stop');
     fireEvent.click(screen.getByRole('button', { name: 'Planned Stop' }));
 
-    await screen.findByText('Edit Sequence');
+    await screen.findByRole('button', { name: 'Back' });
     expect((screen.getByLabelText(LABEL) as HTMLSelectElement).value).toBe('end');
 
     fireEvent.click(screen.getByText('Save'));
@@ -99,7 +99,7 @@ describe('SequencesPage onTimeLimit', () => {
     await screen.findByText('Planned Stop');
     fireEvent.click(screen.getByRole('button', { name: 'Planned Stop' }));
 
-    await screen.findByText('Edit Sequence');
+    await screen.findByRole('button', { name: 'Back' });
     fireEvent.change(screen.getByLabelText(LABEL), { target: { value: 'fail' } });
     fireEvent.click(screen.getByText('Save'));
 

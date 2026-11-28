@@ -234,6 +234,7 @@ Status vocabulary:
 | 204 | Monitoring area on the shared UI components | Implemented |
 | 205 | Navigation (app bar, sub-tabs, bottom bar, More page) on the UI guidelines | Implemented |
 | 206 | Commands and Games pages on the shared UI components | Implemented |
+| 207 | Sequences list and form page on the shared UI components | Implemented |
 
 ## Numbering notes
 

@@ -34,7 +34,7 @@ describe('SequencesPage WaitForImage until option (feature 175)', () => {
   const addWaitStep = async () => {
     render(<SequencesPage />);
     await waitFor(() => expect(listSequencesMock).toHaveBeenCalled());
-    fireEvent.click(screen.getByText('Create Sequence'));
+    fireEvent.click(screen.getByRole('button', { name: 'Create sequence' }));
     fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Wait Seq' } });
     fireEvent.click(screen.getByText('Add wait step'));
     fireEvent.change(screen.getByLabelText('Wait image ID'), { target: { value: 'toast' } });
@@ -129,7 +129,7 @@ describe('SequencesPage WaitForImage until option (feature 175)', () => {
     render(<SequencesPage />);
     await screen.findByText('Absent Sequence');
     fireEvent.click(screen.getByText('Absent Sequence'));
-    await screen.findByText('Edit Sequence');
+    await screen.findByRole('button', { name: 'Back' });
 
     expect(screen.getByText('Wait until image is gone: toast')).toBeInTheDocument();
     expect((screen.getByLabelText('Wait until') as HTMLSelectElement).value).toBe('absent');

@@ -54,7 +54,7 @@ describe('SequencesPage step-through entry', () => {
     render(<SequencesPage />);
     await screen.findByText('Daily');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Create Sequence' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create sequence' }));
 
     const button = await screen.findByTestId('step-through-button');
     expect(button).toBeDisabled();
@@ -67,7 +67,7 @@ describe('SequencesPage step-through entry', () => {
     await screen.findByText('Daily');
 
     fireEvent.click(screen.getByRole('button', { name: 'Daily' }));
-    await screen.findByText('Edit Sequence');
+    await screen.findByRole('button', { name: 'Back' });
 
     await waitFor(() => expect(screen.getByTestId('step-through-button')).toBeEnabled());
     expect(screen.queryByText(SAVE_FIRST)).toBeNull();
@@ -78,7 +78,7 @@ describe('SequencesPage step-through entry', () => {
     render(<SequencesPage />);
     await screen.findByText('Daily');
     fireEvent.click(screen.getByRole('button', { name: 'Daily' }));
-    await screen.findByText('Edit Sequence');
+    await screen.findByRole('button', { name: 'Back' });
     await waitFor(() => expect(screen.getByTestId('step-through-button')).toBeEnabled());
 
     fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Daily edited' } });
@@ -91,7 +91,7 @@ describe('SequencesPage step-through entry', () => {
     render(<SequencesPage />);
     await screen.findByText('Daily');
     fireEvent.click(screen.getByRole('button', { name: 'Daily' }));
-    await screen.findByText('Edit Sequence');
+    await screen.findByRole('button', { name: 'Back' });
     await waitFor(() => expect(screen.getByTestId('step-through-button')).toBeEnabled());
 
     fireEvent.click(screen.getByTestId('step-through-button'));
@@ -121,7 +121,7 @@ describe('SequencesPage step-through entry', () => {
     render(<SequencesPage />);
     await screen.findByText('Daily');
     fireEvent.click(screen.getByRole('button', { name: 'Daily' }));
-    await screen.findByText('Edit Sequence');
+    await screen.findByRole('button', { name: 'Back' });
 
     expect(screen.getByText('Wait until image is gone: toast')).toBeInTheDocument();
     expect(screen.queryByText('Wait for image: toast')).toBeNull();
@@ -131,12 +131,12 @@ describe('SequencesPage step-through entry', () => {
     render(<SequencesPage />);
     await screen.findByText('Daily');
     fireEvent.click(screen.getByRole('button', { name: 'Daily' }));
-    await screen.findByText('Edit Sequence');
+    await screen.findByRole('button', { name: 'Back' });
     await waitFor(() => expect(screen.getByTestId('step-through-button')).toBeEnabled());
     fireEvent.click(screen.getByTestId('step-through-button'));
     await screen.findByTestId('step-through-panel');
 
-    fireEvent.click(screen.getByRole('button', { name: '← Back to list' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
 
     expect(screen.queryByTestId('step-through-panel')).toBeNull();
   });

@@ -34,7 +34,7 @@ describe('SequencesPage WaitForStill step (feature 174)', () => {
     render(<SequencesPage />);
     await waitFor(() => expect(listSequencesMock).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByText('Create Sequence'));
+    fireEvent.click(screen.getByRole('button', { name: 'Create sequence' }));
     fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Still' } });
     fireEvent.click(screen.getByText('Add wait for still step'));
 

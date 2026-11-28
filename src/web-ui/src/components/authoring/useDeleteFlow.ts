@@ -7,7 +7,7 @@ export type DeleteConflict = { message: string; references?: DeleteReferencesMap
 
 type UseDeleteFlowOptions = {
   /** The kind of item. It is used in the default texts. */
-  kind: 'game' | 'command';
+  kind: 'game' | 'command' | 'sequence';
   remove: (id: string) => Promise<void>;
   onDeleted: (target: DeleteTarget) => void;
   onError: (message: string) => void;

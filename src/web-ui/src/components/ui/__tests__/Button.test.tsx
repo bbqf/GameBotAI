@@ -34,4 +34,9 @@ describe('Button', () => {
     render(<Button ariaLabel="Remove step: Tap">✕</Button>);
     expect(screen.getByRole('button', { name: 'Remove step: Tap' })).toBeInTheDocument();
   });
+
+  it('sets aria-describedby with ariaDescribedBy', () => {
+    render(<Button ariaDescribedBy="why">Go</Button>);
+    expect(screen.getByRole('button', { name: 'Go' })).toHaveAttribute('aria-describedby', 'why');
+  });
 });
