@@ -2,15 +2,16 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { CollisionDetection, DndContext, DragEndEvent, DragOverEvent, DragStartEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 import { listSequences, SequenceDto, createSequence, getSequence, updateSequence, deleteSequence, isSequenceConflictError } from '../services/sequences';
-import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
-import { ApiError } from '../lib/api';
+import { Button, ConfirmDialog, FooterBar, ListView, PageHeader, type ListColumn, type ListState } from '../components/ui';
+import { useDeleteFlow } from '../components/authoring/useDeleteFlow';
+import { DeleteReferences } from '../components/authoring/DeleteReferences';
 import { listCommands, CommandDto } from '../services/commands';
 import { ParameterDeclarationList } from '../components/parameters/ParameterDeclarationList';
 import { ParameterBindingForm } from '../components/parameters/ParameterBindingForm';
 import type { ParameterBinding, ParameterDeclaration } from '../components/parameters/types';
 import { buildEditorScope } from '../components/parameters/types';
 import { FormError } from '../components/Form';
-import { FormActions, FormSection } from '../components/unified/FormLayout';
+import { FormSection } from '../components/unified/FormLayout';
 import { SearchableDropdown, SearchableOption } from '../components/SearchableDropdown';
 import type { ReorderableListItem } from '../components/ReorderableList';
 import { SortableSequenceStepList } from '../components/SortableSequenceStepList';
@@ -148,6 +149,39 @@ type SequenceFormValue = {
   /** Feature 170: what a queue run does at its time limit. */
   onTimeLimit: 'fail' | 'end';
 };
+
+type SequenceRow = {
+  id: string;
+  name: string;
+  stepCount: number;
+  excludeFromSuccessNotifications: boolean;
+  ignoreSmartScheduling: boolean;
+};
+
+const optionTexts = (row: SequenceRow): string[] => [
+  ...(row.excludeFromSuccessNotifications ? ['No success notifications'] : []),
+  ...(row.ignoreSmartScheduling ? ['Ignores smart scheduling'] : []),
+];
+
+const optionHelpTexts = (row: SequenceRow): string[] => [
+  ...(row.excludeFromSuccessNotifications ? [EXCLUDE_NOTIFICATIONS_HELP] : []),
+  ...(row.ignoreSmartScheduling ? [IGNORE_SMART_SCHEDULING_HELP] : []),
+];
+
+const sequenceColumns: ListColumn<SequenceRow>[] = [
+  { id: 'name', header: 'Name', width: 'flex', render: (s) => s.name, text: (s) => s.name },
+  {
+    id: 'options',
+    header: 'Options',
+    width: 360,
+    render: (s) => {
+      const texts = optionTexts(s);
+      return texts.length > 0 ? <span className="ui-muted">{texts.join(', ')}</span> : '—';
+    },
+    text: (s) => optionHelpTexts(s).join('\n'),
+  },
+  { id: 'steps', header: 'Steps', width: 96, align: 'end', render: (s) => <span className="ui-num">{s.stepCount}</span>, text: (s) => String(s.stepCount) },
+];
 
 const EXCLUDE_NOTIFICATIONS_HELP = 'The queue sends no success message for this sequence. It still sends failure, cancelled and recovered messages.';
 const IGNORE_SMART_SCHEDULING_HELP = 'Use it for a time-critical sequence. The bookings of this sequence always keep the requested time.';
@@ -1062,9 +1096,8 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
   const [editingId, setEditingId] = useState<string | undefined>(undefined);
   const [form, setForm] = useState<SequenceFormValue>(emptyForm);
   const [pendingStepId, setPendingStepId] = useState<string | undefined>(undefined);
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleteMessage, setDeleteMessage] = useState<string | undefined>(undefined);
-  const [deleteReferences, setDeleteReferences] = useState<Record<string, Array<{ id: string; name: string }>> | undefined>(undefined);
+  // The name of the loaded sequence. The page title uses it, so the title does not change while the name field changes.
+  const [loadedName, setLoadedName] = useState<string | undefined>(undefined);
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -1225,20 +1258,6 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
       : submitting || loading
         ? 'Wait until the page has loaded.'
         : undefined;
-  const stepThroughButton = (
-    <>
-      <button
-        type="button"
-        data-testid="step-through-button"
-        onClick={() => setStepThroughOpen(true)}
-        disabled={Boolean(stepThroughDisabledReason) || stepThroughOpen}
-        aria-describedby={stepThroughDisabledReason ? 'step-through-reason' : undefined}
-      >
-        Step through
-      </button>
-      {stepThroughDisabledReason && <span id="step-through-reason" className="form-hint">{stepThroughDisabledReason}</span>}
-    </>
-  );
 
   const commandLookup = useMemo(() => new Map(commandOptions.map((o) => [o.value, o.label])), [commandOptions]);
   const editorCommandOptions = useMemo(() => mergeCommandOptionsWithUnresolved(commandOptions, form.steps), [commandOptions, form.steps]);
@@ -1287,6 +1306,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
       onTimeLimit: s.onTimeLimit === 'end' ? 'end' : 'fail'
     });
     setLoadedVersion(s.version ?? 1);
+    setLoadedName(s.name);
     setDirty(false);
   };
 
@@ -1295,6 +1315,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
     setForm(emptyForm);
     setPendingStepId(undefined);
     setLoadedVersion(1);
+    setLoadedName(undefined);
     setErrors(undefined);
     setDirty(false);
   };
@@ -2126,788 +2147,440 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
     void load();
   }, [initialEditId]);
 
+  const addStep = (make: (steps: SequenceStep[]) => SequenceStep) => {
+    setForm((prev) => ({ ...prev, steps: [...prev.steps, make(prev.steps)] }));
+    setDirty(true);
+  };
+
+  const del = useDeleteFlow({
+    kind: 'sequence',
+    remove: deleteSequence,
+    onDeleted: (target) => {
+      if (editingId === target.id) {
+        setEditingId(undefined);
+        resetForm();
+        setDirty(false);
+      }
+      setTableMessage('Sequence deleted.');
+      void reloadSequences();
+    },
+    onError: (message) => {
+      if (editorOpen) setErrors({ form: message });
+      else setTableError(message);
+    },
+  });
+
+  const startCreate = () => {
+    if (!confirmNavigate()) return;
+    setCreating(true);
+    setEditingId(undefined);
+    resetForm();
+  };
+
+  const openEdit = async (id: string) => {
+    if (!confirmNavigate()) return;
+    try {
+      await loadSequenceIntoForm(id);
+    } catch (err: any) {
+      setErrors({ form: err?.message ?? 'Failed to load sequence' });
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const mode = creating ? 'create' : 'edit';
+    if (mode === 'edit' && !editingId) return;
+    const validation = validate(form);
+    if (validation) {
+      setErrors(validation);
+      return;
+    }
+
+    const linearPayload = {
+      name: form.name.trim(),
+      version: mode === 'create' ? 1 : loadedVersion,
+      steps: toLinearPayloadSteps(form.steps, form.parameters),
+      interStepDelayRangeMs: form.useCustomDelayRange
+        ? { min: Number(form.delayMin), max: Number(form.delayMax) }
+        : null
+    };
+
+    const linearErrors = validatePerStepConditions(linearPayload.steps, form.parameters);
+    if (linearErrors.length > 0) {
+      setErrors({ form: linearErrors[0] });
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      if (mode === 'create') {
+        await createSequence({
+          name: linearPayload.name,
+          version: linearPayload.version,
+          steps: linearPayload.steps,
+          interStepDelayRangeMs: linearPayload.interStepDelayRangeMs,
+          ...(form.parameters.length > 0 ? { parameters: form.parameters } : {}),
+          // Feature 122: sent only when on. An absent member means false on create.
+          ...(form.excludeFromSuccessNotifications ? { excludeFromSuccessNotifications: true } : {}),
+          // Feature 189: sent only when on. An absent member means false on create.
+          ...(form.ignoreSmartScheduling ? { ignoreSmartScheduling: true } : {}),
+          // Feature 170: sent only for 'end'. An absent member means 'fail' on create.
+          ...(form.onTimeLimit === 'end' ? { onTimeLimit: 'end' as const } : {})
+        });
+        setCreating(false);
+        resetForm();
+        setTableMessage('Sequence created.');
+        await reloadSequences();
+      } else if (editingId) {
+        await updateSequence(editingId, {
+          name: linearPayload.name,
+          version: linearPayload.version,
+          steps: linearPayload.steps,
+          interStepDelayRangeMs: linearPayload.interStepDelayRangeMs,
+          // Always sent on update (even when empty) so clearing the last declaration
+          // actually persists. An absent member means "leave unchanged" server-side.
+          parameters: form.parameters,
+          // Feature 122: always sent on update, so a save of another change keeps the value.
+          excludeFromSuccessNotifications: form.excludeFromSuccessNotifications,
+          // Feature 189: always sent on update, so a save from the web UI can set it to false.
+          ignoreSmartScheduling: form.ignoreSmartScheduling,
+          // Feature 170: always sent on update, because PUT resets an absent value to 'fail'.
+          onTimeLimit: form.onTimeLimit
+        });
+        await reloadSequences();
+        setEditingId(undefined);
+        resetForm();
+        setTableMessage('Sequence updated.');
+      }
+    } catch (err: any) {
+      if (mode === 'edit' && editingId && isSequenceConflictError(err)) {
+        setErrors({ form: `Sequence has changed on the server (version ${err.payload.currentVersion}). Reloaded latest version.` });
+        await loadSequenceIntoForm(editingId);
+      } else {
+        // Feature 078 (FR-029): surface the offending field/parameter, not a generic message.
+        setErrors({ form: parameterErrorSummary(parseParameterErrors(err)) ?? err?.message ?? `Failed to ${mode === 'create' ? 'create' : 'update'} sequence` });
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const listState: ListState = loading && sequences.length === 0
+    ? { kind: 'loading' }
+    : tableError && sequences.length === 0
+      ? { kind: 'error', text: tableError, onRetry: () => void reloadSequences() }
+      : displayedSequences.length === 0
+        ? { kind: 'empty', text: 'No sequences.' }
+        : 'ready';
+
+  const dialog = (
+    <ConfirmDialog
+      open={Boolean(del.target)}
+      title={`Delete sequence ${del.target?.name ?? ''}?`}
+      message="You cannot undo this."
+      details={del.conflict && <DeleteReferences conflict={del.conflict} />}
+      confirmText="Delete"
+      danger
+      busy={del.busy}
+      confirmDisabled={Boolean(del.conflict)}
+      onConfirm={() => void del.confirm()}
+      onCancel={del.cancel}
+    />
+  );
+
+  if (!editorOpen) {
+    return (
+      <section>
+        <PageHeader title="Sequences" actions={<Button variant="primary" icon="add" onClick={startCreate}>Create sequence</Button>} />
+        <div className="ui-message-area">
+          {tableMessage && <div className="form-hint" role="status">{tableMessage}</div>}
+          {tableError && sequences.length > 0 && <div className="form-error" role="alert">{tableError}</div>}
+          {errors?.form && <div className="form-error" role="alert">{errors.form}</div>}
+        </div>
+        <div className="ui-filter-bar">
+          <input
+            aria-label="Filter by name"
+            value={filterName}
+            onChange={(e) => setFilterName(e.target.value)}
+            placeholder="Filter by name"
+            disabled={loading}
+          />
+        </div>
+        <ListView<SequenceRow>
+          mode="desktop"
+          ariaLabel="Sequences table"
+          tableClassName="sequences-list"
+          columns={sequenceColumns}
+          rows={displayedSequences}
+          getRowKey={(s) => s.id}
+          rowTestId={(s) => `sequence-row-${s.id}`}
+          onRowClick={(s) => void openEdit(s.id)}
+          menuLabel={(s) => `More actions for ${s.name}`}
+          rowActions={(s) => ({
+            visible: [{ id: 'edit', label: 'Edit', ariaLabel: `Edit ${s.name}`, icon: 'edit', onSelect: () => void openEdit(s.id) }],
+            menu: [{ id: 'delete', label: 'Delete', ariaLabel: `Delete ${s.name}`, icon: 'delete', tone: 'danger', onSelect: () => del.open({ id: s.id, name: s.name }) }],
+          })}
+          state={listState}
+        />
+        {dialog}
+      </section>
+    );
+  }
+
   return (
     <section>
-      <h2>Sequences</h2>
-      {tableMessage && <div className="form-hint" role="status">{tableMessage}</div>}
-      {tableError && <div className="form-error" role="alert">{tableError}</div>}
-      {!editorOpen && (
-      <>
-      <div className="actions-header">
-        <button
-          onClick={() => {
-            if (!confirmNavigate()) return;
-            setCreating(true);
-            setEditingId(undefined);
-            setErrors(undefined);
-            resetForm();
-          }}
-        >
-          Create Sequence
-        </button>
-      </div>
-      {!loading && sequences.length === 0 && (
-        <div className="form-hint" role="status">No sequences yet. Create your first sequence to start authoring automation flow.</div>
-      )}
-      <table className="sequences-table" aria-label="Sequences table">
-        <thead>
-          <tr>
-            <th>
-              <div>Name</div>
-              <input
-                aria-label="Filter by name"
-                value={filterName}
-                onChange={(e) => setFilterName(e.target.value)}
-                placeholder="Filter by name"
-                disabled={loading}
-              />
-            </th>
-            <th>
-              <div>Steps</div>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {loading && (
-            <tr><td colSpan={2}>Loading...</td></tr>
-          )}
-          {!loading && displayedSequences.length === 0 && (
-            <tr><td colSpan={2}>No sequences found.</td></tr>
-          )}
-          {!loading && displayedSequences.length > 0 && displayedSequences.map((s) => (
-            <tr key={s.id} className="sequences-row">
-              <td>
-                <button
-                  type="button"
-                  className="link-button"
-                  onClick={async () => {
-                    if (!confirmNavigate()) return;
-                    try {
-                      await loadSequenceIntoForm(s.id);
-                    } catch (err: any) {
-                      setErrors({ form: err?.message ?? 'Failed to load sequence' });
-                    }
-                  }}
-                >
-                  {s.name}
-                </button>
-                {s.excludeFromSuccessNotifications && (
-                  <span className="badge sequence-badge--no-success-notifications" title={EXCLUDE_NOTIFICATIONS_HELP}>
-                    No success notifications
-                  </span>
-                )}
-                {s.ignoreSmartScheduling && (
-                  <span className="badge sequence-badge--ignores-smart-scheduling" title={IGNORE_SMART_SCHEDULING_HELP}>
-                    Ignores smart scheduling
-                  </span>
-                )}
-              </td>
-              <td>{s.stepCount}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      </>
-      )}
-
-      {editorOpen && (
-        <div className="actions-header">
-          <button type="button" onClick={backToList}>← Back to list</button>
-        </div>
-      )}
-
-      {creating && (
-        <form
-          className="edit-form"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            const validation = validate(form);
-            if (validation) {
-              setErrors(validation);
-              return;
-            }
-
-            const linearPayload = {
-              name: form.name.trim(),
-              version: 1,
-              steps: toLinearPayloadSteps(form.steps, form.parameters),
-              interStepDelayRangeMs: form.useCustomDelayRange
-                ? { min: Number(form.delayMin), max: Number(form.delayMax) }
-                : null
-            };
-
-            if (linearPayload) {
-              const linearErrors = validatePerStepConditions(linearPayload.steps, form.parameters);
-              if (linearErrors.length > 0) {
-                setErrors({ form: linearErrors[0] });
-                return;
-              }
-            }
-
-            setSubmitting(true);
-            try {
-              await createSequence(
-                {
-                  name: linearPayload.name,
-                  version: linearPayload.version,
-                  steps: linearPayload.steps,
-                  interStepDelayRangeMs: linearPayload.interStepDelayRangeMs,
-                  ...(form.parameters.length > 0 ? { parameters: form.parameters } : {}),
-                  // Feature 122: sent only when on. An absent member means false on create.
-                  ...(form.excludeFromSuccessNotifications ? { excludeFromSuccessNotifications: true } : {}),
-                  // Feature 189: sent only when on. An absent member means false on create.
-                  ...(form.ignoreSmartScheduling ? { ignoreSmartScheduling: true } : {}),
-                  // Feature 170: sent only for 'end'. An absent member means 'fail' on create.
-                  ...(form.onTimeLimit === 'end' ? { onTimeLimit: 'end' as const } : {})
-                }
-              );
-              setCreating(false);
-              setForm(emptyForm);
-              setPendingStepId(undefined);
-              setDirty(false);
-              setTableMessage('Sequence created successfully.');
-              await reloadSequences();
-            } catch (err: any) {
-              // Feature 078 (FR-029): surface the offending field/parameter, not a generic message.
-              setErrors({ form: parameterErrorSummary(parseParameterErrors(err)) ?? err?.message ?? 'Failed to create sequence' });
-            } finally {
-              setSubmitting(false);
-            }
-          }}
-        >
-          <FormSection title="Basics" description="Primary details for the sequence." id="sequence-basics">
-            <div className="field">
-              <label htmlFor="sequence-name">Name *</label>
-              <input
-                id="sequence-name"
-                value={form.name}
-                onChange={(e) => { setErrors(undefined); setForm({ ...form, name: e.target.value }); setDirty(true); }}
-                aria-invalid={Boolean(errors?.name)}
-                aria-describedby={errors?.name ? 'sequence-name-error' : undefined}
-                disabled={submitting || loading}
-              />
-              {errors?.name && <div id="sequence-name-error" className="field-error" role="alert">{errors.name}</div>}
-            </div>
-            <div className="field">
-              <label>
-                <input
-                  type="checkbox"
-                  checked={form.excludeFromSuccessNotifications}
-                  onChange={(event) => {
-                    const enabled = event.target.checked;
-                    setForm((prev) => ({ ...prev, excludeFromSuccessNotifications: enabled }));
-                    setErrors(undefined);
-                    setDirty(true);
-                  }}
-                  disabled={submitting || loading}
-                />
-                Exclude from success notifications
-              </label>
-              <div className="form-hint">{EXCLUDE_NOTIFICATIONS_HELP}</div>
-            </div>
-            <div className="field">
-              <label>
-                <input
-                  type="checkbox"
-                  checked={form.ignoreSmartScheduling}
-                  onChange={(event) => {
-                    const enabled = event.target.checked;
-                    setForm((prev) => ({ ...prev, ignoreSmartScheduling: enabled }));
-                    setErrors(undefined);
-                    setDirty(true);
-                  }}
-                  disabled={submitting || loading}
-                />
-                Ignore smart scheduling
-              </label>
-              <div className="form-hint">{IGNORE_SMART_SCHEDULING_HELP}</div>
-            </div>
-            <OnTimeLimitField
-              id="sequence-on-time-limit"
-              value={form.onTimeLimit}
-              disabled={submitting || loading}
-              onChange={(value) => {
-                setForm((prev) => ({ ...prev, onTimeLimit: value }));
-                setErrors(undefined);
-                setDirty(true);
-              }}
-            />
-            <div className="field">
-              <label>
-                <input
-                  type="checkbox"
-                  checked={form.useCustomDelayRange}
-                  onChange={(event) => {
-                    const enabled = event.target.checked;
-                    setForm((prev) => ({
-                      ...prev,
-                      useCustomDelayRange: enabled,
-                      delayMin: enabled ? prev.delayMin : '',
-                      delayMax: enabled ? prev.delayMax : ''
-                    }));
-                    setErrors(undefined);
-                    setDirty(true);
-                  }}
-                  disabled={submitting || loading}
-                />
-                Use custom inter-step delay range
-              </label>
-              <div className="form-hint">Default runtime range is 100-300 ms when custom range is disabled.</div>
-            </div>
-            {form.useCustomDelayRange && (
-              <>
-                <div className="field">
-                  <label htmlFor="sequence-delay-min">Minimum Delay (ms) *</label>
-                  <input
-                    id="sequence-delay-min"
-                    inputMode="numeric"
-                    value={form.delayMin}
-                    onChange={(event) => {
-                      setErrors(undefined);
-                      setForm((prev) => ({ ...prev, delayMin: event.target.value }));
-                      setDirty(true);
-                    }}
-                    aria-invalid={Boolean(errors?.delayMin)}
-                    aria-describedby={errors?.delayMin ? 'sequence-delay-min-error' : undefined}
-                    disabled={submitting || loading}
-                  />
-                  {errors?.delayMin && <div id="sequence-delay-min-error" className="field-error" role="alert">{errors.delayMin}</div>}
-                </div>
-                <div className="field">
-                  <label htmlFor="sequence-delay-max">Maximum Delay (ms) *</label>
-                  <input
-                    id="sequence-delay-max"
-                    inputMode="numeric"
-                    value={form.delayMax}
-                    onChange={(event) => {
-                      setErrors(undefined);
-                      setForm((prev) => ({ ...prev, delayMax: event.target.value }));
-                      setDirty(true);
-                    }}
-                    aria-invalid={Boolean(errors?.delayMax)}
-                    aria-describedby={errors?.delayMax ? 'sequence-delay-max-error' : undefined}
-                    disabled={submitting || loading}
-                  />
-                  {errors?.delayMax && <div id="sequence-delay-max-error" className="field-error" role="alert">{errors.delayMax}</div>}
-                </div>
-              </>
-            )}
-          </FormSection>
-
-          <FormSection
-            title="Parameters"
-            description="Values a caller supplies. A value only needs declaring here if this sequence itself names it — one passed straight through to a command is inherited automatically."
-            id="sequence-parameters"
+      <PageHeader
+        onBack={backToList}
+        title={creating ? 'New sequence' : (loadedName ?? 'Loading…')}
+        actions={(
+          <Button
+            icon="play"
+            testId="step-through-button"
+            onClick={() => setStepThroughOpen(true)}
+            disabled={Boolean(stepThroughDisabledReason) || stepThroughOpen}
+            ariaDescribedBy={stepThroughDisabledReason ? 'step-through-reason' : undefined}
           >
-            <ParameterDeclarationList
-              parameters={form.parameters}
+            Step through
+          </Button>
+        )}
+      />
+      <div className="ui-message-area">
+        {stepThroughDisabledReason && <span id="step-through-reason" className="form-hint">{stepThroughDisabledReason}</span>}
+      </div>
+      <div className="ui-form ui-form--wide">
+        <form className="edit-form" onSubmit={(e) => void handleSubmit(e)}>
+        <FormSection title="Basics" description="Primary details for the sequence." id="sequence-basics">
+          <div className="field">
+            <label htmlFor="sequence-name">Name *</label>
+            <input
+              id="sequence-name"
+              value={form.name}
+              onChange={(e) => { setErrors(undefined); setForm({ ...form, name: e.target.value }); setDirty(true); }}
+              aria-invalid={Boolean(errors?.name)}
+              aria-describedby={errors?.name ? 'sequence-name-error' : undefined}
               disabled={submitting || loading}
-              ownerLabel="This sequence"
-              onChange={(parameters) => { setForm((prev) => ({ ...prev, parameters })); setDirty(true); }}
             />
-          </FormSection>
-
-          <FormSection title="Steps" description="Add commands in the order they should run and configure conditions inline." id="sequence-steps">
-            <ConditionParametersContext.Provider value={form.parameters}>
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenterToCursor}
-              onDragStart={handleDragStart}
-              onDragOver={handleDragOver}
-              onDragEnd={handleDragEnd}
-              onDragCancel={handleDragCancel}
-            >
-              <SortableSequenceStepList
-                items={stepItems}
-                activeId={activeStepId}
-                overId={overId}
-                onDelete={(item) => {
-                  setForm((prev) => ({ ...prev, steps: prev.steps.filter((s) => s.id !== item.id) }));
+            {errors?.name && <div id="sequence-name-error" className="field-error" role="alert">{errors.name}</div>}
+          </div>
+          <div className="field">
+            <label>
+              <input
+                type="checkbox"
+                checked={form.excludeFromSuccessNotifications}
+                onChange={(event) => {
+                  const enabled = event.target.checked;
+                  setForm((prev) => ({ ...prev, excludeFromSuccessNotifications: enabled }));
+                  setErrors(undefined);
                   setDirty(true);
                 }}
                 disabled={submitting || loading}
-                emptyMessage="No steps added yet."
               />
-            </DndContext>
-            </ConditionParametersContext.Provider>
-
-            <hr className="sequence-steps-separator" />
-
-            <div className="sequence-add-grid">
-              <div className="sequence-add-col">
-                <div className="sequence-add-col__label">Command</div>
-                <SearchableDropdown
-                  id="sequence-step-dropdown"
-                  label="Add command"
-                  options={commandOptions}
-                  value={pendingStepId}
-                  onChange={(val) => { setPendingStepId(val); setErrors(undefined); }}
+              Exclude from success notifications
+            </label>
+            <div className="form-hint">{EXCLUDE_NOTIFICATIONS_HELP}</div>
+          </div>
+          <div className="field">
+            <label>
+              <input
+                type="checkbox"
+                checked={form.ignoreSmartScheduling}
+                onChange={(event) => {
+                  const enabled = event.target.checked;
+                  setForm((prev) => ({ ...prev, ignoreSmartScheduling: enabled }));
+                  setErrors(undefined);
+                  setDirty(true);
+                }}
+                disabled={submitting || loading}
+              />
+              Ignore smart scheduling
+            </label>
+            <div className="form-hint">{IGNORE_SMART_SCHEDULING_HELP}</div>
+          </div>
+          <OnTimeLimitField
+            id="sequence-on-time-limit"
+            value={form.onTimeLimit}
+            disabled={submitting || loading}
+            onChange={(value) => {
+              setForm((prev) => ({ ...prev, onTimeLimit: value }));
+              setErrors(undefined);
+              setDirty(true);
+            }}
+          />
+          <div className="field">
+            <label>
+              <input
+                type="checkbox"
+                checked={form.useCustomDelayRange}
+                onChange={(event) => {
+                  const enabled = event.target.checked;
+                  setForm((prev) => ({
+                    ...prev,
+                    useCustomDelayRange: enabled,
+                    delayMin: enabled ? prev.delayMin : '',
+                    delayMax: enabled ? prev.delayMax : ''
+                  }));
+                  setErrors(undefined);
+                  setDirty(true);
+                }}
+                disabled={submitting || loading}
+              />
+              Use custom inter-step delay range
+            </label>
+            <div className="form-hint">Default runtime range is 100-300 ms when custom range is disabled.</div>
+          </div>
+          {form.useCustomDelayRange && (
+            <>
+              <div className="field">
+                <label htmlFor="sequence-delay-min">Minimum Delay (ms) *</label>
+                <input
+                  id="sequence-delay-min"
+                  inputMode="numeric"
+                  value={form.delayMin}
+                  onChange={(event) => {
+                    setErrors(undefined);
+                    setForm((prev) => ({ ...prev, delayMin: event.target.value }));
+                    setDirty(true);
+                  }}
+                  aria-invalid={Boolean(errors?.delayMin)}
+                  aria-describedby={errors?.delayMin ? 'sequence-delay-min-error' : undefined}
                   disabled={submitting || loading}
-                  placeholder="Select a command"
                 />
-                <button type="button" onClick={() => {
+                {errors?.delayMin && <div id="sequence-delay-min-error" className="field-error" role="alert">{errors.delayMin}</div>}
+              </div>
+              <div className="field">
+                <label htmlFor="sequence-delay-max">Maximum Delay (ms) *</label>
+                <input
+                  id="sequence-delay-max"
+                  inputMode="numeric"
+                  value={form.delayMax}
+                  onChange={(event) => {
+                    setErrors(undefined);
+                    setForm((prev) => ({ ...prev, delayMax: event.target.value }));
+                    setDirty(true);
+                  }}
+                  aria-invalid={Boolean(errors?.delayMax)}
+                  aria-describedby={errors?.delayMax ? 'sequence-delay-max-error' : undefined}
+                  disabled={submitting || loading}
+                />
+                {errors?.delayMax && <div id="sequence-delay-max-error" className="field-error" role="alert">{errors.delayMax}</div>}
+              </div>
+            </>
+          )}
+        </FormSection>
+
+        <FormSection
+          title="Parameters"
+          description="Values a caller supplies. A value only needs declaring here if this sequence itself names it — one passed straight through to a command is inherited automatically."
+          id="sequence-parameters"
+        >
+          <ParameterDeclarationList
+            parameters={form.parameters}
+            disabled={submitting || loading}
+            ownerLabel="This sequence"
+            onChange={(parameters) => { setForm((prev) => ({ ...prev, parameters })); setDirty(true); }}
+          />
+        </FormSection>
+
+        <FormSection title="Steps" description="Add commands in the order they should run and configure conditions inline." id="sequence-steps">
+          <ConditionParametersContext.Provider value={form.parameters}>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenterToCursor}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDragEnd={handleDragEnd}
+            onDragCancel={handleDragCancel}
+          >
+            <SortableSequenceStepList
+              items={stepItems}
+              activeId={activeStepId}
+              overId={overId}
+              onDelete={(item) => {
+                setForm((prev) => ({ ...prev, steps: prev.steps.filter((s) => s.id !== item.id) }));
+                setDirty(true);
+              }}
+              disabled={submitting || loading}
+              emptyMessage="No steps added yet."
+            />
+          </DndContext>
+          </ConditionParametersContext.Provider>
+
+          <div className="sequence-add-grid">
+            <div className="sequence-add-col">
+              <div className="sequence-add-col__label">Command</div>
+              <SearchableDropdown
+                id="sequence-step-dropdown"
+                label="Add command"
+                options={commandOptions}
+                value={pendingStepId}
+                onChange={(val) => { setPendingStepId(val); setErrors(undefined); }}
+                disabled={submitting || loading}
+                placeholder="Select a command"
+              />
+              <Button
+                disabled={submitting || loading || !pendingStepId}
+                onClick={() => {
                   if (!pendingStepId) return;
                   const next = [...form.steps, createDefaultStep(pendingStepId, nextGeneratedStepId(form.steps))];
                   setForm({ ...form, steps: next });
                   setPendingStepId(undefined);
                   setDirty(true);
-                }} disabled={submitting || loading || !pendingStepId}>Add to steps</button>
-              </div>
-              <div className="sequence-add-col">
-                <div className="sequence-add-col__label">Loops and Conditions</div>
-                <div className="sequence-add-col__buttons" data-testid="add-loop-buttons">
-                  <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createLoopStep('count')] })); setDirty(true); }} disabled={submitting || loading}>Count</button>
-                  <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createLoopStep('while')] })); setDirty(true); }} disabled={submitting || loading}>While</button>
-                  <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createLoopStep('repeatUntil')] })); setDirty(true); }} disabled={submitting || loading}>Repeat‑Until</button>
-                  <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createIfStep()] })); setDirty(true); }} disabled={submitting || loading}>If</button>
-                </div>
-              </div>
-              <div className="sequence-add-col">
-                <div className="sequence-add-col__label">Special steps</div>
-                <div className="sequence-add-col__buttons">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setForm((prev) => ({ ...prev, steps: [...prev.steps, createDefaultWaitStep(nextGeneratedStepId(prev.steps))] }));
-                      setDirty(true);
-                    }}
-                    disabled={submitting || loading}
-                  >
-                    Add wait step
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="add-reschedule-button"
-                    onClick={() => {
-                      setForm((prev) => ({ ...prev, steps: [...prev.steps, createDefaultRescheduleStep(nextGeneratedStepId(prev.steps))] }));
-                      setDirty(true);
-                    }}
-                    disabled={submitting || loading}
-                  >
-                    Add reschedule step
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="add-quiz-lookup-button"
-                    onClick={() => {
-                      setForm((prev) => ({ ...prev, steps: [...prev.steps, createDefaultQuizStep(QUIZ_LOOKUP_TYPE, nextGeneratedStepId(prev.steps))] }));
-                      setDirty(true);
-                    }}
-                    disabled={submitting || loading}
-                  >
-                    Add quiz lookup step
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="add-quiz-learn-button"
-                    onClick={() => {
-                      setForm((prev) => ({ ...prev, steps: [...prev.steps, createDefaultQuizStep(QUIZ_LEARN_TYPE, nextGeneratedStepId(prev.steps))] }));
-                      setDirty(true);
-                    }}
-                    disabled={submitting || loading}
-                  >
-                    Add quiz learn step
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="add-wait-for-still-button"
-                    onClick={() => {
-                      setForm((prev) => ({ ...prev, steps: [...prev.steps, createDefaultWaitForStillStep(nextGeneratedStepId(prev.steps))] }));
-                      setDirty(true);
-                    }}
-                    disabled={submitting || loading}
-                  >
-                    Add wait for still step
-                  </button>
-                </div>
+                }}
+              >
+                Add to steps
+              </Button>
+            </div>
+            <div className="sequence-add-col">
+              <div className="sequence-add-col__label">Loops and Conditions</div>
+              <div className="sequence-add-col__buttons" data-testid="add-loop-buttons">
+                <Button disabled={submitting || loading} onClick={() => addStep(() => createLoopStep('count'))}>Count</Button>
+                <Button disabled={submitting || loading} onClick={() => addStep(() => createLoopStep('while'))}>While</Button>
+                <Button disabled={submitting || loading} onClick={() => addStep(() => createLoopStep('repeatUntil'))}>Repeat‑Until</Button>
+                <Button disabled={submitting || loading} onClick={() => addStep(() => createIfStep())}>If</Button>
               </div>
             </div>
-            <div className="form-hint">Steps execute in listed order; drag to reorder within the same level.</div>
-          </FormSection>
+            <div className="sequence-add-col">
+              <div className="sequence-add-col__label">Special steps</div>
+              <div className="sequence-add-col__buttons">
+                <Button disabled={submitting || loading} onClick={() => addStep((steps) => createDefaultWaitStep(nextGeneratedStepId(steps)))}>Add wait step</Button>
+                <Button testId="add-reschedule-button" disabled={submitting || loading} onClick={() => addStep((steps) => createDefaultRescheduleStep(nextGeneratedStepId(steps)))}>Add reschedule step</Button>
+                <Button testId="add-quiz-lookup-button" disabled={submitting || loading} onClick={() => addStep((steps) => createDefaultQuizStep(QUIZ_LOOKUP_TYPE, nextGeneratedStepId(steps)))}>Add quiz lookup step</Button>
+                <Button testId="add-quiz-learn-button" disabled={submitting || loading} onClick={() => addStep((steps) => createDefaultQuizStep(QUIZ_LEARN_TYPE, nextGeneratedStepId(steps)))}>Add quiz learn step</Button>
+                <Button testId="add-wait-for-still-button" disabled={submitting || loading} onClick={() => addStep((steps) => createDefaultWaitForStillStep(nextGeneratedStepId(steps)))}>Add wait for still step</Button>
+              </div>
+            </div>
+          </div>
+          <div className="form-hint">Steps execute in listed order; drag to reorder within the same level.</div>
+        </FormSection>
 
-          <hr className="sequence-steps-separator" />
-
-          <FormActions submitting={submitting} onCancel={() => { if (!confirmNavigate()) return; setCreating(false); resetForm(); }}>
-            {loading && <span className="form-hint">Loading…</span>}
-            {stepThroughButton}
-          </FormActions>
           <FormError message={errors?.form} />
+
+          <FooterBar
+            left={(
+              <>
+                {!creating && editingId && (
+                  <Button variant="danger-outline" onClick={() => del.open({ id: editingId, name: loadedName ?? form.name })} disabled={submitting}>Delete</Button>
+                )}
+                {loading && <span className="form-hint">Loading…</span>}
+              </>
+            )}
+            right={(
+              <>
+                <Button variant="secondary" onClick={backToList} disabled={submitting}>Cancel</Button>
+                <Button variant="primary" type="submit" disabled={submitting}>Save</Button>
+              </>
+            )}
+          />
         </form>
-      )}
-      {editingId && (
-        <section>
-          <h3>Edit Sequence</h3>
-          <form
-            className="edit-form"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              if (!editingId) return;
-              const validation = validate(form);
-              if (validation) {
-                setErrors(validation);
-                return;
-              }
-
-              const linearPayload = {
-                name: form.name.trim(),
-                version: loadedVersion,
-                steps: toLinearPayloadSteps(form.steps, form.parameters),
-                interStepDelayRangeMs: form.useCustomDelayRange
-                  ? { min: Number(form.delayMin), max: Number(form.delayMax) }
-                  : null
-              };
-
-              if (linearPayload) {
-                const linearErrors = validatePerStepConditions(linearPayload.steps, form.parameters);
-                if (linearErrors.length > 0) {
-                  setErrors({ form: linearErrors[0] });
-                  return;
-                }
-              }
-
-              setSubmitting(true);
-              try {
-                await updateSequence(
-                  editingId,
-                  {
-                    name: linearPayload.name,
-                    version: linearPayload.version,
-                    steps: linearPayload.steps,
-                    interStepDelayRangeMs: linearPayload.interStepDelayRangeMs,
-                    // Always sent on update (even when empty) so clearing the last declaration
-                    // actually persists — an absent member means "leave unchanged" server-side.
-                    parameters: form.parameters,
-                    // Feature 122: always sent on update, so a save of another change keeps the value.
-                    excludeFromSuccessNotifications: form.excludeFromSuccessNotifications,
-                    // Feature 189: always sent on update, so a save from the web UI can set it to false.
-                    ignoreSmartScheduling: form.ignoreSmartScheduling,
-                    // Feature 170: always sent on update, because PUT resets an absent value to 'fail'.
-                    onTimeLimit: form.onTimeLimit
-                  }
-                );
-                await reloadSequences();
-                setEditingId(undefined);
-                resetForm();
-                setDirty(false);
-                setTableMessage('Sequence updated successfully.');
-              } catch (err: any) {
-                if (isSequenceConflictError(err)) {
-                  setErrors({ form: `Sequence has changed on the server (version ${err.payload.currentVersion}). Reloaded latest version.` });
-                  await loadSequenceIntoForm(editingId);
-                } else {
-                  setErrors({ form: parameterErrorSummary(parseParameterErrors(err)) ?? err?.message ?? 'Failed to update sequence' });
-                }
-              } finally {
-                setSubmitting(false);
-              }
-            }}
-          >
-            <FormSection title="Basics" description="Primary details for the sequence." id="sequence-edit-basics">
-              <div className="field">
-                <label htmlFor="sequence-edit-name">Name *</label>
-                <input
-                  id="sequence-edit-name"
-                  value={form.name}
-                  onChange={(e) => { setErrors(undefined); setForm({ ...form, name: e.target.value }); setDirty(true); }}
-                  aria-invalid={Boolean(errors?.name)}
-                  aria-describedby={errors?.name ? 'sequence-edit-name-error' : undefined}
-                  disabled={submitting || loading}
-                />
-                {errors?.name && <div id="sequence-edit-name-error" className="field-error" role="alert">{errors.name}</div>}
-              </div>
-              <div className="field">
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={form.excludeFromSuccessNotifications}
-                    onChange={(event) => {
-                      const enabled = event.target.checked;
-                      setForm((prev) => ({ ...prev, excludeFromSuccessNotifications: enabled }));
-                      setErrors(undefined);
-                      setDirty(true);
-                    }}
-                    disabled={submitting || loading}
-                  />
-                  Exclude from success notifications
-                </label>
-                <div className="form-hint">{EXCLUDE_NOTIFICATIONS_HELP}</div>
-              </div>
-              <div className="field">
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={form.ignoreSmartScheduling}
-                    onChange={(event) => {
-                      const enabled = event.target.checked;
-                      setForm((prev) => ({ ...prev, ignoreSmartScheduling: enabled }));
-                      setErrors(undefined);
-                      setDirty(true);
-                    }}
-                    disabled={submitting || loading}
-                  />
-                  Ignore smart scheduling
-                </label>
-                <div className="form-hint">{IGNORE_SMART_SCHEDULING_HELP}</div>
-              </div>
-              <OnTimeLimitField
-                id="sequence-edit-on-time-limit"
-                value={form.onTimeLimit}
-                disabled={submitting || loading}
-                onChange={(value) => {
-                  setForm((prev) => ({ ...prev, onTimeLimit: value }));
-                  setErrors(undefined);
-                  setDirty(true);
-                }}
-              />
-              <div className="field">
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={form.useCustomDelayRange}
-                    onChange={(event) => {
-                      const enabled = event.target.checked;
-                      setForm((prev) => ({
-                        ...prev,
-                        useCustomDelayRange: enabled,
-                        delayMin: enabled ? prev.delayMin : '',
-                        delayMax: enabled ? prev.delayMax : ''
-                      }));
-                      setErrors(undefined);
-                      setDirty(true);
-                    }}
-                    disabled={submitting || loading}
-                  />
-                  Use custom inter-step delay range
-                </label>
-                <div className="form-hint">Default runtime range is 100-300 ms when custom range is disabled.</div>
-              </div>
-              {form.useCustomDelayRange && (
-                <>
-                  <div className="field">
-                    <label htmlFor="sequence-edit-delay-min">Minimum Delay (ms) *</label>
-                    <input
-                      id="sequence-edit-delay-min"
-                      inputMode="numeric"
-                      value={form.delayMin}
-                      onChange={(event) => {
-                        setErrors(undefined);
-                        setForm((prev) => ({ ...prev, delayMin: event.target.value }));
-                        setDirty(true);
-                      }}
-                      aria-invalid={Boolean(errors?.delayMin)}
-                      aria-describedby={errors?.delayMin ? 'sequence-edit-delay-min-error' : undefined}
-                      disabled={submitting || loading}
-                    />
-                    {errors?.delayMin && <div id="sequence-edit-delay-min-error" className="field-error" role="alert">{errors.delayMin}</div>}
-                  </div>
-                  <div className="field">
-                    <label htmlFor="sequence-edit-delay-max">Maximum Delay (ms) *</label>
-                    <input
-                      id="sequence-edit-delay-max"
-                      inputMode="numeric"
-                      value={form.delayMax}
-                      onChange={(event) => {
-                        setErrors(undefined);
-                        setForm((prev) => ({ ...prev, delayMax: event.target.value }));
-                        setDirty(true);
-                      }}
-                      aria-invalid={Boolean(errors?.delayMax)}
-                      aria-describedby={errors?.delayMax ? 'sequence-edit-delay-max-error' : undefined}
-                      disabled={submitting || loading}
-                    />
-                    {errors?.delayMax && <div id="sequence-edit-delay-max-error" className="field-error" role="alert">{errors.delayMax}</div>}
-                  </div>
-                </>
-              )}
-            </FormSection>
-
-            <FormSection
-              title="Parameters"
-              description="Values a caller supplies. A value only needs declaring here if this sequence itself names it — one passed straight through to a command is inherited automatically."
-              id="sequence-edit-parameters"
-            >
-              <ParameterDeclarationList
-                parameters={form.parameters}
-                disabled={submitting || loading}
-                ownerLabel="This sequence"
-                onChange={(parameters) => { setForm((prev) => ({ ...prev, parameters })); setDirty(true); }}
-              />
-            </FormSection>
-
-            <FormSection title="Steps" description="Add commands in the order they should run and configure conditions inline." id="sequence-edit-steps">
-              <ConditionParametersContext.Provider value={form.parameters}>
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenterToCursor}
-                onDragStart={handleDragStart}
-                onDragOver={handleDragOver}
-                onDragEnd={handleDragEnd}
-                onDragCancel={handleDragCancel}
-              >
-                <SortableSequenceStepList
-                  items={stepItems}
-                  activeId={activeStepId}
-                  overId={overId}
-                  onDelete={(item) => {
-                    setForm((prev) => ({ ...prev, steps: prev.steps.filter((s) => s.id !== item.id) }));
-                    setDirty(true);
-                  }}
-                  disabled={submitting || loading}
-                  emptyMessage="No steps added yet."
-                />
-              </DndContext>
-              </ConditionParametersContext.Provider>
-
-              <hr className="sequence-steps-separator" />
-
-              <div className="sequence-add-grid">
-                <div className="sequence-add-col">
-                  <div className="sequence-add-col__label">Command</div>
-                  <SearchableDropdown
-                    id="sequence-edit-step-dropdown"
-                    label="Add command"
-                    options={commandOptions}
-                    value={pendingStepId}
-                    onChange={(val) => { setPendingStepId(val); setErrors(undefined); }}
-                    disabled={submitting || loading}
-                    placeholder="Select a command"
-                  />
-                  <button type="button" onClick={() => {
-                    if (!pendingStepId) return;
-                    const next = [...form.steps, createDefaultStep(pendingStepId, nextGeneratedStepId(form.steps))];
-                    setForm({ ...form, steps: next });
-                    setPendingStepId(undefined);
-                    setDirty(true);
-                  }} disabled={submitting || loading || !pendingStepId}>Add to steps</button>
-                </div>
-                <div className="sequence-add-col">
-                  <div className="sequence-add-col__label">Loops and Conditions</div>
-                  <div className="sequence-add-col__buttons" data-testid="edit-add-loop-buttons">
-                    <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createLoopStep('count')] })); setDirty(true); }} disabled={submitting || loading}>Count</button>
-                    <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createLoopStep('while')] })); setDirty(true); }} disabled={submitting || loading}>While</button>
-                    <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createLoopStep('repeatUntil')] })); setDirty(true); }} disabled={submitting || loading}>Repeat‑Until</button>
-                  <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createIfStep()] })); setDirty(true); }} disabled={submitting || loading}>If</button>
-                  </div>
-                </div>
-                <div className="sequence-add-col">
-                  <div className="sequence-add-col__label">Special steps</div>
-                  <div className="sequence-add-col__buttons">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setForm((prev) => ({ ...prev, steps: [...prev.steps, createDefaultWaitStep(nextGeneratedStepId(prev.steps))] }));
-                        setDirty(true);
-                      }}
-                      disabled={submitting || loading}
-                    >
-                      Add wait step
-                    </button>
-                    <button
-                      type="button"
-                      data-testid="edit-add-reschedule-button"
-                      onClick={() => {
-                        setForm((prev) => ({ ...prev, steps: [...prev.steps, createDefaultRescheduleStep(nextGeneratedStepId(prev.steps))] }));
-                        setDirty(true);
-                      }}
-                      disabled={submitting || loading}
-                    >
-                      Add reschedule step
-                    </button>
-                    <button
-                      type="button"
-                      data-testid="add-quiz-lookup-button"
-                      onClick={() => {
-                        setForm((prev) => ({ ...prev, steps: [...prev.steps, createDefaultQuizStep(QUIZ_LOOKUP_TYPE, nextGeneratedStepId(prev.steps))] }));
-                        setDirty(true);
-                      }}
-                      disabled={submitting || loading}
-                    >
-                      Add quiz lookup step
-                    </button>
-                    <button
-                      type="button"
-                      data-testid="add-quiz-learn-button"
-                      onClick={() => {
-                        setForm((prev) => ({ ...prev, steps: [...prev.steps, createDefaultQuizStep(QUIZ_LEARN_TYPE, nextGeneratedStepId(prev.steps))] }));
-                        setDirty(true);
-                      }}
-                      disabled={submitting || loading}
-                    >
-                      Add quiz learn step
-                    </button>
-                    <button
-                      type="button"
-                      data-testid="add-wait-for-still-button"
-                      onClick={() => {
-                        setForm((prev) => ({ ...prev, steps: [...prev.steps, createDefaultWaitForStillStep(nextGeneratedStepId(prev.steps))] }));
-                        setDirty(true);
-                      }}
-                      disabled={submitting || loading}
-                    >
-                      Add wait for still step
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <div className="form-hint">Steps execute in listed order; drag to reorder within the same level.</div>
-            </FormSection>
-
-            <hr className="sequence-steps-separator" />
-
-            <FormActions
-              submitting={submitting}
-              onCancel={() => {
-                if (!confirmNavigate()) return;
-                setEditingId(undefined);
-                resetForm();
-              }}
-            >
-              {loading && <span className="form-hint">Loading…</span>}
-              {stepThroughButton}
-              <button type="button" className="btn btn-danger" onClick={() => setDeleteOpen(true)} disabled={submitting}>Delete</button>
-            </FormActions>
-            <FormError message={errors?.form} />
-          </form>
-          {stepThroughOpen && (
-            <StepThroughPanel
-              sequenceId={editingId}
-              sequenceName={form.name}
-              onClose={() => setStepThroughOpen(false)}
-            />
-          )}
-        </section>
-      )}
-      <ConfirmDeleteModal
-        open={deleteOpen}
-        itemName={form.name}
-        message={deleteMessage}
-        references={deleteReferences}
-        onCancel={() => setDeleteOpen(false)}
-        onConfirm={async () => {
-          if (!editingId) return;
-          try {
-            await deleteSequence(editingId);
-            setDeleteMessage(undefined);
-            setDeleteReferences(undefined);
-            setDeleteOpen(false);
-            setEditingId(undefined);
-            setDirty(false);
-            resetForm();
-            await reloadSequences();
-            setTableMessage('Sequence deleted successfully.');
-          } catch (err: any) {
-            if (err instanceof ApiError && err.status === 409) {
-              setDeleteMessage(err.message || 'Cannot delete: sequence is referenced. Unlink or migrate before deleting.');
-              setDeleteReferences(err.references || undefined);
-              setDeleteOpen(true);
-            } else {
-              setDeleteOpen(false);
-              setErrors({ form: err?.message ?? 'Failed to delete sequence' });
-            }
-          }
-        }}
-      />
+        {stepThroughOpen && editingId && (
+          <StepThroughPanel
+            sequenceId={editingId}
+            sequenceName={form.name}
+            onClose={() => setStepThroughOpen(false)}
+          />
+        )}
+      </div>
+      {dialog}
     </section>
   );
 };
-

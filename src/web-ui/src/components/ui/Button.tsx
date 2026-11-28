@@ -14,12 +14,14 @@ export type ButtonProps = {
   /** The accessible name, when the visible text is not enough (for example an icon glyph). */
   ariaLabel?: string;
   testId?: string;
+  /** The id of an element that explains the button (for example why it is off). */
+  ariaDescribedBy?: string;
   children?: React.ReactNode;
 };
 
 /** The shared text button. A page uses it instead of its own button style. */
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ variant = 'secondary', icon, type = 'button', disabled, onClick, className, testId, ariaLabel, children }, ref) => (
+  ({ variant = 'secondary', icon, type = 'button', disabled, onClick, className, testId, ariaLabel, ariaDescribedBy, children }, ref) => (
     <button
       ref={ref}
       type={type}
@@ -27,6 +29,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       disabled={disabled}
       data-testid={testId}
       aria-label={ariaLabel}
+      aria-describedby={ariaDescribedBy}
       onClick={onClick}
     >
       {icon ? <Icon name={icon} size={18} /> : null}

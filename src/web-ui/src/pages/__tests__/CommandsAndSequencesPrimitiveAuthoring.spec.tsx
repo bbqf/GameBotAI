@@ -100,7 +100,7 @@ describe('Commands and sequences primitive authoring', () => {
     render(<SequencesPage />);
 
     await waitFor(() => expect(listSequencesMock).toHaveBeenCalled());
-    fireEvent.click(screen.getByText('Create Sequence'));
+    fireEvent.click(screen.getByRole('button', { name: 'Create sequence' }));
     fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Primitive Sequence' } });
     fireEvent.change(screen.getByLabelText('Add command'), { target: { value: nestedCommandId } });
     fireEvent.click(screen.getByText('Add to steps'));

@@ -144,7 +144,6 @@ pre.json { background: var(--gb-color-surface-alt); border: 1px solid var(--gb-c
 .queue-section-label { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--gb-color-text-muted, #888); white-space: nowrap; }
 
 /* Sequence Steps layout (feature 065 reorg): separators + 3-column add area */
-.sequence-steps-separator { border: none; border-top: 1px solid var(--gb-color-border); margin: var(--gb-space-4) 0; }
 /* Breathing room after the section title + subtitle, before the steps list */
 #sequence-steps .form-section__description,
 #sequence-edit-steps .form-section__description { margin-bottom: var(--gb-space-4); }

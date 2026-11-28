@@ -69,7 +69,7 @@ describe('SequencesPage conditional edit mode', () => {
     await screen.findByText('Conditional Sequence');
     fireEvent.click(screen.getByText('Conditional Sequence'));
 
-    await screen.findByText('Edit Sequence');
+    await screen.findByRole('button', { name: 'Back' });
     const conditionTypeFields = screen.getAllByLabelText('Condition Type');
     expect(conditionTypeFields[1]).toHaveValue('imageVisible');
     expect(screen.getByLabelText('Image Id')).toHaveValue('image-a');

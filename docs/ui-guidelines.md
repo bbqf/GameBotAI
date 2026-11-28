@@ -1,6 +1,6 @@
 # UI Guidelines
 
-Last reviewed: 2026-11-28 (features 203, 204, 205, and 206)
+Last reviewed: 2026-11-28 (features 203, 204, 205, 206, and 207)
 
 These rules give all pages of the web UI one design, on the phone and on the desktop. The phone layout is the base. The
 desktop layout uses the same parts, in the same order, with more space.
@@ -236,7 +236,7 @@ only the tokens of section 1, and each hover rule is inside `@media (hover: hove
   icons, and the connection state ("Online" or "Connection lost"). The phone uses `PhoneTabBar` and `MorePage`.
 - **Navigation icons**: `queue`, `monitor`, `alerts`, `authoring`, `logs`, `execution`, `gamepacks`, and `update`
   are in `icons.ts` (feature 205).
-- **Form page card style** (`ui-form`): a form page puts its form in `ui-form`: 720 px wide, centered, with each `FormSection` as a card, labels above the fields, and a red border and text for an invalid field. The Games and Commands pages use it with `PageHeader` (back arrow) and `FooterBar` (Delete on the left, Cancel and Save on the right).
+- **Form page card style** (`ui-form`): a form page puts its form in `ui-form`: 720 px wide, centered, with each `FormSection` as a card, labels above the fields, and a red border and text for an invalid field. The Games and Commands pages use it with `PageHeader` (back arrow) and `FooterBar` (Delete on the left, Cancel and Save on the right). A form with the step editor (the Sequences page) adds `ui-form--wide` (maximum 880 px); the other rules are the same.
 - **List page classes**: `ui-filter-bar` (the filter input above the list), `ui-message-area` (the success and error messages above the list), `ui-num` (a number cell), and `ui-references` (the "Referenced by:" list in a delete dialog).
 - **Authoring helpers** (`components/authoring/`): `useDeleteFlow` holds the state of a delete dialog (target, busy, and the 409 conflict with its references). `DeleteReferences` shows the conflict in the dialog `details`. The Games and Commands pages use both.
 - **Form field classes**: `ui-form-card`, `ui-field`, `ui-field__label`, `ui-field__input`, `ui-field--error`,

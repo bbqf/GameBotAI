@@ -39,8 +39,8 @@ describe('SequencesPage', () => {
     render(<SequencesPage />);
 
     await waitFor(() => expect(listSequencesMock).toHaveBeenCalled());
-    await screen.findByText('No sequences found.');
-    expect(screen.getByText(/No sequences yet\. Create your first sequence/i)).toBeInTheDocument();
+    await screen.findByText('No sequences.');
+    expect(screen.queryByText(/No sequences yet/i)).not.toBeInTheDocument();
   });
 
   it('creates a sequence with multiple steps', async () => {
@@ -48,7 +48,7 @@ describe('SequencesPage', () => {
 
     await waitFor(() => expect(listSequencesMock).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByText('Create Sequence'));
+    fireEvent.click(screen.getByRole('button', { name: 'Create sequence' }));
     fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Seq A' } });
 
     fireEvent.change(screen.getByLabelText('Add command'), { target: { value: 'c1' } });
@@ -107,7 +107,7 @@ describe('SequencesPage', () => {
     await screen.findByText('Sequence 1');
     fireEvent.click(screen.getByText('Sequence 1'));
 
-    await screen.findByText('Edit Sequence');
+    await screen.findByRole('button', { name: 'Back' });
 
     const stepsSection = screen.getByRole('heading', { name: 'Steps', level: 3 }).closest('section')!;
     const deleteButtons = within(stepsSection).getAllByText('Delete');
@@ -133,7 +133,7 @@ describe('SequencesPage', () => {
         }
       ]
     }));
-    await waitFor(() => expect(screen.queryByText('Edit Sequence')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Back' })).not.toBeInTheDocument());
   });
 
   it('creates a sequence with a wait-for-image step', async () => {
@@ -141,7 +141,7 @@ describe('SequencesPage', () => {
 
     await waitFor(() => expect(listSequencesMock).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByText('Create Sequence'));
+    fireEvent.click(screen.getByRole('button', { name: 'Create sequence' }));
     fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Wait Seq' } });
     // Wait steps are now added first, then configured inline on the step itself.
     fireEvent.click(screen.getByText('Add wait step'));
@@ -205,7 +205,7 @@ describe('SequencesPage', () => {
     await screen.findByText('Wait Sequence');
     fireEvent.click(screen.getByText('Wait Sequence'));
 
-    await screen.findByText('Edit Sequence');
+    await screen.findByRole('button', { name: 'Back' });
     expect(screen.getByText('Wait for image: mail_icon')).toBeInTheDocument();
 
     fireEvent.click(screen.getByText('Save'));
@@ -278,7 +278,7 @@ describe('SequencesPage', () => {
     await screen.findByText('Loop Sequence');
     fireEvent.click(screen.getByText('Loop Sequence'));
 
-    await screen.findByText('Edit Sequence');
+    await screen.findByRole('button', { name: 'Back' });
 
     const bodyCommandSelect = screen.getByTestId('loop-body-command-select') as HTMLSelectElement;
     expect(bodyCommandSelect.value).toBe('c2');
@@ -325,7 +325,7 @@ describe('SequencesPage', () => {
     render(<SequencesPage />);
     await waitFor(() => expect(listSequencesMock).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByText('Create Sequence'));
+    fireEvent.click(screen.getByRole('button', { name: 'Create sequence' }));
 
     expect(screen.getByText('Loops and Conditions')).toBeInTheDocument();
     const buttonGroup = screen.getByTestId('add-loop-buttons');
@@ -341,7 +341,7 @@ describe('SequencesPage', () => {
     render(<SequencesPage />);
     await waitFor(() => expect(listSequencesMock).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByText('Create Sequence'));
+    fireEvent.click(screen.getByRole('button', { name: 'Create sequence' }));
     fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'If Seq' } });
 
     fireEvent.click(within(screen.getByTestId('add-loop-buttons')).getByText('If'));
@@ -428,7 +428,7 @@ describe('SequencesPage', () => {
     await screen.findByText('If In Loop');
     fireEvent.click(screen.getByText('If In Loop'));
 
-    await screen.findByText('Edit Sequence');
+    await screen.findByRole('button', { name: 'Back' });
 
     // The nested if renders inside the loop block with its then step.
     expect(screen.getByTestId('if-block')).toBeInTheDocument();

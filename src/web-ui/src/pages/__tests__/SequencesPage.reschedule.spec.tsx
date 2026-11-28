@@ -35,7 +35,7 @@ describe('SequencesPage self-reschedule action (feature 065)', () => {
     render(<SequencesPage />);
     await waitFor(() => expect(listSequencesMock).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByText('Create Sequence'));
+    fireEvent.click(screen.getByRole('button', { name: 'Create sequence' }));
     fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Reschedule' } });
 
     // A prior command step to gate against.
@@ -75,7 +75,7 @@ describe('SequencesPage self-reschedule action (feature 065)', () => {
     render(<SequencesPage />);
     await waitFor(() => expect(listSequencesMock).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByText('Create Sequence'));
+    fireEvent.click(screen.getByRole('button', { name: 'Create sequence' }));
     fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Reschedule timer' } });
     fireEvent.click(screen.getByText('Add reschedule step'));
 
@@ -129,7 +129,7 @@ describe('SequencesPage self-reschedule action (feature 065)', () => {
     render(<SequencesPage />);
     await waitFor(() => expect(listSequencesMock).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByText('Create Sequence'));
+    fireEvent.click(screen.getByRole('button', { name: 'Create sequence' }));
     fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Reschedule cancel' } });
     fireEvent.click(screen.getByText('Add reschedule step'));
 
@@ -177,7 +177,7 @@ describe('SequencesPage self-reschedule action (feature 065)', () => {
     render(<SequencesPage />);
     await waitFor(() => expect(listSequencesMock).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByText('Create Sequence'));
+    fireEvent.click(screen.getByRole('button', { name: 'Create sequence' }));
     fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Reschedule timer' } });
     fireEvent.click(screen.getByText('Add reschedule step'));
     fireEvent.change(screen.getByLabelText('Reschedule option'), { target: { value: 'Timer' } });

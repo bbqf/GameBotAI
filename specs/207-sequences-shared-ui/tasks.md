@@ -15,16 +15,16 @@
 
 ## Phase 1: Setup
 
-- [ ] T001 Run `npm --prefix "C:\src\GameBot\src\web-ui" test`, `npm --prefix "C:\src\GameBot\src\web-ui" run lint`, and `npm --prefix "C:\src\GameBot\src\web-ui" run build` before any change. Record the results in the implementation notes.
-- [ ] T002 Search `src/` and `tests/e2e/` for the parts that this feature removes or renames: `sequences-table`, `sequences-row`, `sequence-steps-separator`, `sequence-badge`, `link-button`, `actions-header`, "Create Sequence", "No sequences yet", "No sequences found.", "Back to list", "Edit Sequence", "Sequence created successfully.", "Sequence updated successfully.", "Sequence deleted successfully.", "Confirm Delete", `sequence-edit-` (the edit ids). Keep the list in the implementation notes; T017 and T018 use it.
-- [ ] T003 Compare the create form and the edit form of `src/pages/SequencesPage.tsx` line by line (plan.md, "Merge of the two forms"). Write each difference (ids, `disabled` rules, handlers, texts, comments) in the implementation notes, with the decision: keep by mode, same in both, or a bug (name it).
+- [X] T001 Run `npm --prefix "C:\src\GameBot\src\web-ui" test`, `npm --prefix "C:\src\GameBot\src\web-ui" run lint`, and `npm --prefix "C:\src\GameBot\src\web-ui" run build` before any change. Record the results in the implementation notes.
+- [X] T002 Search `src/` and `tests/e2e/` for the parts that this feature removes or renames: `sequences-table`, `sequences-row`, `sequence-steps-separator`, `sequence-badge`, `link-button`, `actions-header`, "Create Sequence", "No sequences yet", "No sequences found.", "Back to list", "Edit Sequence", "Sequence created successfully.", "Sequence updated successfully.", "Sequence deleted successfully.", "Confirm Delete", `sequence-edit-` (the edit ids). Keep the list in the implementation notes; T017 and T018 use it.
+- [X] T003 Compare the create form and the edit form of `src/pages/SequencesPage.tsx` line by line (plan.md, "Merge of the two forms"). Write each difference (ids, `disabled` rules, handlers, texts, comments) in the implementation notes, with the decision: keep by mode, same in both, or a bug (name it).
 
 ---
 
 ## Phase 2: Foundational
 
-- [ ] T004 Add `.ui-form--wide { max-width: 880px; }` and `.ui-muted { color: var(--gb-color-text-muted); }` (no such class exists now) to `src/components/ui/ui.css`. Add the kind `'sequence'` to `src/components/authoring/useDeleteFlow.ts` with the texts of plan.md ("Delete"), and a test for its default 409 text in `src/components/authoring/__tests__/useDeleteFlow.test.tsx`. If the "Step through" button needs `aria-describedby`, add an optional `ariaDescribedBy` prop to `src/components/ui/Button.tsx` with a test.
-- [ ] T005 Run the unit tests and lint.
+- [X] T004 Add `.ui-form--wide { max-width: 880px; }` and `.ui-muted { color: var(--gb-color-text-muted); }` (no such class exists now) to `src/components/ui/ui.css`. Add the kind `'sequence'` to `src/components/authoring/useDeleteFlow.ts` with the texts of plan.md ("Delete"), and a test for its default 409 text in `src/components/authoring/__tests__/useDeleteFlow.test.tsx`. If the "Step through" button needs `aria-describedby`, add an optional `ariaDescribedBy` prop to `src/components/ui/Button.tsx` with a test.
+- [X] T005 Run the unit tests and lint.
 
 ---
 
@@ -34,8 +34,8 @@
 
 **Independent Test**: contract S-01 to S-04, S-12.
 
-- [ ] T006 [US1] Change the list part of `src/pages/SequencesPage.tsx` per plan.md ("Page layout", list page). Remove the `<h2>`, the hint "No sequences yet…", the old table, and the link button.
-- [ ] T007 [P] [US1] Update the list tests in `src/pages/__tests__/SequencesPage.spec.tsx`, `SequencesPage.excludeNotifications.spec.tsx`, `SequencesPage.ignoreSmartScheduling.spec.tsx`, and the other tests from the T002 list that use the list: "Create sequence", the row open by a row click or "Edit <name>", "No sequences.", the error with **Try again**, the filter. Change the badge checks to the Options column texts. Add tests: both options → "No success notifications, Ignores smart scheduling"; none → "—"; the Steps value.
+- [X] T006 [US1] Change the list part of `src/pages/SequencesPage.tsx` per plan.md ("Page layout", list page). Remove the `<h2>`, the hint "No sequences yet…", the old table, and the link button.
+- [X] T007 [P] [US1] Update the list tests in `src/pages/__tests__/SequencesPage.spec.tsx`, `SequencesPage.excludeNotifications.spec.tsx`, `SequencesPage.ignoreSmartScheduling.spec.tsx`, and the other tests from the T002 list that use the list: "Create sequence", the row open by a row click or "Edit <name>", "No sequences.", the error with **Try again**, the filter. Change the badge checks to the Options column texts. Add tests: both options → "No success notifications, Ignores smart scheduling"; none → "—"; the Steps value.
 
 ---
 
@@ -45,10 +45,10 @@
 
 **Independent Test**: contract S-05 to S-07, S-10.
 
-- [ ] T008 [US2] Merge the create form and the edit form of `src/pages/SequencesPage.tsx` into one render path per plan.md ("Merge of the two forms") and the T003 notes. Keep the payload rules of data-model.md exactly. Change the success texts to "Sequence created." and "Sequence updated.".
-- [ ] T009 [US2] Change the form page layout per plan.md ("Page layout", form page): `PageHeader` with back, the title ("New sequence", `loadedName`, or "Loading…"), and "Step through" in the header; the reason in the message area (`id="step-through-reason"`); `ui-form ui-form--wide`; `FooterBar`. Remove "← Back to list", `<h3>Edit Sequence</h3>`, the `hr` elements, and `FormActions`.
-- [ ] T010 [US2] Change the add-step toolbar buttons to the shared `Button` (secondary) per plan.md (same texts, `testId` for each current `data-testid`, same `disabled`).
-- [ ] T011 [P] [US2] Update the form tests (all `SequencesPage*.spec.tsx`, `SequencesPageWaitForImageUntil.test.tsx`, `SequencesPageWaitForStill.test.tsx`, `CommandsAndSequencesPrimitiveAuthoring.spec.tsx`, `SequencesPage.stepThrough.spec.tsx`): the edit ids become the create ids; "← Back to list" becomes the "Back" button; "Edit Sequence" checks become the title checks. Add tests: (a) create with no parameters and options off → the create call has no `parameters`, `excludeFromSuccessNotifications`, `ignoreSmartScheduling`, `onTimeLimit` members; (b) create with the options on and "end" → `true`, `true`, `'end'`; (c) update always sends the 4 members (also with empty parameters and options off); (d) the version conflict shows the text and loads the sequence again (the `get` call count rises by 1); (e) the titles "New sequence" and the loaded name (the title does not change while the name field changes); (f) Delete only in edit mode, Save last; (g) "Step through" is in the header and its reason has the id `step-through-reason`.
+- [X] T008 [US2] Merge the create form and the edit form of `src/pages/SequencesPage.tsx` into one render path per plan.md ("Merge of the two forms") and the T003 notes. Keep the payload rules of data-model.md exactly. Change the success texts to "Sequence created." and "Sequence updated.".
+- [X] T009 [US2] Change the form page layout per plan.md ("Page layout", form page): `PageHeader` with back, the title ("New sequence", `loadedName`, or "Loading…"), and "Step through" in the header; the reason in the message area (`id="step-through-reason"`); `ui-form ui-form--wide`; `FooterBar`. Remove "← Back to list", `<h3>Edit Sequence</h3>`, the `hr` elements, and `FormActions`.
+- [X] T010 [US2] Change the add-step toolbar buttons to the shared `Button` (secondary) per plan.md (same texts, `testId` for each current `data-testid`, same `disabled`).
+- [X] T011 [P] [US2] Update the form tests (all `SequencesPage*.spec.tsx`, `SequencesPageWaitForImageUntil.test.tsx`, `SequencesPageWaitForStill.test.tsx`, `CommandsAndSequencesPrimitiveAuthoring.spec.tsx`, `SequencesPage.stepThrough.spec.tsx`): the edit ids become the create ids; "← Back to list" becomes the "Back" button; "Edit Sequence" checks become the title checks. Add tests: (a) create with no parameters and options off → the create call has no `parameters`, `excludeFromSuccessNotifications`, `ignoreSmartScheduling`, `onTimeLimit` members; (b) create with the options on and "end" → `true`, `true`, `'end'`; (c) update always sends the 4 members (also with empty parameters and options off); (d) the version conflict shows the text and loads the sequence again (the `get` call count rises by 1); (e) the titles "New sequence" and the loaded name (the title does not change while the name field changes); (f) Delete only in edit mode, Save last; (g) "Step through" is in the header and its reason has the id `step-through-reason`.
 
 ---
 
@@ -58,28 +58,28 @@
 
 **Independent Test**: contract S-08, S-09.
 
-- [ ] T012 [US3] Use `useDeleteFlow` (kind `sequence`), `DeleteReferences`, and `ConfirmDialog` in `src/pages/SequencesPage.tsx` per plan.md ("Delete"). Remove `ConfirmDeleteModal`, `deleteOpen`, `deleteMessage`, and `deleteReferences` from the page.
-- [ ] T013 [P] [US3] Add unit tests: row menu Delete → dialog title and message, focus on Cancel; confirm → one delete call, the list reloads, "Sequence deleted."; 409 with references → "Referenced by:" and the names, Delete off, Cancel closes; another error → the message area; footer Delete on the edit page → the list with "Sequence deleted.". Change the current delete tests to the new dialog texts.
+- [X] T012 [US3] Use `useDeleteFlow` (kind `sequence`), `DeleteReferences`, and `ConfirmDialog` in `src/pages/SequencesPage.tsx` per plan.md ("Delete"). Remove `ConfirmDeleteModal`, `deleteOpen`, `deleteMessage`, and `deleteReferences` from the page.
+- [X] T013 [P] [US3] Add unit tests: row menu Delete → dialog title and message, focus on Cancel; confirm → one delete call, the list reloads, "Sequence deleted."; 409 with references → "Referenced by:" and the names, Delete off, Cancel closes; another error → the message area; footer Delete on the edit page → the list with "Sequence deleted.". Change the current delete tests to the new dialog texts.
 
 ---
 
 ## Phase 6: Browser tests
 
-- [ ] T014 Extend `tests/e2e/helpers/authoringMock.ts` with sequences: `GET/POST /api/sequences`, `GET/PUT/DELETE /api/sequences/{id}` (read the real paths in `src/services/sequences.ts`), the calls that the form makes on open (commands list, images; return empty lists where possible), 3 default sequences (one with both options, one with a name of 200 characters, one with no option), and a flag that makes the delete of one id return 409 with references.
-- [ ] T015 Create `tests/e2e/authoring-sequences-layout.spec.ts` (project `chromium`, 1280 px) for contract S-01 to S-12. Open the page with `/?area=authoring&tab=Sequences`.
-- [ ] T016 Run the new file and the files of feature 206 (`authoring-commands-games-layout.spec.ts`) to check that the helper change does not break them.
+- [X] T014 Extend `tests/e2e/helpers/authoringMock.ts` with sequences: `GET/POST /api/sequences`, `GET/PUT/DELETE /api/sequences/{id}` (read the real paths in `src/services/sequences.ts`), the calls that the form makes on open (commands list, images; return empty lists where possible), 3 default sequences (one with both options, one with a name of 200 characters, one with no option), and a flag that makes the delete of one id return 409 with references.
+- [X] T015 Create `tests/e2e/authoring-sequences-layout.spec.ts` (project `chromium`, 1280 px) for contract S-01 to S-12. Open the page with `/?area=authoring&tab=Sequences`.
+- [X] T016 Run the new file and the files of feature 206 (`authoring-commands-games-layout.spec.ts`) to check that the helper change does not break them.
 
 ---
 
 ## Phase 7: Polish
 
-- [ ] T017 Remove unused CSS per plan.md ("CSS"). Search each class first (T002 list); keep a rule that other code still uses.
-- [ ] T018 Search again for the T002 list in `src/` and `tests/e2e/`. Each hit that stays must be outside this page (for example Triggers or Queues). Record the hits that stay and why. Check the line count of `SequencesPage.tsx` against the start (spec SC-003: at least 250 lines less) and record it.
-- [ ] T019 [P] Update `docs/ui-guidelines.md`: section 13 (`ui-form--wide` for a form with the step editor, max. 880 px) and the "Last reviewed" line (feature 207). Add the line for 207 to `specs/STATUS.md`.
-- [ ] T020 Run `npm --prefix "C:\src\GameBot\src\web-ui" run lint`, `npm --prefix "C:\src\GameBot\src\web-ui" run build`, and `npm --prefix "C:\src\GameBot\src\web-ui" test` (the full suite, with the coverage limits). All must pass.
-- [ ] T021 Run all Playwright tests per quickstart.md step 3 (both projects, all files). All must pass. If a test fails only with a page-load timeout, run it again once and record it.
-- [ ] T022 Visual check (do not skip): with the preview server and the mock of T014, take screenshots at 1280 x 800 of the Sequences list, the create page, the edit page (top, the Steps card with the add-step toolbar, and scrolled to the bottom), and the delete dialog with the 409 references, to `C:\Users\anton\AppData\Local\Temp\gb-ui-mock\sq-*.png`. Open each screenshot and compare it with `docs/ui-guidelines/2-form-detail-editor-logs.png` (A) and the Commands pages of feature 206: one title, the back arrow, "Step through" in the header, cards, the footer bar at the bottom with Save last and on the right also in create mode, no old buttons, space between the parts. Fix each defect and repeat. Record the result.
-- [ ] T023 Measure the time from a row click to the edit page header with the mock (Playwright, 5 runs). Record the median; the goal is less than 100 ms after the `get` answer.
+- [X] T017 Remove unused CSS per plan.md ("CSS"). Search each class first (T002 list); keep a rule that other code still uses.
+- [X] T018 Search again for the T002 list in `src/` and `tests/e2e/`. Each hit that stays must be outside this page (for example Triggers or Queues). Record the hits that stay and why. Check the line count of `SequencesPage.tsx` against the start (spec SC-003: at least 250 lines less) and record it.
+- [X] T019 [P] Update `docs/ui-guidelines.md`: section 13 (`ui-form--wide` for a form with the step editor, max. 880 px) and the "Last reviewed" line (feature 207). Add the line for 207 to `specs/STATUS.md`.
+- [X] T020 Run `npm --prefix "C:\src\GameBot\src\web-ui" run lint`, `npm --prefix "C:\src\GameBot\src\web-ui" run build`, and `npm --prefix "C:\src\GameBot\src\web-ui" test` (the full suite, with the coverage limits). All must pass.
+- [X] T021 Run all Playwright tests per quickstart.md step 3 (both projects, all files). All must pass. If a test fails only with a page-load timeout, run it again once and record it.
+- [X] T022 Visual check (do not skip): with the preview server and the mock of T014, take screenshots at 1280 x 800 of the Sequences list, the create page, the edit page (top, the Steps card with the add-step toolbar, and scrolled to the bottom), and the delete dialog with the 409 references, to `C:\Users\anton\AppData\Local\Temp\gb-ui-mock\sq-*.png`. Open each screenshot and compare it with `docs/ui-guidelines/2-form-detail-editor-logs.png` (A) and the Commands pages of feature 206: one title, the back arrow, "Step through" in the header, cards, the footer bar at the bottom with Save last and on the right also in create mode, no old buttons, space between the parts. Fix each defect and repeat. Record the result.
+- [X] T023 Measure the time from a row click to the edit page header with the mock (Playwright, 5 runs). Record the median; the goal is less than 100 ms after the `get` answer.
 
 ---
 
@@ -99,3 +99,13 @@
 1. Notes (T002, T003) and the shared changes.
 2. List (US1), then the merged form (US2), then delete (US3).
 3. Browser tests, cleanup, documents, visual check, measurement.
+
+## Implementation notes
+
+- T001: before the change, 243 test suites (1965 tests) passed; lint and build passed.
+- T003: the create form and the edit form differed only in these parts. Ids: `sequence-edit-*` and `sequence-*`; the test ids `edit-add-loop-buttons` and `edit-add-reschedule-button`; the save call, the version, the success text, the conflict handling, and Delete. The form now uses the create ids and test ids for both modes. No other difference was found, and no bug.
+- T018: `SequencesPage.tsx` has 2586 lines (2913 before): 327 lines less (SC-003 needs 250). The old names that stay are on the Triggers, Queues, and Images pages only (`link-button`, `actions-header`, "Back to list" of Images).
+- T017: the rule `.sequence-steps-separator` is removed. The other old classes had no CSS rule.
+- T020: lint, build, and the full unit test run pass (244 suites, 1987 tests). T021: all 135 Playwright tests pass.
+- T022: screenshots checked. Two defects were fixed: the checkboxes in `ui-form` were full width (new rule for `input[type="checkbox"]` and radio in `ui.css`), and the Options text was cut (text size 13 px in `.sequences-list .ui-muted`).
+- T023: from a row click to the page header: 82, 62, 79, 60, 83 ms; the median is 79 ms (goal: less than 100 ms).

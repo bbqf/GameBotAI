@@ -34,7 +34,7 @@ test.describe('Sequence loop step management', () => {
     await stubApiRoutes(page);
     await page.goto('/');
     await page.getByRole('tab', { name: 'Sequences', exact: true }).click();
-    await page.getByRole('button', { name: 'Create Sequence' }).click();
+    await page.getByRole('button', { name: 'Create sequence' }).click();
   });
 
   test('US1: persistent Add step button is visible and adds a top-level step outside any loop', async ({ page }) => {

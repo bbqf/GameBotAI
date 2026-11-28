@@ -38,7 +38,7 @@ describe('SequencesPage mixed conditional authoring', () => {
     render(<SequencesPage />);
     await waitFor(() => expect(listSequencesMock).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByText('Create Sequence'));
+    fireEvent.click(screen.getByRole('button', { name: 'Create sequence' }));
     fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'US2 Flow' } });
 
     fireEvent.change(screen.getByLabelText('Add command'), { target: { value: 'cmd-a' } });

@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Move the Sequences list, form page, and delete to the shared UI components (207-sequences-shared-ui)
+  - **Change**: the Sequences list uses the shared list with a filter bar, the columns Name, Options (360 px), and Steps (96 px), Edit, and a menu with Delete. The create form and the edit form are now one form page with a back arrow, "Step through" in the page header, an 880 px card form, and a footer bar (Delete, Cancel, Save). Delete uses the shared dialog and shows the items that use the sequence after a 409 answer. The button is "Create sequence". The messages are shorter, for example "Sequence created.".
+  - **Web UI**: `Button` has the new optional prop `ariaDescribedBy`, `useDeleteFlow` accepts the kind `sequence`, and `ui-form--wide` and `ui-muted` are new styles. The step rows and their editors do not change. The old table, the old modal, and the copy of the form are removed.
+  - **Not changed**: the API, the stored data, and the payloads of create and update.
+  - **Version**: the patch version is now 1.12.40.
 - Move the Commands and Games pages to the shared UI components (206-commands-games-shared-ui)
   - **Change**: the Games and Commands lists use the shared list with a filter bar, Edit, and a menu with Delete. The Games list has the columns Name and Package name (320 px). The Commands list has the columns Name and Steps (96 px); the Game column is removed. A form page has a back arrow, a 720 px card form, and a footer bar (Delete, Cancel, Save). Delete uses the shared dialog and shows the items that use the target after a 409 answer. The buttons are "Create game" and "Create command". The messages are shorter, for example "Game created.".
   - **Web UI**: `ConfirmDialog` has the new optional prop `confirmDisabled`, `Button` has the new optional prop `ariaLabel`, and the new helpers are `useDeleteFlow` and `DeleteReferences`. `CommandForm` renders the footer bar and has the new props `onDelete` and `deleting`. The old table and modal styles of these pages are removed.

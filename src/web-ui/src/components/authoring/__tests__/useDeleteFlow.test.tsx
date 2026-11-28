@@ -63,6 +63,23 @@ describe('useDeleteFlow', () => {
     expect(result.current.conflict?.message).toBe('Cannot delete: the game is in use. Remove the links first.');
   });
 
+  it('uses the default 409 text for a sequence', async () => {
+    const remove = jest.fn().mockRejectedValue(new ApiError(409, ''));
+    const hook = renderHook(() => useDeleteFlow({ kind: 'sequence', remove, onDeleted: jest.fn(), onError: jest.fn() }));
+    act(() => hook.result.current.open({ id: 'q1', name: 'Seq' }));
+    await act(async () => { await hook.result.current.confirm(); });
+    expect(hook.result.current.conflict?.message).toBe('Cannot delete: the sequence is in use. Remove the links first.');
+  });
+
+  it('uses the default error text for a sequence', async () => {
+    const remove = jest.fn().mockRejectedValue({});
+    const onError = jest.fn();
+    const hook = renderHook(() => useDeleteFlow({ kind: 'sequence', remove, onDeleted: jest.fn(), onError }));
+    act(() => hook.result.current.open({ id: 'q1', name: 'Seq' }));
+    await act(async () => { await hook.result.current.confirm(); });
+    expect(onError).toHaveBeenCalledWith('Failed to delete sequence');
+  });
+
   it('closes and calls onError for another error', async () => {
     const remove = jest.fn().mockRejectedValue(new Error('boom'));
     const { result, onError } = setup(remove);
