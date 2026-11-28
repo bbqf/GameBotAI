@@ -86,7 +86,7 @@ export const QueueMonitor: React.FC<QueueMonitorProps> = ({ queueId, onReturnToE
             {onReturnToEditor && (
               <button type="button" onClick={onReturnToEditor}>Back to editor</button>
             )}
-            <a href="#/execution">See Execution Logs</a>
+            <a href="#/execution">See Execution logs</a>
           </div>
         </div>
       </div>

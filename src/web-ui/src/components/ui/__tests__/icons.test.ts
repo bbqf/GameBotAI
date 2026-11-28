@@ -1,6 +1,6 @@
 import { ICON_NAMES, ICON_PATHS } from '../icons';
 
-const NEW_NAMES = ['play', 'pause', 'stop', 'edit', 'duplicate', 'delete', 'more', 'back', 'close', 'drag', 'expand', 'collapse', 'upload', 'download', 'search', 'filter', 'add', 'send'];
+const NEW_NAMES = ['play', 'pause', 'stop', 'edit', 'duplicate', 'delete', 'more', 'back', 'close', 'drag', 'expand', 'collapse', 'upload', 'download', 'search', 'filter', 'add', 'send', 'queue', 'monitor', 'alerts', 'authoring', 'logs', 'execution', 'gamepacks', 'update'];
 const OLD_NAMES = ['undo', 'runNext', 'parameters', 'settings', 'remove', 'cancel', 'save', 'reload', 'link', 'unlink'];
 
 describe('icon set', () => {

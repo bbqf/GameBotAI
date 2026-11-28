@@ -26,7 +26,7 @@
     display: flex;
     align-items: center;
     gap: var(--gb-space-2);
-    min-height: 48px;
+    min-height: var(--gb-size-app-bar);
     padding: var(--gb-space-2) var(--gb-space-3);
     border-bottom: 1px solid var(--gb-color-border-strong);
     background: var(--gb-color-surface);
@@ -49,6 +49,7 @@
     bottom: 0;
     z-index: 20;
     display: flex;
+    height: calc(var(--gb-size-row-phone) + env(safe-area-inset-bottom));
     background: var(--gb-color-surface);
     border-top: 1px solid var(--gb-color-border-strong);
     padding-bottom: env(safe-area-inset-bottom);
@@ -58,11 +59,11 @@
     display: none;
   }
 
-  .phone-tabbar__item {
+  .app--phone .phone-tabbar__item {
     flex: 1;
     min-width: 44px;
     height: auto;
-    min-height: 56px;
+    min-height: var(--gb-size-row-phone);
     padding: var(--gb-space-1);
     display: flex;
     flex-direction: column;
@@ -73,7 +74,8 @@
     border-radius: 0;
     background: transparent;
     color: var(--gb-color-muted);
-    font-size: 0.75rem;
+    font-size: 12px;
+    box-shadow: none;
     touch-action: manipulation;
   }
 
@@ -82,51 +84,56 @@
     font-weight: 700;
   }
 
-  .phone-tabbar__icon {
-    font-size: 1.25rem;
-    line-height: 1;
-  }
-
-  .phone-sheet {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 30;
-    max-height: 80dvh;
-    overflow-y: auto;
-    padding: var(--gb-space-3) var(--gb-space-3) calc(var(--gb-space-3) + env(safe-area-inset-bottom));
-    background: var(--gb-color-surface);
-    border-top-left-radius: var(--gb-radius-lg);
-    border-top-right-radius: var(--gb-radius-lg);
-    box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.2);
-  }
-
-  .phone-sheet__list {
+  /* Feature 205: the More page. Each row is 56 px high. A dimmed row is not a button. */
+  .phone-more {
     list-style: none;
     margin: 0;
     padding: 0;
   }
 
-  .phone-sheet__item {
-    width: 100%;
-    min-height: 48px;
+  .app--phone .phone-more__row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: var(--gb-space-2);
-    padding: var(--gb-space-2) var(--gb-space-3);
+    gap: 14px;
+    width: 100%;
+    min-height: var(--gb-size-row);
+    padding: 0 var(--gb-space-2) 0 var(--gb-space-4);
     border: 0;
     border-bottom: 1px solid var(--gb-color-border);
+    border-radius: 0;
     background: transparent;
-    font-size: 1rem;
+    box-shadow: none;
+    color: var(--gb-color-text);
+    font-size: 15px;
+    font-weight: 400;
     text-align: left;
     touch-action: manipulation;
   }
 
-  .phone-sheet__note {
+  .phone-more__row > svg {
+    flex: 0 0 auto;
     color: var(--gb-color-muted);
-    font-size: 0.8125rem;
+  }
+
+  .phone-more__name {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .phone-more__row--off {
+    opacity: 0.55;
+  }
+
+  .phone-more__status {
+    font-size: 13px;
+    color: var(--gb-color-muted);
+  }
+
+  .phone-more__group {
+    margin: 20px 0 var(--gb-space-2);
+    padding: 0 var(--gb-space-4);
+    color: var(--gb-color-muted);
+    font-size: 12px;
   }
 
   .phone-card-list {
@@ -511,7 +518,7 @@
 /* Hover rules live in a hover query only (FR-011). */
 @media (hover: hover) {
   .phone-tabbar__item:hover,
-  .phone-sheet__item:hover {
+  button.phone-more__row:hover {
     background: var(--gb-color-surface-alt);
   }
 

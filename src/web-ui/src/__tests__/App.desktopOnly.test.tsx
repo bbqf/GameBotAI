@@ -37,22 +37,23 @@ describe('Desktop-only areas', () => {
     expect(authoringMounted).not.toHaveBeenCalled();
   });
 
-  it('shows the notice for Execution Logs on the /execution-logs path', () => {
+  it('shows the notice for Execution logs on the /execution-logs path', () => {
     window.history.replaceState(null, '', '/execution-logs');
     mock = mockViewport(360, 640);
     render(<App />);
-    expect(screen.getByRole('heading', { name: 'Execution Logs', level: 2 })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Execution logs', level: 2 })).toBeInTheDocument();
     expect(logsMounted).not.toHaveBeenCalled();
   });
 
-  it('reaches the notice through the More sheet and goes back to Queues', async () => {
+  it('shows the notice for Authoring and goes back to the More page (feature 205)', async () => {
+    window.history.replaceState(null, '', '/?area=authoring');
     mock = mockViewport(360, 640);
     render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: 'More', exact: true }));
-    fireEvent.click(screen.getByRole('button', { name: /Authoring/ }));
     expect(screen.getByText('Use a larger screen for this area.')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Back to Queues' }));
-    expect(await screen.findByTestId('phone-queues')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Back to More' }));
+    expect(await screen.findByText('Desktop only')).toBeInTheDocument();
+    expect(window.location.search).toContain('area=more');
+    expect(authoringMounted).not.toHaveBeenCalled();
   });
 
   it('renders the areas as before on a desktop screen', () => {
@@ -63,5 +64,6 @@ describe('Desktop-only areas', () => {
     expect(screen.queryByText('Use a larger screen for this area.')).toBeNull();
     fireEvent.click(screen.getByRole('tab', { name: 'Authoring' }));
     expect(screen.getByText('Commands page')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Authoring', level: 1 })).toBeNull();
   });
 });

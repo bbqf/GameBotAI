@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Move the app navigation to the UI guidelines (205-navigation-shared-ui)
+  - **Change**: the desktop has one app bar with the brand "GameBot", 5 top tabs with icons (Queues, Monitor, Alerts, Authoring, Settings), and the connection state. Authoring and Settings have one row of sub-tabs. Settings holds Execution logs, Execution, Configuration, Gamepacks, and Update. The phone has a bottom bar with 4 icon tabs (Queues, Monitor, Alerts, More) and a More page with menu rows. A page that More lists has a back arrow to More.
+  - **Web UI**: the new parts are `AppBar`, `SubTabs`, `MorePage`, the area `more`, and 8 icons. `Navigation`, `Nav`, and the More sheet are removed. The page titles are now "Monitor", "Alerts", and "Execution logs". The browser title is "GameBot".
+  - **Not changed**: the API, the stored data, the area ids, and the addresses.
+  - **Version**: the patch version is now 1.12.38.
 - Move the Monitoring area to the shared UI components (204-monitoring-shared-ui)
   - **Change**: Monitoring uses the shared list and a detail page on the desktop and the phone. The detail page shows the live picture and a card with the session data. The emulator restart uses the shared confirmation dialog.
   - **Web UI**: the list has the columns Name, State (132 px), Device (120 px), Queue (220 px), and Sequence (260 px). `ConfirmDialog` has the new optional prop `details`.

@@ -72,7 +72,7 @@ test('register a passkey with a code, stay signed in after a reload, and sign in
   await page.getByLabel('Registration code').fill('abcd-efgh');
   await page.getByLabel('Device name').fill('Test phone');
   await page.getByRole('button', { name: 'Register this device' }).click();
-  await expect(page.getByText('GameBot Web UI')).toBeVisible();
+  await expect(page.locator('.ui-appbar__brand')).toHaveText('GameBot');
   expect(state.registered).toBe(true);
   expect(state.registrationBody.name).toBe('Test phone');
   expect(state.registrationBody.credential.rawId).toMatch(/^[A-Za-z0-9_-]+$/);
@@ -81,7 +81,7 @@ test('register a passkey with a code, stay signed in after a reload, and sign in
 
   // A reload keeps the session (the mock keeps signedIn).
   await page.goto('/?area=authoring');
-  await expect(page.getByText('GameBot Web UI')).toBeVisible();
+  await expect(page.locator('.ui-appbar__brand')).toHaveText('GameBot');
 
   // The session ends. The page shows the sign-in page and keeps the address.
   state.signedIn = false;
@@ -89,7 +89,7 @@ test('register a passkey with a code, stay signed in after a reload, and sign in
   await expect(page.getByRole('button', { name: 'Sign in with passkey' })).toBeVisible();
   expect(page.url()).toContain('area=authoring');
   await page.getByRole('button', { name: 'Sign in with passkey' }).click();
-  await expect(page.getByText('GameBot Web UI')).toBeVisible();
+  await expect(page.locator('.ui-appbar__brand')).toHaveText('GameBot');
   expect(state.signInBody.credential.response.signature).toBeTruthy();
   expect(state.signInBody.credential.response.userHandle).toBe(b64('user-handle-1234'));
   expect(page.url()).toContain('area=authoring');

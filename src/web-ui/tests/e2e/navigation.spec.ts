@@ -25,15 +25,17 @@ test.beforeEach(async ({ page }) => {
 test('tabs switch between areas and hide triggers', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('tab', { name: 'Authoring', exact: true })).toBeVisible();
-  await expect(page.getByRole('tab', { name: 'Configuration', exact: true })).toBeVisible();
-  await expect(page.getByRole('tab', { name: 'Execution', exact: true })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Settings', exact: true })).toBeVisible();
   await expect(page.getByRole('tab', { name: /Triggers/i })).toHaveCount(0);
 
+  await page.getByRole('tab', { name: 'Settings', exact: true }).click();
+  await expect(page.getByRole('tab', { name: 'Configuration', exact: true })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Execution', exact: true })).toBeVisible();
   await page.getByRole('tab', { name: 'Configuration', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Configuration' })).toBeVisible();
 
   await page.getByRole('tab', { name: 'Execution', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Execution' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Execution', exact: true })).toBeVisible();
 });
 
 test('bottom tab bar replaces the tabs on small screens', async ({ page }) => {
@@ -41,7 +43,7 @@ test('bottom tab bar replaces the tabs on small screens', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('tab', { name: 'Authoring', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'More', exact: true }).click();
-  await page.getByRole('button', { name: 'Configuration' }).click();
+  await page.getByRole('button', { name: 'Configuration', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Configuration' })).toBeVisible();
 });
 
@@ -53,6 +55,7 @@ test('authoring items reachable in one click from landing', async ({ page }) => 
 
 test('configuration inputs editable without authoring content', async ({ page }) => {
   await page.goto('/');
+  await page.getByRole('tab', { name: 'Settings', exact: true }).click();
   await page.getByRole('tab', { name: 'Configuration', exact: true }).click();
   // The Backend Connection section is closed on a wide screen. Open it first.
   await page.getByText('Backend Connection').click();
@@ -66,7 +69,7 @@ test('configuration inputs editable without authoring content', async ({ page })
 
 test('execution placeholder loads and returns to authoring', async ({ page }) => {
   await page.goto('/execution');
-  await expect(page.getByRole('heading', { name: 'Execution' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Execution', exact: true })).toBeVisible();
   await page.getByRole('tab', { name: 'Authoring', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Authoring' })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Authoring Navigation' })).toBeVisible();
 });

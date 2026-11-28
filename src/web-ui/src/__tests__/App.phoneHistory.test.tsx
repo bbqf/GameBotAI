@@ -87,7 +87,7 @@ describe('App phone history', () => {
     expect(window.history.state.idx).toBe(0);
     await openDaily();
     expect(window.location.search).toContain('queue=q1');
-    fireEvent.click(screen.getByRole('button', { name: 'Monitoring' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Monitor' }));
     expect(await screen.findByTestId('monitoring-page')).toBeInTheDocument();
     expect(window.history.state.idx).toBe(2);
 
@@ -113,11 +113,44 @@ describe('App phone history', () => {
     fireEvent.click(screen.getByRole('button', { name: 'More' }));
     fireEvent.click(screen.getByRole('button', { name: 'Update' }));
     await screen.findByTestId('update-page');
+    // The More page is one history entry between the two pages (feature 205).
+    await goBack();
+    expect(await screen.findByText('Desktop only')).toBeInTheDocument();
     await goBack();
     expect(await screen.findByLabelText('mock token field')).toBeInTheDocument();
     await goBack();
+    expect(await screen.findByText('Desktop only')).toBeInTheDocument();
+    await goBack();
     expect(await screen.findByTestId('phone-queues')).toBeInTheDocument();
     expect(window.history.state.idx).toBe(0);
+  });
+
+  it('opens More with the back arrow of Configuration, and the More page has no back arrow (feature 205)', async () => {
+    mock = mockViewport(360, 640);
+    render(<App />);
+    await screen.findByTestId('phone-queues');
+    fireEvent.click(screen.getByRole('button', { name: 'More' }));
+    expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Configuration' }));
+    await screen.findByLabelText('mock token field');
+    expect(window.history.state.idx).toBe(2);
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    expect(await screen.findByText('Desktop only')).toBeInTheDocument();
+    expect(window.location.search).toContain('area=more');
+    expect(window.history.state.idx).toBe(3);
+  });
+
+  it('shows More, then Queues, for the history back after Queues, More, Configuration (feature 205)', async () => {
+    mock = mockViewport(360, 640);
+    render(<App />);
+    await screen.findByTestId('phone-queues');
+    fireEvent.click(screen.getByRole('button', { name: 'More' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Configuration' }));
+    await screen.findByLabelText('mock token field');
+    await goBack();
+    expect(await screen.findByText('Desktop only')).toBeInTheDocument();
+    await goBack();
+    expect(await screen.findByTestId('phone-queues')).toBeInTheDocument();
   });
 
   it('goes forward again', async () => {
@@ -137,10 +170,10 @@ describe('App phone history', () => {
     render(<App />);
     await screen.findByTestId('phone-queues');
     const length = window.history.length;
-    fireEvent.click(screen.getByRole('button', { name: 'Monitoring' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Monitor' }));
     await screen.findByTestId('monitoring-page');
     expect(window.history.length).toBe(length + 1);
-    fireEvent.click(screen.getByRole('button', { name: 'Monitoring' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Monitor' }));
     expect(window.history.length).toBe(length + 1);
   });
 
@@ -249,7 +282,7 @@ describe('App phone Execution redirect', () => {
     mock = mockViewport(360, 640);
     render(<App />);
     await screen.findByTestId('phone-queues');
-    fireEvent.click(screen.getByRole('button', { name: 'Monitoring' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Monitor' }));
     await screen.findByTestId('monitoring-page');
     await goBack();
     expect(await screen.findByTestId('phone-queues')).toBeInTheDocument();
@@ -261,7 +294,7 @@ describe('App phone Execution redirect', () => {
     window.history.replaceState(null, '', '/execution-logs');
     mock = mockViewport(360, 640);
     render(<App />);
-    expect(await screen.findByRole('heading', { name: 'Execution Logs', level: 2 })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Execution logs', level: 2 })).toBeInTheDocument();
     expect(window.location.search).toContain('area=execution-logs');
   });
 
@@ -273,6 +306,7 @@ describe('App phone Execution redirect', () => {
     act(() => mock.setViewport(1280, 800));
     expect(screen.getByTestId('desktop-queues-page')).toBeInTheDocument();
     expect(window.location.search).toContain('area=queues');
+    fireEvent.click(screen.getByRole('tab', { name: 'Settings' }));
     fireEvent.click(screen.getByRole('tab', { name: 'Execution' }));
     await waitFor(() => expect(screen.getByTestId('execution-page')).toBeInTheDocument());
   });

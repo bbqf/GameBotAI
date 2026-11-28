@@ -1,4 +1,5 @@
 import React from 'react';
+import { Button } from '../ui/Button';
 
 export type DesktopOnlyNoticeProps = {
   areaLabel: string;
@@ -10,6 +11,6 @@ export const DesktopOnlyNotice: React.FC<DesktopOnlyNoticeProps> = ({ areaLabel,
   <section className="phone-notice" aria-labelledby="desktop-only-heading">
     <h2 id="desktop-only-heading">{areaLabel}</h2>
     <p>Use a larger screen for this area.</p>
-    <button type="button" onClick={onBack}>Back to Queues</button>
+    <Button variant="secondary" onClick={onBack}>Back to More</Button>
   </section>
 );

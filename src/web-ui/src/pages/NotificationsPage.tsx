@@ -126,7 +126,7 @@ export const NotificationsPage: React.FC = () => {
   return (
     <section className={`notifications-page${editing !== null ? ' notifications-page--panel-open' : ''}`} aria-label="Notifications">
       <PageHeader
-        title="Notifications"
+        title="Alerts"
         actions={<Button variant="primary" icon="add" onClick={() => setEditing('new')}>Add target</Button>}
       />
       {error && <div role="alert" className="form-error">{error}</div>}

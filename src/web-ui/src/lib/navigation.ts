@@ -1,4 +1,4 @@
-import { AuthoringTab } from '../components/Nav';
+import { AuthoringTab } from '../types/navigation';
 
 const tabMap: Record<string, AuthoringTab> = {
   commands: 'Commands',

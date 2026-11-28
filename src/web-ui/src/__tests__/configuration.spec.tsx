@@ -24,6 +24,8 @@ const mockSnapshot: configService.ConfigurationSnapshot = {
 
 describe('Configuration area', () => {
   beforeEach(() => {
+    // The app writes the area into the address. Start each test from the default area.
+    window.history.replaceState(null, '', '/');
     jest.spyOn(configService, 'getConfigSnapshot').mockResolvedValue(mockSnapshot);
     jest.spyOn(configService, 'updateParameters').mockResolvedValue(mockSnapshot);
     jest.spyOn(configService, 'reorderParameters').mockResolvedValue(mockSnapshot);
@@ -35,6 +37,7 @@ describe('Configuration area', () => {
   });
 
   const openConfigurationArea = async (): Promise<void> => {
+    fireEvent.click(screen.getByRole('tab', { name: 'Settings' }));
     fireEvent.click(screen.getByRole('tab', { name: 'Configuration' }));
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Configuration' })).toBeInTheDocument());
     await waitFor(() => expect(configService.getConfigFileParams).toHaveBeenCalledTimes(2));

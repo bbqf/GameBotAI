@@ -1,6 +1,6 @@
 # Mobile UI Principles
 
-Last reviewed: 2026-11-27 (features 139, 140, 171, 173, 184, 185, 202, and 204)
+Last reviewed: 2026-11-28 (features 139, 140, 171, 173, 184, 185, 202, 204, and 205)
 
 Each UI feature must state its **phone support level** and follow these rules. Reviewers use the checklist at the end.
 
@@ -32,13 +32,14 @@ The level is the field `phone` in `src/types/navigation.ts`. A new area cannot c
 | Area | Level |
 |------|-------|
 | Queues | `reduced` |
-| Monitoring | `full` |
+| Monitor | `full` |
 | Execution | `hidden` |
-| Notifications | `full` |
+| Alerts | `full` |
+| More (the page with the menu rows, feature 205) | `full` |
 | Configuration | `full` |
 | Update | `full` |
 | Authoring | `desktop-only` |
-| Execution Logs | `desktop-only` |
+| Execution logs | `desktop-only` |
 
 The value form of a parameter (feature 168) is a component, not an area. It works at 375 px: one column,
 controls of at least 44 px, no horizontal scroll, and an image grid that wraps. The parameter editor
@@ -99,6 +100,9 @@ The queue detail shows what the queue does now and what it will do next.
 
 - Each screen has its own history entry (`pushState`). The address holds `area`, for a queue detail `queue`, and for an entry page `entry`.
 - Back and forward restore the screen of the entry. They add no entry.
+- The bottom bar has 4 icon tabs: Queues, Monitor, Alerts, and More. More opens the More page (`?area=more`). A page that
+  More lists (Configuration, Gamepacks, Update) shows a back arrow that opens More with one new history entry
+  (feature 205).
 - The first screen of the session has `history.state.idx` = 0. Back from it leaves the application.
 - The on-screen back control of the queue detail calls `history.back()`. On the first entry it replaces the entry with the queue list.
 - A phone link to a `hidden` area (`?area=execution` or `/execution`) shows Queues and replaces the entry.

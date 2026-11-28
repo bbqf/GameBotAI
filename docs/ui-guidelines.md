@@ -1,6 +1,6 @@
 # UI Guidelines
 
-Last reviewed: 2026-11-27 (features 203 and 204)
+Last reviewed: 2026-11-28 (features 203, 204, and 205)
 
 These rules give all pages of the web UI one design, on the phone and on the desktop. The phone layout is the base. The
 desktop layout uses the same parts, in the same order, with more space.
@@ -68,15 +68,18 @@ The buttons are flat. They have no gradient and do not move on hover.
 ## 3. Navigation
 
 - **N1. Main areas.** The phone and the desktop show the same areas with the same names, icons, and order:
-  Queues, Monitor, Alerts, Authoring (desktop only), Settings (desktop) / More (phone).
+  Queues, Monitor, Alerts, Authoring (desktop only), Settings (desktop) / More (phone). The Settings tab uses the
+  gear icon. The More tab uses the three-dots icon.
 - **N2. Phone.** A bottom tab bar with 4 tabs: Queues, Monitor, Alerts, More.
 - **N3. Desktop.** Top tabs with an icon and a name, in the app bar.
 - **N4. Second level.** On the desktop, sub-tabs go in a second row under the app bar.
   - Authoring: Commands, Games, Sequences, Images, Backup & Restore.
-  - Settings: Execution logs, Configuration, Gamepacks, Update.
-- **N5. More.** On the phone, More is a list of menu rows with the same items as the Settings sub-tabs. A menu row has an
-  icon, a name, one optional status line, and a chevron. Desktop-only areas show as dimmed rows with the text
-  "Use a computer".
+  - Settings: Execution logs, Execution, Configuration, Gamepacks, Update. A click on the Settings tab opens
+    Execution logs.
+- **N5. More.** On the phone, More is a page of menu rows: Configuration, Gamepacks, and Update (56 px high). A menu
+  row has an icon, a name, and a chevron. The group "Desktop only" follows, with the dimmed rows Execution logs and
+  Authoring and the text "Use a computer". A dimmed row is not a button. A page opened from More shows a back arrow
+  that returns to More.
 - **N6. Detail pages.** The header has a back-arrow icon button and the title. Do not use the text "← Back".
 - **N7. Connection.** The app bar shows the connection state ("Online", or the connection-lost banner).
 
@@ -226,6 +229,13 @@ only the tokens of section 1, and each hover rule is inside `@media (hover: hove
   close. Escape closes it. Rule: D2.
 - **Toggle**: an on/off switch with a label (40 x 24 px, a 44 px hit area on the phone). Rule: F6.
 - **SectionHeader**: the title (`h3`) of a section of a page, with optional actions on the right.
+- **SubTabs**: the row of sub-tabs under the app bar (desktop, 44 px high). Props: `ariaLabel`, `tabs`, `active`, and
+  `onSelect`. The active tab is in the tab order. ArrowLeft, ArrowRight, Home, and End move the focus only. Enter and
+  Space select. Authoring and Settings use it.
+- **AppBar** (`components/AppBar.tsx`): the desktop app bar (56 px) with the brand "GameBot", the 5 top tabs with
+  icons, and the connection state ("Online" or "Connection lost"). The phone uses `PhoneTabBar` and `MorePage`.
+- **Navigation icons**: `queue`, `monitor`, `alerts`, `authoring`, `logs`, `execution`, `gamepacks`, and `update`
+  are in `icons.ts` (feature 205).
 - **Form field classes**: `ui-form-card`, `ui-field`, `ui-field__label`, `ui-field__input`, `ui-field--error`,
   `ui-field__error`, and `ui-field__help`. A field has its label above it, and an error text under it. Rules: F1, F5.
 

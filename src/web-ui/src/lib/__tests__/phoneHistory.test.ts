@@ -7,6 +7,10 @@ describe('phoneHistory', () => {
     window.history.replaceState(null, '', '/?area=queues');
   });
 
+  it('reads the More area from the address (feature 205)', () => {
+    expect(parseAddress({ search: '?area=more' })).toEqual({ area: 'more', queueId: null });
+  });
+
   it('builds addresses', () => {
     expect(buildAddress({ area: 'queues', queueId: null })).toBe('?area=queues');
     expect(buildAddress({ area: 'queues', queueId: 'q1' })).toBe('?area=queues&queue=q1');

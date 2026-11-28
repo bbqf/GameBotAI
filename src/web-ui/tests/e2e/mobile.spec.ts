@@ -244,7 +244,7 @@ test.describe('Other areas on a phone', () => {
 });
 
 test.describe('Desktop-only areas on a phone', () => {
-  test('shows the notice for Authoring and Execution Logs and sends no data call', async ({ page }) => {
+  test('shows the notice for Authoring and Execution logs and sends no data call', async ({ page }) => {
     const state = await mockApi(page);
     await page.goto('/?area=authoring');
     await expect(page.getByText('Use a larger screen for this area.')).toBeVisible();
@@ -252,32 +252,35 @@ test.describe('Desktop-only areas on a phone', () => {
 
     await page.goto('/execution-logs');
     await expect(page.getByText('Use a larger screen for this area.')).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Execution Logs', level: 2 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Execution logs', level: 2 })).toBeVisible();
 
     const dataCalls = state.calls.filter((c) => /\/api\/(commands|sequences|images|executions?-logs?|games)/.test(c));
     expect(dataCalls).toEqual([]);
 
-    await page.getByRole('button', { name: 'Back to Queues' }).click();
-    await expect(page.getByTestId('phone-queues')).toBeVisible();
+    await page.getByRole('button', { name: 'Back to More' }).click();
+    await expect(page.getByText('Desktop only', { exact: true })).toBeVisible();
   });
 
-  test('reaches the notice from the More sheet', async ({ page }) => {
+  test('lists the desktop-only areas on the More page as dimmed rows that do nothing', async ({ page }) => {
     await mockApi(page);
     await page.goto('/');
     // Exact name: the queue rows have "More actions for <name>" buttons, which also match /More/.
     await page.getByRole('button', { name: 'More', exact: true }).click();
-    await expect(page.getByRole('button', { name: /Authoring/ })).toContainText('Desktop only');
-    await page.getByRole('button', { name: /Authoring/ }).click();
-    await expect(page.getByText('Use a larger screen for this area.')).toBeVisible();
+    const authoring = page.locator('[aria-disabled="true"]', { hasText: 'Authoring' });
+    await expect(authoring).toContainText('Use a computer');
+    await authoring.click();
+    await expect(page.getByText('Use a larger screen for this area.')).toHaveCount(0);
+    await expect(page.getByText('Desktop only', { exact: true })).toBeVisible();
   });
 
   test('both areas work at 1280 px', async ({ page }) => {
     await mockApi(page);
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/?area=authoring');
-    await expect(page.getByRole('heading', { name: 'Authoring', level: 1 })).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Authoring Navigation' })).toBeVisible();
     await expect(page.getByText('Use a larger screen for this area.')).toHaveCount(0);
-    await page.getByRole('tab', { name: 'Execution Logs' }).click();
+    await page.getByRole('tab', { name: 'Settings', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Execution logs' })).toBeVisible();
     await expect(page.getByText('Use a larger screen for this area.')).toHaveCount(0);
   });
 });
