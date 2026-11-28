@@ -65,7 +65,7 @@ backed by a REST API.
 | `src/GameBot.Emulator` | ADB client and session management; the background screen-capture service. |
 | `src/GameBot.Service` | ASP.NET Core host: REST API (minimal-API `Endpoints/` + `SessionsController`), execution orchestration (`Services/QueueExecution`, `Services/SequenceExecution`), hosted background services, security, swagger. Serves the built Web UI. |
 | `src/GameBot.Updater` | Small console program for the auto-update (feature 131). It waits for the bot to exit, runs `msiexec` silent, starts the bot again, and writes `update-result.json`. Framework-dependent. The installer puts it in `updater\` next to the service. |
-| `src/web-ui` | React + TypeScript + Vite SPA. Queues, Monitoring, Authoring, Execution, Execution Logs, Configuration, Update, Notifications. Shared components are in `src/components/ui/`. |
+| `src/web-ui` | React + TypeScript + Vite SPA. Queues, Monitor, Alerts, Authoring, and Settings (Execution logs, Execution, Configuration, Gamepacks, Update). Shared components are in `src/components/ui/`. |
 
 Persistence is **file-based** under the `data/` directory (JSON documents + stored image files;
 an image's alternates list lives beside the images as `.alternates\{id}.json`, feature 097);
@@ -1621,9 +1621,13 @@ The web UI has two layout modes. One React code base serves both. The service AP
 - **Layout mode**: `useLayoutMode()` reads the media query `PHONE_MEDIA_QUERY` = `(max-width: 768px), (max-height: 500px)`.
   A match gives `phone`. Other screens give `desktop`. The mode changes with the window size, without a reload.
   `App.tsx` keeps one `<main>` element in both modes, so the area content does not remount on a change.
-- **Phone shell**: `PhoneHeader` (area title) and `PhoneTabBar` (bottom bar: Queues, Monitoring, More; Notifications is in the More sheet).
-  The More sheet lists Configuration, Update, and the desktop-only areas. In phone mode with no `area` URL
+- **Phone shell**: `PhoneHeader` (area title and a back arrow for the pages that More lists) and `PhoneTabBar` (bottom bar:
+  Queues, Monitor, Alerts, More). The `more` area shows `MorePage`: rows for Configuration, Gamepacks, and Update, and
+  dimmed rows for the desktop-only areas (feature 205). In phone mode with no `area` URL
   parameter, the app opens Queues. Desktop opens Authoring.
+- **Desktop shell**: `AppBar` (5 top tabs and the connection state) and the shared `SubTabs` row for Authoring and
+  Settings. The group functions in `types/navigation.ts` (`mainTabOf`, `phoneTabOf`, `hasMoreBack`, `desktopArea`) map an
+  area to its tab (feature 205).
 - **Phone support levels**: each `NavigationArea` has the field `phone`: `full`, `reduced`, `desktop-only`, or `hidden`.
   Queues is `reduced`. Authoring and Execution Logs are `desktop-only`. Execution is `hidden` (feature 140): no phone list
   shows it, and a phone link to it shows Queues. Other areas are `full`. In phone mode a

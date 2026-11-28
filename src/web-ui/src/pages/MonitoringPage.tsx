@@ -328,7 +328,7 @@ export const MonitoringPage: React.FC<MonitoringPageProps> = ({ layout, connecti
     >
       {current ? renderDetail(current) : (
         <>
-          <PageHeader title="Monitoring" />
+          <PageHeader title="Monitor" />
           {notices}
           <SessionList sessions={sessions ?? []} state={listState} onSelect={select} mode={phone ? 'phone' : 'desktop'} />
         </>

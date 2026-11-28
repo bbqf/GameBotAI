@@ -17,7 +17,7 @@ The browser tests and the unit tests check these points.
 | D-09 | The text "GameBot Web UI" does not show. |
 | D-10 | The address names no area: Authoring > Commands shows. |
 | D-11 | Each page of D-05 to D-08 shows exactly one page title heading (`.ui-page-header__title`, or the page's own title where the page has not moved yet). |
-| D-12 | At 1024 x 768 the app bar is 56 px high (±1) and each top tab and the connection state are on one line (same `top` ±1). |
+| D-12 | At 1024 x 768 the app bar is 56 px high (±1) and each top tab and the connection state are on one line (same vertical centre ±1). |
 | D-13 | The document title is "GameBot". |
 | D-14 | Each area of D-02 and D-05 opens with at most 2 clicks from Queues (top tab, then sub-tab). |
 

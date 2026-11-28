@@ -11,6 +11,7 @@ import { ParameterBindingForm } from '../components/parameters/ParameterBindingF
 import type { ParameterBinding } from '../components/parameters/types';
 import { CollapsibleSection } from '../components/CollapsibleSection';
 import { useLayoutMode } from '../hooks/useLayoutMode';
+import { PageHeader } from '../components/ui/PageHeader';
 import './Execution.phone.css';
 
 /** On a phone a form section sits in a collapsible block, so one primary action shows at a time. */
@@ -319,7 +320,7 @@ export const ExecutionPage: React.FC = () => {
 
   return (
     <div className="execution-view">
-      {!phone && <h1>Execution</h1>}
+      {!phone && <PageHeader title="Execution" />}
       {gamesError && <div className="form-error" role="alert">{gamesError}</div>}
       {devicesError && <div className="form-error" role="alert">{devicesError}</div>}
       {error && <div className="form-error" role="alert">{error}</div>}

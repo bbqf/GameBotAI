@@ -232,6 +232,7 @@ Status vocabulary:
 | 202 | Shared UI components and design tokens; Queues list | Implemented |
 | 203 | Notifications area on the shared UI components | Implemented |
 | 204 | Monitoring area on the shared UI components | Implemented |
+| 205 | Navigation (app bar, sub-tabs, bottom bar, More page) on the UI guidelines | Implemented |
 
 ## Numbering notes
 

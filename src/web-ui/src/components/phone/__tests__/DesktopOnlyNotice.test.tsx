@@ -8,7 +8,7 @@ describe('DesktopOnlyNotice', () => {
     render(<DesktopOnlyNotice areaLabel="Authoring" onBack={onBack} />);
     expect(screen.getByRole('heading', { name: 'Authoring' })).toBeInTheDocument();
     expect(screen.getByText('Use a larger screen for this area.')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Back to Queues' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Back to More' }));
     expect(onBack).toHaveBeenCalledTimes(1);
   });
 });

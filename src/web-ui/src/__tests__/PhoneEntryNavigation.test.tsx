@@ -256,7 +256,7 @@ describe('Phone entry page navigation (feature 185, rules P-01, E-11, M-01, M-02
     it('asks the operator for a tab bar move too, and stays on the page', async () => {
       await openAndType();
 
-      fireEvent.click(screen.getByRole('button', { name: 'Monitoring' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Monitor' }));
 
       expect(await screen.findByRole('alertdialog', { name: 'Unsaved changes' })).toBeInTheDocument();
       expect(screen.queryByTestId('monitoring-page')).toBeNull();

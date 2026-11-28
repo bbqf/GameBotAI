@@ -270,7 +270,7 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
       if (successMessage) setTableMessage(successMessage);
     } catch (err: any) {
       // Start/stop request errors (e.g. 409 already_running) surface here; the run's own
-      // pass/fail outcome is recorded in the Execution Logs.
+      // pass/fail outcome is recorded in the Execution logs.
       setTableError(err?.message ?? 'Action failed');
     }
   };
@@ -519,7 +519,7 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
           renderActions={(q) => (
             <QueueRowActions
               queue={q}
-              onStart={(id) => void runAction(id, startQueue, 'Queue started — see Execution Logs for progress and the run outcome.')}
+              onStart={(id) => void runAction(id, startQueue, 'Queue started — see Execution logs for progress and the run outcome.')}
               onStop={(id) => void runAction(id, stopQueue, 'Queue stopped.')}
               onEdit={(id) => void openEdit(id)}
               onDuplicate={() => { setDuplicateError(undefined); setDuplicateSource(q); }}

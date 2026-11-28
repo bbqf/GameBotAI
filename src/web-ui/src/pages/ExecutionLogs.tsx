@@ -8,6 +8,7 @@ import {
   getExecutionSubtree,
   listExecutionLogs
 } from '../services/executionLogsApi';
+import { PageHeader } from '../components/ui/PageHeader';
 import { GridRow, projectEntryRow, projectNodeRow, statusLabel } from './executionLogGrid';
 
 const PAGE_SIZE = 50;
@@ -322,7 +323,7 @@ export const ExecutionLogsPage: React.FC = () => {
 
   return (
     <div className="execution-logs-view">
-      <h1>Execution Logs</h1>
+      <PageHeader title="Execution logs" />
       {renderGrid()}
     </div>
   );

@@ -14,13 +14,15 @@ describe('Update area', () => {
     jest.restoreAllMocks();
   });
 
-  it('is a top-level tab and not an Authoring tab', async () => {
+  it('is a Settings sub-tab and not an Authoring tab', async () => {
     render(<App />);
-    expect(screen.getAllByRole('tab', { name: 'Update' })).toHaveLength(1);
+    expect(screen.queryByRole('tab', { name: 'Update' })).toBeNull();
 
+    fireEvent.click(screen.getByRole('tab', { name: 'Settings' }));
+    expect(screen.getAllByRole('tab', { name: 'Update' })).toHaveLength(1);
     fireEvent.click(screen.getByRole('tab', { name: 'Update' }));
 
-    expect(await screen.findByRole('heading', { name: 'Update', level: 1 })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Update', level: 2 })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Check for Update' })).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Backup & Restore' })).not.toBeInTheDocument();
   });

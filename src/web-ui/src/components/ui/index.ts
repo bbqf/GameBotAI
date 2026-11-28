@@ -17,3 +17,5 @@ export { ConfirmDialog } from './ConfirmDialog';
 export { SidePanel } from './SidePanel';
 export { Toggle } from './Toggle';
 export { SectionHeader } from './SectionHeader';
+export { SubTabs } from './SubTabs';
+export type { SubTabsProps } from './SubTabs';

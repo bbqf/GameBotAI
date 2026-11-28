@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { setRememberToken, setToken, token$ } from './lib/token';
 import { setBaseUrl } from './lib/config';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { Nav, AuthoringTab } from './components/Nav';
 import { CommandsPage } from './pages/CommandsPage';
 import { GamesPage } from './pages/GamesPage';
 import { SequencesPage } from './pages/SequencesPage';
@@ -13,13 +12,28 @@ import { normalizeTab } from './lib/navigation';
 import { useLayoutMode } from './hooks/useLayoutMode';
 import { useConnectionState } from './hooks/useConnectionState';
 import { clearUnauthorized, useUnauthorized } from './lib/unauthorized';
-import { Navigation } from './components/Navigation';
+import { AppBar } from './components/AppBar';
+import { SubTabs } from './components/ui/SubTabs';
+import { PageHeader } from './components/ui/PageHeader';
 import { PhoneHeader } from './components/phone/PhoneShell';
 import { PhoneTabBar } from './components/phone/PhoneTabBar';
 import { ConnectionBanner } from './components/phone/ConnectionBanner';
 import { DesktopOnlyNotice } from './components/phone/DesktopOnlyNotice';
+import { MorePage } from './components/phone/MorePage';
 import { PhoneQueuesView } from './components/queues/PhoneQueuesView';
-import { NavigationAreaId, navigationAreas, isPhoneVisible } from './types/navigation';
+import {
+  AUTHORING_TABS,
+  AuthoringTab,
+  MainTabId,
+  NavigationAreaId,
+  SETTINGS_FIRST,
+  SETTINGS_SUB_TABS,
+  desktopArea,
+  hasMoreBack,
+  isPhoneVisible,
+  mainTabOf,
+  navigationAreas
+} from './types/navigation';
 import { initFirstEntry, parseAddress, pushScreen, replaceScreen } from './lib/phoneHistory';
 import { shouldBlockLeave } from './lib/phoneLeaveGuard';
 import { CONFIGURATION_AREA_PATH, ConfigurationPage } from './pages/Configuration';
@@ -50,8 +64,9 @@ const legacyPathToTab = (pathname: string): { tab: AuthoringTab; create?: boolea
 const getInitialArea = (phone: boolean): NavigationAreaId => {
   const params = new URLSearchParams(window.location.search);
   const requested = params.get('area');
-  if (requested === 'configuration' || requested === 'execution' || requested === 'execution-logs' || requested === 'authoring' || requested === 'queues' || requested === 'notifications' || requested === 'update' || requested === 'gamepacks' || requested === 'monitoring') return requested;
+  if (requested === 'configuration' || requested === 'execution' || requested === 'execution-logs' || requested === 'authoring' || requested === 'queues' || requested === 'notifications' || requested === 'update' || requested === 'gamepacks' || requested === 'monitoring' || requested === 'more') return requested;
   const path = window.location.pathname.toLowerCase();
+  if (path.startsWith('/more')) return 'more';
   if (path.startsWith(CONFIGURATION_AREA_PATH)) return 'configuration';
   if (path.startsWith(EXECUTION_LOGS_AREA_PATH)) return 'execution-logs';
   if (path.startsWith(NOTIFICATIONS_AREA_PATH)) return 'notifications';
@@ -63,8 +78,6 @@ const getInitialArea = (phone: boolean): NavigationAreaId => {
   // Phone mode opens Queues when the URL names no area (contract C-03).
   return phone ? 'queues' : 'authoring';
 };
-
-const isAreaVisible = (_areaId: NavigationAreaId): boolean => true;
 
 /** A phone request for a hidden area shows Queues (contract A-03). */
 const phoneAreaOrQueues = (area: NavigationAreaId): NavigationAreaId => {
@@ -90,7 +103,7 @@ export const App: React.FC = () => {
   const layoutMode = useLayoutMode();
   const phone = layoutMode === 'phone';
   const [reloadSignal, setReloadSignal] = useState(0);
-  const connectionState = useConnectionState(() => setReloadSignal((s) => s + 1), phone);
+  const connectionState = useConnectionState(() => setReloadSignal((s) => s + 1), true);
   const unauthorized = useUnauthorized();
   const initialLocation = useMemo(() => {
     const searchParams = new URLSearchParams(window.location.search);
@@ -111,7 +124,7 @@ export const App: React.FC = () => {
 
   const [activeArea, setActiveArea] = useState<NavigationAreaId>(() => {
     const area = getInitialArea(phone);
-    return phone ? phoneAreaOrQueues(area) : area;
+    return phone ? phoneAreaOrQueues(area) : desktopArea(area);
   });
   // The open queue of the phone Queues area. It lives here so the address and the history own it (plan D-7).
   const [selectedQueueId, setSelectedQueueId] = useState<string | null>(() => (
@@ -152,6 +165,11 @@ export const App: React.FC = () => {
     setActiveArea(next);
     setSelectedQueueId(null);
     setSelectedEntryId(null);
+  };
+
+  // A click on the Settings tab always opens its first page. Another tab opens the area of the same name.
+  const handleMainTab = (next: MainTabId) => {
+    handleAreaChange(next === 'settings' ? SETTINGS_FIRST : next);
   };
 
   const handleOpenQueue = (id: string | null) => {
@@ -206,6 +224,11 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('popstate', onPopState);
   }, [phone]);
 
+  // The desktop has no More page. A change from the phone layout while More is open shows the first Settings page.
+  useEffect(() => {
+    if (!phone && activeArea === 'more') setActiveArea(desktopArea(activeArea));
+  }, [phone, activeArea]);
+
   // A hidden area never shows on a phone. The redirect replaces the entry (contract H-05).
   useEffect(() => {
     if (!phone) return;
@@ -234,16 +257,8 @@ export const App: React.FC = () => {
     window.history.replaceState(window.history.state, '', next);
   }, [tab, activeArea, selectedQueueId, selectedEntryId, phone]);
 
-  const Navbar = useMemo(() => (
-    <nav className="navbar">
-      <div className="brand">GameBot Web UI</div>
-    </nav>
-  ), []);
-
   const renderAuthoring = () => (
     <section id="authoring-panel" className="authoring">
-      <h1>Authoring</h1>
-      <Nav active={tab} onChange={handleTabChange} />
       <ErrorBoundary>
         {tab === 'Commands' && <CommandsPage initialCreate={creationTarget === 'commands'} initialEditId={requestedTab === 'Commands' ? initialId : undefined} navResetSignal={authoringResetSignal} />}
         {tab === 'Games' && <GamesPage initialCreate={creationTarget === 'games'} initialEditId={requestedTab === 'Games' ? initialId : undefined} navResetSignal={authoringResetSignal} />}
@@ -266,7 +281,7 @@ export const App: React.FC = () => {
 
   const renderConfiguration = () => (
     <section id="configuration-panel" className="configuration">
-      {!phone && <h1>Configuration</h1>}
+      {!phone && <PageHeader title="Configuration" />}
       <ConfigurationPage
         token={token}
         onTokenChange={(t) => setToken(t)}
@@ -302,7 +317,7 @@ export const App: React.FC = () => {
 
   const renderUpdate = () => (
     <section id="update-panel" className="update">
-      {!phone && <h1>Update</h1>}
+      {!phone && <PageHeader title="Update" />}
       <ErrorBoundary>
         <UpdatePage />
       </ErrorBoundary>
@@ -311,7 +326,7 @@ export const App: React.FC = () => {
 
   const renderGamepacks = () => (
     <section id="gamepacks-panel" className="gamepacks">
-      {!phone && <h1>Gamepacks</h1>}
+      {!phone && <PageHeader title="Gamepacks" />}
       <ErrorBoundary>
         <GamepacksPage />
       </ErrorBoundary>
@@ -339,8 +354,9 @@ export const App: React.FC = () => {
     if (isLegacyTriggersPath) return renderNotFound();
     // A desktop-only area never renders its content on a phone (contract C-04).
     if (phone && activeAreaDef?.phone === 'desktop-only') {
-      return <DesktopOnlyNotice areaLabel={activeAreaDef.label} onBack={() => handleAreaChange('queues')} />;
+      return <DesktopOnlyNotice areaLabel={activeAreaDef.label} onBack={() => handleAreaChange('more')} />;
     }
+    if (activeArea === 'more') return <MorePage onOpen={handleAreaChange} />;
     if (activeArea === 'authoring') return renderAuthoring();
     if (activeArea === 'queues') return renderQueues();
     if (activeArea === 'monitoring') return renderMonitoring();
@@ -352,20 +368,30 @@ export const App: React.FC = () => {
     return renderExecution();
   };
 
+  const activeMainTab = mainTabOf(activeArea);
+  const settingsTabs = SETTINGS_SUB_TABS.map((id) => ({
+    id,
+    label: navigationAreas.find((a) => a.id === id)?.label ?? id
+  }));
+  const authoringTabs = AUTHORING_TABS.map((id) => ({ id, label: id }));
+
   return (
     <div className={phone ? 'app app--phone' : 'app'}>
       {/* The <main> element keeps its position in both modes, so area content does not remount on a mode change. */}
       {phone ? (
-        <PhoneHeader title={activeAreaDef?.label ?? ''} />
+        <PhoneHeader
+          title={activeAreaDef?.label ?? ''}
+          onBack={hasMoreBack(activeArea) ? () => handleAreaChange('more') : undefined}
+        />
       ) : (
         <>
-          {Navbar}
-          <Navigation
-            areas={navigationAreas}
-            activeArea={activeArea}
-            onChange={handleAreaChange}
-            isAreaVisible={isAreaVisible}
-          />
+          <AppBar activeTab={activeMainTab} onSelect={handleMainTab} connectionState={connectionState} />
+          {activeMainTab === 'authoring' && (
+            <SubTabs ariaLabel="Authoring Navigation" tabs={authoringTabs} active={tab} onSelect={handleTabChange} />
+          )}
+          {activeMainTab === 'settings' && (
+            <SubTabs ariaLabel="Settings Navigation" tabs={settingsTabs} active={activeArea} onSelect={handleAreaChange} />
+          )}
         </>
       )}
       <main className="content">
